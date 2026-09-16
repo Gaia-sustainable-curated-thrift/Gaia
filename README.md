@@ -10,6 +10,16 @@ Gaia juga menyediakan fitur **Community** sebagai ruang bagi pengguna untuk berb
 
 ---
 
+## Anggota Kelompok
+| No. | Nama                | NPM          |
+| --: | ------------------- | ------------ |
+|   1 | **Danar Iqbal Abi Zaidan Suharso** | `2506534371` |
+|   2 | **I Gede Devadatta A.D**            | `2506622481` |
+|   3 | **Keisha Janice Maulina Napitupulu**          | `2506551232` |
+|   4 | **Kayla Kirana Ali Trimardhany**           | `2506603854` |
+|   5 | **Salma Maharani**           | `2506586532` |
+
+
 ## User Roles
 
 | Role                | Deskripsi                                                                    | Hak Akses                                                                                                   |
