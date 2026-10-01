@@ -15,5 +15,8 @@ urlpatterns = [
         include("accounts.urls")
     ),
 
+    # URL django-allauth (Google login: /accounts/google/login/)
+    path("accounts/", include("allauth.urls")),
+
     path("", home),
 ]
