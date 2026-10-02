@@ -1,0 +1,119 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAIA</title>
+    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+</head>
+<body>
+    <main class="landing-canvas" id="top">
+        <nav class="topbar" aria-label="Main navigation">
+            <div class="nav-left">
+                <button class="icon-button" type="button" aria-label="Open menu">
+                    <span class="menu-icon" aria-hidden="true"></span>
+                </button>
+
+                <a class="brand" href="/" aria-label="GAIA home">
+                    <span class="brand-logo" aria-hidden="true">G</span>
+                    <span class="brand-name">GAIA</span>
+                </a>
+            </div>
+
+            <form class="search" role="search">
+                <span class="search-icon" aria-hidden="true"></span>
+                <input
+                    type="search"
+                    aria-label="Search"
+                    placeholder="Search vintage denim, wool coats, silk scarves, or sustainable brands..."
+                >
+            </form>
+
+            <div class="nav-actions">
+                <a class="icon-button" href="/accounts/login/" aria-label="Login">
+                    <span class="user-icon" aria-hidden="true"></span>
+                </a>
+                <a class="icon-button" href="/accounts/register/" aria-label="Create account">
+                    <span class="bag-icon" aria-hidden="true"></span>
+                </a>
+                <a class="account-link" href="/accounts/login/">
+                    <span class="avatar" aria-hidden="true"></span>
+                    <span>
+                        {% if request.user.is_authenticated %}
+                            Hi, {{ request.user.username }}
+                        {% else %}
+                            Hi, Gaia
+                        {% endif %}
+                    </span>
+                </a>
+            </div>
+        </nav>
+
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <h1 id="hero-title">We&rsquo;re Cooking</h1>
+                <p>Stay tuned!</p>
+            </div>
+
+            <div class="hero-mark" aria-hidden="true">
+                <span class="steam steam-a"></span>
+                <span class="steam steam-b"></span>
+                <span class="steam steam-c"></span>
+                <span class="serving-dish"></span>
+                <span class="garnish"></span>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <div class="footer-main">
+                <div class="footer-top">
+                    <div class="footer-logo" aria-hidden="true">GAIA</div>
+
+                    <div class="footer-content">
+                        <a class="footer-brand" href="/">GAIA</a>
+
+                        <div class="footer-links">
+                            <section class="footer-column" aria-labelledby="about-title">
+                                <h2 id="about-title">About Us</h2>
+                                <a href="#">Mission</a>
+                                <a href="#">Team</a>
+                                <a href="#">Newsletter</a>
+                            </section>
+
+                            <section class="footer-column" aria-labelledby="support-title">
+                                <h2 id="support-title">Support</h2>
+                                <a href="#">Contact</a>
+                                <a href="#">Refund Policy</a>
+                                <a href="#">FAQ&rsquo;s</a>
+                            </section>
+
+                            <section class="footer-column" aria-labelledby="social-title">
+                                <h2 id="social-title">Social</h2>
+                                <a href="#">Instagram</a>
+                                <a href="#">LinkedIn</a>
+                                <a href="#">YouTube</a>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer-divider"></div>
+
+                <div class="footer-bottom">
+                    <div class="legal-links">
+                        <span>Copyright @ GAIA</span>
+                        <a href="#">Terms of Service</a>
+                    </div>
+
+                    <a class="back-to-top" href="#top">
+                        <span>Back to top</span>
+                        <span class="arrow-up" aria-hidden="true"></span>
+                    </a>
+                </div>
+            </div>
+        </footer>
+    </main>
+</body>
+</html>
