@@ -8,6 +8,8 @@ Selain fitur jual-beli seperti checkout, offer, chat, wishlist, dan rating, Gaia
 
 Gaia juga menyediakan fitur **Community** sebagai ruang bagi pengguna untuk berbagi outfit, thrift finds, tips fashion, serta berinteraksi dengan pengguna lain.
 
+Link desain: https://www.figma.com/design/gTTsLkfL1qaaPdEomnRfKf/Gaia?node-id=1-4&t=S3z03qUIKvsz1lNL-1
+
 ---
 
 ## Anggota Kelompok
