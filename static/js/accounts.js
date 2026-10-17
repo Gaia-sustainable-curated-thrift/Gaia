@@ -1,22 +1,3 @@
-const menuToggle = document.querySelector('[data-menu-toggle]');
-const menu = document.getElementById('header-menu');
-menuToggle?.addEventListener('click', () => {
-  menu.hidden = !menu.hidden;
-  menuToggle.setAttribute('aria-expanded', String(!menu.hidden));
-});
-document.addEventListener('click', (event) => {
-  if (menu && !menu.hidden && !menu.contains(event.target) && !menuToggle.contains(event.target)) {
-    menu.hidden = true;
-    menuToggle.setAttribute('aria-expanded', 'false');
-  }
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && menu && !menu.hidden) {
-    menu.hidden = true;
-    menuToggle.setAttribute('aria-expanded', 'false');
-    menuToggle.focus();
-  }
-});
 const logoutDialog = document.getElementById('logout-dialog');
 document.querySelectorAll('[data-logout]').forEach(button => button.addEventListener('click', () => logoutDialog.showModal()));
 document.querySelector('[data-close-dialog]')?.addEventListener('click', () => logoutDialog.close());

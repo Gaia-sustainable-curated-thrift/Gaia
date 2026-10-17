@@ -3,17 +3,18 @@
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>
 {% block title %}{{ title|default:"My Account" }}
 {% endblock %} · GAIA</title><link rel="stylesheet" href="{% static 'css/accounts.css' %}"><script src="{% static 'js/accounts.js' %}" defer></script>
+<link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+    <script src="{% static 'js/navigation.js' %}" defer></script>
 </head>
 <body id="top">
 {% include 'includes/icons.html' %}
+    {% include 'includes/site_drawer.html' %}
 <header class="topbar">
-<div class="brand-group"><button class="icon-button" type="button" aria-label="Open account menu" aria-expanded="false" aria-controls="header-menu" data-menu-toggle>{% include 'includes/icon.html' with name='menu' %}</button><a class="brand" href="/"><img src="{% static 'images/gaia-logo.png' %}" alt="" width="48" height="48"><span>GAIA</span></a>
+<div class="brand-group"><button class="icon-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer" aria-haspopup="dialog" data-menu-toggle>{% include 'includes/icon.html' with name='menu' %}</button><a class="brand" href="/"><img src="{% static 'images/gaia-logo.png' %}" alt="" width="48" height="48"><span>GAIA</span></a>
 </div>
 <div class="search-display">{% include 'includes/icon.html' with name='search' %}<span>Search vintage denim, clothing, or sustainable brands...</span>
 </div>
 <nav class="nav-actions" aria-label="Account navigation">{% if user.is_authenticated %}<a class="icon-button" href="{% url 'orders' %}" aria-label="Orders">{% include 'includes/icon.html' with name='bag' %}</a><a class="icon-button" href="{% url 'wishlist' %}" aria-label="Wishlist">{% include 'includes/icon.html' with name='heart' %}</a><a class="account-link" href="{% url 'profile' %}"><span class="nav-avatar" aria-hidden="true"></span>Hi, {{ user.first_name|default:user.username|truncatechars:14 }}</a>{% else %}<a class="account-link" href="{% url 'login' %}">Log In</a>{% endif %}
-</nav>
-<nav id="header-menu" class="header-menu" hidden><a href="/">Home</a>{% if user.is_authenticated %}<a href="{% url 'profile' %}">Profile</a><a href="{% url 'orders' %}">Orders</a><a href="{% url 'wishlist' %}">Wishlist</a><a href="{% url 'account_settings' %}">Account Settings</a>{% else %}<a href="{% url 'login' %}">Log In</a><a href="{% url 'register' %}">Sign Up</a>{% endif %}
 </nav>
 </header>
 {% block main %}

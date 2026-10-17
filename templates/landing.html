@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,14 +9,17 @@
     <link rel="preload" href="{% static 'fonts/cormorant-garamond-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{% static 'css/landing.css' %}">
     <script src="{% static 'js/landing.js' %}" defer></script>
+<link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+    <script src="{% static 'js/navigation.js' %}" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
     {% include 'includes/icons.html' %}
+    {% include 'includes/site_drawer.html' %}
     <div class="landing-canvas" id="top">
         <header class="topbar">
             <div class="nav-left">
-                <button class="icon-button menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="landing-menu" data-menu-toggle>
+                <button class="icon-button menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer" aria-haspopup="dialog" data-menu-toggle>
                     {% include 'includes/icon.html' with name='menu' %}
                 </button>
                 <a class="brand" href="/" aria-label="GAIA home">
@@ -44,19 +47,6 @@
                     <span class="avatar" aria-hidden="true"></span>
                     <span>{% if user.is_authenticated %}Hi, {{ user.first_name|default:user.username|truncatechars:12 }}{% else %}Log In{% endif %}</span>
                 </a>
-            </nav>
-
-            <nav class="header-menu" id="landing-menu" aria-label="Main menu" hidden>
-                <a href="/" aria-current="page">Home</a>
-                {% if user.is_authenticated %}
-                <a href="{% url 'profile' %}">Profile</a>
-                <a href="{% url 'orders' %}">Orders</a>
-                <a href="{% url 'wishlist' %}">Wishlist</a>
-                <a href="{% url 'account_settings' %}">Account Settings</a>
-                {% else %}
-                <a href="{% url 'login' %}">Log In</a>
-                <a href="{% url 'register' %}">Sign Up</a>
-                {% endif %}
             </nav>
         </header>
 

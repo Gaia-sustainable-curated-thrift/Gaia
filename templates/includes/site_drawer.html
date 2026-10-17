@@ -1,0 +1,42 @@
+{% load static %}
+<dialog class="site-drawer" id="site-drawer" aria-label="Browse GAIA">
+    <div class="site-drawer-main">
+        <button class="site-drawer-close" type="button" aria-label="Close menu" data-drawer-close>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg>
+        </button>
+        <a class="site-drawer-brand" href="/" aria-label="GAIA home">
+            <img src="{% static 'images/gaia-logo.png' %}" width="44" height="44" alt="">
+            <span>GAIA</span>
+        </a>
+        <div class="site-drawer-search" role="search" aria-label="Product search">
+            {% include 'includes/icon.html' with name='search' %}
+            <input type="search" placeholder="Search now…" aria-label="Product search, coming soon" readonly>
+        </div>
+        <nav class="site-drawer-categories" aria-label="Shop by category">
+            <button type="button" data-drawer-category="Women's">Women's <span aria-hidden="true">→</span></button>
+            <button type="button" data-drawer-category="Men's">Men's <span aria-hidden="true">→</span></button>
+            <button type="button" data-drawer-category="Tops">Tops <span aria-hidden="true">→</span></button>
+            <button type="button" data-drawer-category="Bottoms">Bottoms <span aria-hidden="true">→</span></button>
+            <button type="button" data-drawer-category="Shoes">Shoes <span aria-hidden="true">→</span></button>
+            <button type="button" data-drawer-category="Bags">Bags <span aria-hidden="true">→</span></button>
+        </nav>
+        <p class="site-drawer-status" role="status" data-drawer-status hidden></p>
+    </div>
+    <div class="site-drawer-bottom">
+        <div class="site-drawer-sell-wrap">
+            {% if user.is_authenticated %}
+            <button class="site-drawer-sell" type="button" data-drawer-sell>Sell <span aria-hidden="true">＋</span></button>
+            {% else %}
+            <a class="site-drawer-sell" href="{% url 'register' %}">Sell <span aria-hidden="true">＋</span></a>
+            {% endif %}
+        </div>
+        <div class="site-drawer-account-bar">
+            <a class="site-drawer-account" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'login' %}{% endif %}">
+                <span class="site-drawer-avatar" aria-hidden="true"></span>
+                <span class="site-drawer-name">{% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}{% else %}Log In{% endif %}</span>
+            </a>
+            <a class="site-drawer-account-icon" href="{% url 'orders' %}" aria-label="My orders">{% include 'includes/icon.html' with name='bag' %}</a>
+            <a class="site-drawer-account-icon" href="{% url 'wishlist' %}" aria-label="My wishlist">{% include 'includes/icon.html' with name='heart' %}</a>
+        </div>
+    </div>
+</dialog>
