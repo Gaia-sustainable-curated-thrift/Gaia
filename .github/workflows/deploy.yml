@@ -1,0 +1,37 @@
+name: Push to PWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pws-gaia-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Gaia to PWS
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push to PWS master
+        env:
+          PWS_URL: ${{ secrets.PWS_URL }}
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          if [[ -z "$PWS_URL" ]]; then
+            echo "::error::Repository secret PWS_URL is missing."
+            exit 1
+          fi
+          git push "$PWS_URL" HEAD:refs/heads/master

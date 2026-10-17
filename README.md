@@ -78,6 +78,14 @@ Gaia terdiri dari 10 modul utama:
 
 **Gaia — A circular fashion marketplace where every piece gets a second chance.**
 
+## Auto deploy ke PWS
+
+Workflow `.github/workflows/deploy.yml` berjalan setiap ada push atau merge ke branch GitHub `main`, lalu mengirim commit tersebut ke branch `master` PWS Gaia. Deploy juga bisa dijalankan dari tab **Actions > Push to PWS > Run workflow**, dengan branch `main`.
+
+Repository secret `PWS_URL` harus berisi URL Git PWS dengan kredensial proyek, dikelola melalui **Settings > Secrets and variables > Actions**. Jangan masukkan kredensial ke file repository. Workflow memakai `actions/checkout@v7`, mengambil seluruh riwayat Git, dan mengantre deployment agar tidak bertabrakan. Push tidak memakai force; riwayat PWS yang berbeda perlu disinkronkan sebelum deployment bisa lanjut.
+
+Untuk merilis perubahan, push atau merge feature branch ke `main`, lalu cek hasil **Push to PWS** di tab Actions. Tidak perlu push PWS manual lagi. Build aplikasi tetap dijalankan oleh PWS setelah menerima push.
+
 ## Menjalankan halaman User
 
 ```powershell
