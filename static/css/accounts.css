@@ -206,29 +206,6 @@ hr {
     background:#d9d9d9;
 }
 
-.header-menu {
-    position:absolute;
-    top:calc(100% + 8px);
-    left:24px;
-    min-width:230px;
-    background:#fff;
-    box-shadow:0 10px 35px #272a1322;
-    border:1px solid var(--line);
-    border-radius:16px;
-    padding:12px;
-    z-index:10;
-}
-
-.header-menu a {
-    display:block;
-    padding:10px 16px;
-    border-radius:8px;
-}
-
-.header-menu a:hover {
-    background:var(--canvas);
-}
-
 .account-main {
     max-width:1248px;
     margin:24px auto 0;
