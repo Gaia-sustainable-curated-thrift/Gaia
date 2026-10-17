@@ -1,26 +1,17 @@
+{% extends 'registration/base.html' %}
 {% load socialaccount %}
-
-<h1>Login</h1>
-
-    <form method="POST">
-
-    {% csrf_token %}
-
-    {{ form.as_p }}
-
-    <button>
-     Login
-    </button>
-
-    </form>
-
-    <a href="/accounts/register/">
-    Create account
-</a>
-
-<form method="POST" action="{% provider_login_url 'google' %}">
-    {% csrf_token %}
-    <button type="submit">
-        Login with Google
-    </button>
-</form>
+{% block title %}Log In
+{% endblock %}
+{% block auth_content %}
+<h1>Welcome back
+</h1>
+<p class="muted">Log in and continue your sustainable story with GAIA.
+</p>
+<form method="post">{% csrf_token %}{% include 'includes/fields.html' %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}<a class="forgot-link" href="{% url 'password_reset' %}">Forgot password?</a><button class="button full-width" type="submit">Log In</button>
+</form>{% if google_login_enabled %}
+<form class="google-login" method="post" action="{% provider_login_url 'google' %}">{% csrf_token %}<button class="button secondary full-width" type="submit">Continue with Google</button>
+</form>{% endif %}
+<hr>
+<p class="auth-switch"><span class="muted">Don't have an account?</span><a href="{% url 'register' %}">Sign Up</a>
+</p>
+{% endblock %}

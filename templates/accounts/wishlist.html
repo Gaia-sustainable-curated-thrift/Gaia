@@ -1,0 +1,38 @@
+{% extends 'accounts/layout.html' %}
+{% load account_tags %}
+{% block account_content %}{% if items %}
+<p class="list-count">{{ items|length }} saved item{{ items|length|pluralize }}
+</p>
+<div class="wishlist-layout">
+<div class="wishlist-products">{% for item in items %}
+<article class="wishlist-card">{% include 'includes/product_image.html' %}
+<div class="wishlist-copy">
+<h3>{{ item.title }}
+</h3>
+<p>{{ item.condition }} · {{ item.size }}<br>{{ item.price|rupiah }}
+</p>
+<form method="post" action="{% url 'wishlist_remove' item.pk %}">{% csrf_token %}<button class="button" type="submit">Remove from Wishlist</button>
+</form>
+</div>
+</article>{% endfor %}
+</div>
+<aside class="card wishlist-note">
+<h2>Mindful choices. New stories.
+</h2>
+<p class="muted">Your favorite pre-loved items are saved here. Consider size, condition, and your needs before buying.
+</p>
+<p class="small muted">Your wishlist saves favorites; item availability may change.
+</p>
+</aside>
+</div>{% else %}
+<section class="card empty-state">{% include 'includes/icon.html' with name='heart' %}
+<h2>No favorites yet
+</h2>
+<p class="muted">Find something you love? Save it to revisit later.
+</p>{% if undo_id %}
+<form method="post" action="{% url 'wishlist_undo' %}">{% csrf_token %}<button class="button olive-button" type="submit">Undo Removal</button>
+</form>{% else %}<a class="button olive-button" href="/">Back to Home</a>{% endif %}
+</section>{% endif %}{% if items and undo_id %}
+<form class="undo-form" method="post" action="{% url 'wishlist_undo' %}">{% csrf_token %}<button class="text-button" type="submit">Undo Removal</button>
+</form>{% endif %}
+{% endblock %}

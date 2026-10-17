@@ -1,0 +1,27 @@
+{% extends 'accounts/layout.html' %}
+{% block account_content %}
+<section class="card">
+<h2>Account Security
+</h2>
+<p class="muted">Keep your account secure with up-to-date information.
+</p>
+<div class="security-row">{% include 'includes/icon.html' with name='check' %}
+<div><strong>Email</strong>
+<p class="muted">{{ user.email|default:'No email added' }}
+</p><small class="olive">{% if email_verified %}Email verified{% else %}Email not verified{% endif %}</small>
+</div>
+</div>
+<div class="security-row">{% include 'includes/icon.html' with name='lock' %}
+<div><strong>Password</strong>
+<p class="small muted">Use a unique password to keep your account secure.
+</p>
+</div><a class="button" href="{% url 'password_change' %}">Change Password</a>
+</div>
+<div class="security-row">{% include 'includes/icon.html' with name='profile' %}
+<div><strong>Active Session</strong>
+<p class="small muted">You are logged in as {{ user.get_full_name|default:user.username }}.
+</p>
+</div><button class="button" data-logout type="button">Log Out</button>
+</div>
+</section>
+{% endblock %}

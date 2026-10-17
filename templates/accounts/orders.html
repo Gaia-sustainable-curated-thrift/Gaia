@@ -1,0 +1,26 @@
+{% extends 'accounts/layout.html' %}
+{% load static account_tags %}
+{% block account_content %}{% if orders %}
+<p class="list-count">{{ orders|length }} order{{ orders|length|pluralize }} · All statuses
+</p>
+<div class="order-list">{% for order in orders %}
+<article class="card order-card">
+<div class="order-meta"><span>#{{ order.number }} · {{ order.date|date:'j F Y' }}</span><span class="status {{ order.status }}">{{ order.get_status_display }}</span>
+</div>
+<div class="order-product">{% include 'includes/product_image.html' with item=order %}
+<div>
+<h3>{{ order.title }}
+</h3>
+<p class="small muted">Size {{ order.size }} · {{ order.condition }} · 1 item
+</p><strong>{{ order.subtotal|rupiah }}</strong>
+</div><a class="button olive-button" href="{% url 'order_detail' order.pk %}">View Details</a>
+</div>
+</article>{% endfor %}
+</div>{% else %}
+<section class="card empty-state">{% include 'includes/icon.html' with name='bag' %}
+<h2>No orders yet
+</h2>
+<p class="muted">Your next pre-loved find will appear here.
+</p><a class="button olive-button" href="/">Back to Home</a>
+</section>{% endif %}
+{% endblock %}

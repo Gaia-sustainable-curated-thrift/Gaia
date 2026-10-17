@@ -38,7 +38,7 @@
                 <a class="icon-button" href="/accounts/register/" aria-label="Create account">
                     <span class="bag-icon" aria-hidden="true"></span>
                 </a>
-                <a class="account-link" href="/accounts/login/">
+                <a class="account-link" href="{% if request.user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'login' %}{% endif %}">
                     <span class="avatar" aria-hidden="true"></span>
                     <span>
                         {% if request.user.is_authenticated %}

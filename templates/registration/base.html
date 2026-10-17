@@ -1,0 +1,20 @@
+{% extends 'accounts/base.html' %}
+{% block main %}
+<main class="auth-main">
+<aside class="auth-story">
+<div><span class="small olive">GAIA</span>
+<h2>Every piece.<br>A new story.
+</h2>
+<p>Find your next favorite. Give fashion a second chance.
+</p>
+<hr>
+<h3>Small choices. Lasting change.
+</h3>
+</div>
+</aside>
+<section class="card auth-card">{% include 'includes/messages.html' %}
+{% block auth_content %}
+{% endblock %}
+</section>
+</main>
+{% endblock %}

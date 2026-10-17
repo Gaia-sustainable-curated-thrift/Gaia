@@ -1,0 +1,44 @@
+{% extends 'accounts/layout.html' %}
+{% load account_tags %}
+{% block account_content %}
+<section class="card profile-card">
+<div class="profile-banner">
+<div class="profile-avatar">{{ user|initials }}
+</div>
+<div>
+<h2>{{ user.get_full_name|default:user.username }}
+</h2>
+<p class="small muted">@{{ user.username }} · Joined {{ user.date_joined|date:'F Y' }}
+</p>
+</div><a class="button" href="{% url 'edit_profile' %}">Edit Profile</a>
+</div>
+<div class="verification small"><span>{% if email_verified %}Email verified ✓{% else %}Email not verified{% endif %}</span><span class="muted">Every small choice can make a difference.</span>
+</div>
+</section>
+<div class="profile-grid">
+<section class="card">
+<h2>Personal Information
+</h2>
+<p class="small muted">Account details for a more personal experience.
+</p>
+<hr>
+<dl class="details-grid">
+<div><dt>Full name</dt><dd>{{ user.get_full_name|default:'—' }}</dd>
+</div>
+<div><dt>Username</dt><dd>{{ user.username }}</dd>
+</div>
+<div><dt>Email</dt><dd>{{ user.email|default:'—' }}</dd>
+</div>
+<div><dt>Phone number</dt><dd>{{ profile.phone|default:'—' }}</dd>
+</div>
+</dl>
+<hr>
+<p class="small muted">{{ profile.city|default:'City not set' }}{% if profile.country %}, {{ profile.country }}{% endif %}
+</p>
+</section>
+<section class="card activity">
+<h2>My Activity
+</h2><a href="{% url 'orders' %}">{% include 'includes/icon.html' with name='bag' %}<span><strong>{{ order_count|stringformat:'02d' }}</strong><small>Orders</small></span></a><a href="{% url 'wishlist' %}">{% include 'includes/icon.html' with name='heart' %}<span><strong>{{ wishlist_count|stringformat:'02d' }}</strong><small>Wishlist items</small></span></a>
+</section>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends 'accounts/layout.html' %}
+{% load account_tags %}
+{% block account_content %}
+<section class="card order-card">
+<div class="order-status">{% if order.status == 'completed' %}{% include 'includes/icon.html' with name='check' %}{% else %}{% include 'includes/icon.html' with name='bag' %}{% endif %}
+<div>
+<h3 class="olive">{{ order.get_status_display }}
+</h3>
+<p class="small muted">{{ order.status_note }}
+</p>
+</div>
+</div>
+<hr>
+<div class="order-product">{% include 'includes/product_image.html' with item=order %}
+<div>
+<h3>{{ order.title }}
+</h3>
+<p class="small muted">Size {{ order.size }} · {{ order.condition }} · 1 item
+</p><strong>{{ order.subtotal|rupiah }}</strong>
+</div>
+</div>
+</section>
+<div class="summary-grid">
+<section class="card">
+<h2>Shipping Address
+</h2>
+<p class="small"><strong>{{ order.recipient }} · {{ order.phone }}</strong>
+</p>
+<p class="muted address">{{ order.address|linebreaksbr }}
+</p>
+<p class="small olive">{{ order.courier }}{% if order.tracking_number %} · {{ order.tracking_number }}{% endif %}
+</p>
+</section>
+<section class="card">
+<h2>Payment Summary
+</h2>
+<dl class="payment-details">
+<div><dt>Item subtotal</dt><dd>{{ order.subtotal|rupiah }}</dd>
+</div>
+<div class="muted"><dt>Shipping</dt><dd>{{ order.shipping|rupiah }}</dd>
+</div>
+<div class="total"><dt>Total</dt><dd>{{ order.total|rupiah }}</dd>
+</div>
+</dl>
+<p class="small muted">{% if order.status == 'awaiting_payment' %}Unpaid{% else %}Paid{% endif %} · {{ order.payment_method }}
+</p>
+</section>
+</div><a class="button olive-button" href="{% url 'orders' %}">Back to Orders</a>
+{% endblock %}

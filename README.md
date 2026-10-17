@@ -75,3 +75,46 @@ Gaia terdiri dari 10 modul utama:
 ---
 
 **Gaia — A circular fashion marketplace where every piece gets a second chance.**
+
+## Menjalankan halaman User
+
+```powershell
+.\env\Scripts\python.exe manage.py migrate
+.\env\Scripts\python.exe manage.py runserver
+```
+
+Buka `/accounts/register/` untuk membuat akun, atau `/accounts/login/` untuk login memakai email (username lama tetap didukung). Setelah login, pengguna masuk ke `/accounts/profile/`.
+
+Halaman yang tersedia:
+
+- `/accounts/profile/` dan `/accounts/profile/edit/`: profil, aktivitas, dan penyimpanan nama, username, telepon, kota, serta negara.
+- `/accounts/orders/` dan `/accounts/orders/<id>/`: daftar/detail pesanan dengan status in transit, completed, atau awaiting payment.
+- `/accounts/wishlist/`: favorit tersimpan, hapus, empty state, dan undo penghapusan terakhir.
+- `/accounts/settings/` dan `/accounts/password/change/`: keamanan akun dan penggantian password tanpa mengakhiri sesi.
+- `/accounts/password/reset/`: email reset, link bertoken, penggantian password, dan konfirmasi selesai.
+- Logout menggunakan dialog konfirmasi dan POST dengan CSRF.
+
+Registrasi mengirim link verifikasi email yang berlaku 24 jam. Status email hanya berubah setelah link valid dibuka; akun Google mengikuti status email terverifikasi dari allauth. Pengguna bisa melengkapi profil sambil menunggu verifikasi.
+
+Untuk pengembangan, email verifikasi/reset dicetak di terminal runserver, bukan dikirim ke inbox. Untuk mengirim email sungguhan, isi konfigurasi SMTP di `.env` sesuai `.env.example`. Tombol Google tampil jika client ID dan secret sudah dikonfigurasi.
+
+### Data demo dan integrasi modul
+
+Akun baru tidak otomatis memiliki order atau wishlist. Untuk melihat state berisi data sesuai referensi, buat akun lokal khusus demo lalu jalankan:
+
+```powershell
+.\env\Scripts\python.exe manage.py seed_account_demo --username <username-akun-demo>
+```
+
+Username otomatis dari nama lengkap bisa dilihat pada halaman Profile. Command ini idempotent dan menambahkan tiga order serta satu wishlist ke akun yang dipilih tanpa membuat atau mengubah password. Foto contoh diekstrak dari PNG referensi yang diberikan.
+
+`AccountOrder` adalah snapshot baca-saja untuk UI akun, dan `WishlistItem` menyimpan snapshot listing berdasarkan `product_key`. Keduanya perlu dihubungkan ke model Products/Marketplace ketika modul tersebut tersedia. UI tidak memproses pembayaran, checkout, atau menambah listing. Data sementara dapat dikelola lewat Django admin.
+
+### Validasi
+
+```powershell
+.\env\Scripts\python.exe manage.py check
+.\env\Scripts\python.exe manage.py test accounts
+```
+
+Tes mencakup akses halaman, login email, registrasi, verifikasi, simpan profil, pembatasan data antar pengguna, wishlist remove/undo, ganti/reset password, token sekali pakai, serta logout POST/CSRF. Layout memakai breakpoint desktop/tablet/mobile dan aset logo dari referensi. ZIP hanya menyertakan PNG; font memakai fallback lokal Georgia/Arial jika font desain tidak tersedia.
