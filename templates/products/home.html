@@ -1,0 +1,93 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% block title %}Shop{% endblock %}
+{% block main %}
+<main class="shop-main">
+
+    <section class="hero-banner">
+        <div class="hero-banner__copy">
+            <h1>Enjoy 10% OFF<br>Women Tops</h1>
+            <p>Until 23th October</p>
+            <a class="button" href="{% url 'products:listing' 'women' %}">Shop Now →</a>
+        </div>
+        <div class="hero-banner__media">
+            <img src="{% static 'images/hero_women.png' %}" alt="">
+        </div>
+    </section>
+
+    <section class="shop-section">
+        <div class="section-head">
+            <h2>Picked For You</h2>
+            <a class="button olive-button" href="{% url 'products:picked' %}">See more →</a>
+        </div>
+        <div class="product-grid">
+            {% for product in picked %}
+                {% include 'products/includes/product_card.html' with product=product %}
+            {% empty %}
+                <div class="state">
+                    {% include 'includes/icon.html' with name='bag' %}
+                    <h2>No items yet</h2>
+                    <p>Products will appear here once sellers add them.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="shop-section">
+        <h2 class="section-title-center">Discover</h2>
+        <div class="discover-grid">
+            <a class="discover-card" href="{% url 'products:listing' 'women' %}">
+                <img src="{% static 'images/discover-women.png' %}" alt="">
+                <span class="discover-card__sub">Shop for</span>
+                <span class="discover-card__title">Women</span>
+                <span class="button">Discover →</span>
+            </a>
+            <a class="discover-card" href="{% url 'products:listing' 'men' %}">
+                <img src="{% static 'images/discover-men.png' %}" alt="">
+                <span class="discover-card__sub">Shop for</span>
+                <span class="discover-card__title">Men</span>
+                <span class="button">Discover →</span>
+            </a>
+        </div>
+    </section>
+
+    <section class="shop-section">
+        <div class="section-head">
+            <h2>Shop By Categories</h2>
+            <div class="segment segment--category" role="tablist" aria-label="Choose department">
+                {% for parent in parents %}
+                <a class="segment__item {% if parent == active_parent %}is-active{% endif %}"
+                   href="?gender={{ parent.slug }}"
+                   {% if parent == active_parent %}aria-current="true"{% endif %}>{{ parent.name }}'s</a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="category-circles">
+            {% for category in categories %}
+            <a class="category-circle" href="{% if active_parent %}{% url 'products:listing' active_parent.slug %}?category={{ category.slug }}{% else %}#{% endif %}">
+                <span class="category-circle__img">
+                    {% if active_parent %}
+                    {% with path='images/cat-'|add:category.name|lower|add:'-'|add:active_parent.slug|add:'.png' %}
+                    <img src="{% static path %}" alt="" loading="lazy">
+                    {% endwith %}
+                    {% else %}
+                    <img src="{% static 'images/reference-coat.png' %}" alt="" loading="lazy">
+                    {% endif %}
+                </span>
+                <span>{{ category.name }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="sell-banner">
+        <img class="sell-banner__art" src="{% static 'images/sell-illustration.png' %}" alt="">
+        <div>
+            <h2>Got too many clothes?</h2>
+            <p>Clean some space in your wardrobe and help save the earth.</p>
+            <a class="button" href="#">Join Gaia Seller →</a>
+        </div>
+    </section>
+
+</main>
+{% endblock %}

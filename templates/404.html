@@ -1,0 +1,14 @@
+{% extends 'products/base.html' %}
+{% block title %}Page not found{% endblock %}
+{% block main %}
+<main class="shop-main">
+    <section class="notfound">
+        <div class="notfound__copy">
+            <h1>The page you&rsquo;re looking for is not here.</h1>
+            <p>It&rsquo;s not your fault.</p>
+            <a class="button" href="{% url 'products:home' %}">Go back home &rarr;</a>
+        </div>
+        <div class="notfound__art" role="img" aria-label="A person watering a flower"></div>
+    </section>
+</main>
+{% endblock %}
