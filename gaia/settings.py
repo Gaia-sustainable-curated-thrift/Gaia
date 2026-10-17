@@ -31,6 +31,9 @@ SECRET_KEY = 'django-insecure-bios4*e_#)eg^7-ctu!@+w4u(d^i70a%&r1(wri2nu4g-6)%dy
 DEBUG = True
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "danar-iqbal-gaia.pws.cs.ui.ac.id"]
+# PWS terminates HTTPS before forwarding requests to Django over HTTP.
+# Trust only this deployment's browser origin; CSRF tokens remain required.
+CSRF_TRUSTED_ORIGINS = ["https://danar-iqbal-gaia.pws.cs.ui.ac.id"]
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 # Application definition
 
