@@ -1,0 +1,36 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block main %}
+<main class="shop-main">
+
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="{% url 'products:home' %}">Home</a>
+        <span aria-hidden="true">/</span>
+        <span>{{ crumb }}</span>
+    </nav>
+
+    <h1 class="listing-title">{{ page_title }}</h1>
+
+    <div class="segment segment--full" role="tablist" aria-label="Choose category">
+        {% for category in categories %}
+        <a class="segment__item {% if category == active_category %}is-active{% endif %}"
+           href="{{ link_base }}?category={{ category.slug }}"
+           {% if category == active_category %}aria-current="true"{% endif %}>{{ category.name }}</a>
+        {% endfor %}
+    </div>
+
+    <div class="product-grid">
+        {% for product in products %}
+            {% include 'products/includes/product_card.html' with product=product %}
+        {% empty %}
+            <div class="state">
+                {% include 'includes/icon.html' with name='bag' %}
+                <h2>No items yet</h2>
+                <p>Products will appear here once sellers add them.</p>
+            </div>
+        {% endfor %}
+    </div>
+
+</main>
+{% endblock %}

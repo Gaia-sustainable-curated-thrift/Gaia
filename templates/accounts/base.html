@@ -5,12 +5,13 @@
 {% endblock %} · GAIA</title><link rel="stylesheet" href="{% static 'css/accounts.css' %}"><script src="{% static 'js/accounts.js' %}" defer></script>
 <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
     <script src="{% static 'js/navigation.js' %}" defer></script>
+{% block extra_css %}{% endblock %}
 </head>
 <body id="top">
 {% include 'includes/icons.html' %}
     {% include 'includes/site_drawer.html' %}
 <header class="topbar">
-<div class="brand-group"><button class="icon-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer" aria-haspopup="dialog" data-menu-toggle>{% include 'includes/icon.html' with name='menu' %}</button><a class="brand" href="/"><img src="{% static 'images/gaia-logo.png' %}" alt="" width="48" height="48"><span>GAIA</span></a>
+<div class="brand-group"><button class="icon-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer" aria-haspopup="dialog" data-menu-toggle>{% include 'includes/icon.html' with name='menu' %}</button><a class="brand" href="{% url 'products:home' %}"><img src="{% static 'images/gaia-logo.png' %}" alt="" width="48" height="48"><span>GAIA</span></a>
 </div>
 <div class="search-display">{% include 'includes/icon.html' with name='search' %}<span>Search vintage denim, clothing, or sustainable brands...</span>
 </div>
@@ -21,7 +22,7 @@
 {% endblock %}
 <footer class="site-footer">
 <div class="footer-top"><img class="footer-emblem" src="{% static 'images/gaia-emblem.png' %}" alt="GAIA">
-<div class="footer-content"><a href="/" class="footer-wordmark">GAIA</a>
+<div class="footer-content"><a href="{% url 'products:home' %}" class="footer-wordmark">GAIA</a>
 <div class="footer-columns">
 <section>
 <h2>About Us
