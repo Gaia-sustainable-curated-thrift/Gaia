@@ -187,3 +187,44 @@ class AccountFlowTests(TestCase):
         strict.force_login(self.user)
         self.assertEqual(strict.post(reverse('wishlist_remove', args=[self.item.pk])).status_code, 403)
         self.assertEqual(strict.post(reverse('wishlist_undo')).status_code, 403)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class PwsRegistrationCsrfTests(TestCase):
+    host = 'danar-iqbal-gaia.pws.cs.ui.ac.id'
+    origin = f'https://{host}'
+
+    def setUp(self):
+        self.client = Client(enforce_csrf_checks=True)
+        self.client.get(reverse('register'), HTTP_HOST=self.host)
+        self.token = self.client.cookies['csrftoken'].value
+        self.data = {
+            'full_name': 'PWS Test User',
+            'email': 'pws-test@example.com',
+            'password1': 'Circular!Fashion2026',
+            'password2': 'Circular!Fashion2026',
+        }
+
+    def test_https_origin_registration_through_http_proxy(self):
+        response = self.client.post(
+            reverse('register'), {**self.data, 'csrfmiddlewaretoken': self.token},
+            HTTP_HOST=self.host, HTTP_ORIGIN=self.origin,
+        )
+        self.assertRedirects(response, reverse('account_created'), fetch_redirect_response=False)
+        self.assertTrue(User.objects.filter(email=self.data['email']).exists())
+
+    def test_trusted_origin_still_requires_csrf_token(self):
+        response = self.client.post(
+            reverse('register'), self.data,
+            HTTP_HOST=self.host, HTTP_ORIGIN=self.origin,
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(User.objects.exists())
+
+    def test_untrusted_origin_is_rejected_with_valid_token(self):
+        response = self.client.post(
+            reverse('register'), {**self.data, 'csrfmiddlewaretoken': self.token},
+            HTTP_HOST=self.host, HTTP_ORIGIN='https://untrusted.example',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(User.objects.exists())
