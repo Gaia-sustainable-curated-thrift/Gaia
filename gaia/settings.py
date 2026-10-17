@@ -178,6 +178,9 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # Email dari Google sudah terverifikasi, jadi tidak perlu kirim email verifikasi
 ACCOUNT_EMAIL_VERIFICATION = 'none'
+# PWS forwards HTTPS traffic internally over HTTP. Keep OAuth callback URLs HTTPS.
+# Local development can explicitly opt into HTTP in its untracked .env file.
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = os.getenv('ACCOUNT_DEFAULT_HTTP_PROTOCOL', 'https')
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 

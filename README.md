@@ -108,6 +108,8 @@ Registrasi mengirim link verifikasi email yang berlaku 24 jam. Status email hany
 
 Untuk pengembangan, email verifikasi/reset dicetak di terminal runserver, bukan dikirim ke inbox. Untuk mengirim email sungguhan, isi konfigurasi SMTP di `.env` sesuai `.env.example`. Tombol Google tampil jika client ID dan secret sudah dikonfigurasi.
 
+Google OAuth di PWS memakai callback `https://danar-iqbal-gaia.pws.cs.ui.ac.id/accounts/google/login/callback/`. Daftarkan URL ini persis, termasuk HTTPS dan slash terakhir, pada **Authorized redirect URIs** client OAuth di Google Cloud. `ACCOUNT_DEFAULT_HTTP_PROTOCOL` default-nya `https` agar callback tetap benar di belakang proxy PWS. Untuk runserver lokal, isi `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http` di `.env` dan daftarkan callback localhost yang dipakai. Kredensial Google perlu tersedia di environment PWS; `.env` lokal tidak ikut deploy.
+
 ### Data demo dan integrasi modul
 
 Akun baru tidak otomatis memiliki order atau wishlist. Untuk melihat state berisi data sesuai referensi, buat akun lokal khusus demo lalu jalankan:

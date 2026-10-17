@@ -3,11 +3,28 @@ from smtplib import SMTPException
 from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core import mail, signing
-from django.test import Client, TestCase, override_settings
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from .models import AccountOrder, Profile, WishlistItem
 
 User = get_user_model()
+
+
+class GoogleCallbackProtocolTests(SimpleTestCase):
+    @override_settings(ACCOUNT_DEFAULT_HTTP_PROTOCOL='https')
+    def test_pws_http_proxy_still_generates_https_callback(self):
+        from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+        request = RequestFactory().get('/', HTTP_HOST='danar-iqbal-gaia.pws.cs.ui.ac.id')
+        self.assertFalse(request.is_secure())
+        callback = GoogleOAuth2Adapter(request).get_callback_url(request, app=None)
+        self.assertEqual(callback, 'https://danar-iqbal-gaia.pws.cs.ui.ac.id/accounts/google/login/callback/')
+
+    @override_settings(ACCOUNT_DEFAULT_HTTP_PROTOCOL='http')
+    def test_local_development_keeps_http_callback(self):
+        from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+        request = RequestFactory().get('/', HTTP_HOST='localhost:8000')
+        callback = GoogleOAuth2Adapter(request).get_callback_url(request, app=None)
+        self.assertEqual(callback, 'http://localhost:8000/accounts/google/login/callback/')
 
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
