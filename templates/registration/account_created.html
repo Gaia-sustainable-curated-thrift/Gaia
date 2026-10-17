@@ -1,0 +1,17 @@
+{% extends 'registration/base.html' %}
+{% block title %}Account Created
+{% endblock %}
+{% block auth_content %}
+<h1>Account created
+</h1>
+<p class="muted">Welcome, {{ user.first_name }}. Your sustainable story starts here.
+</p>
+<div class="success-mark">{% include 'includes/icon.html' with name='check' %}
+</div>
+<p class="muted">{% if verification_email_sent %}Verification email sent to{% else %}Your account email{% endif %}
+</p>
+<p class="olive"><strong>{{ user.email }}</strong>
+</p>
+<p class="muted">{% if verification_email_sent %}Check your inbox to verify your email address.{% endif %} You can also complete your profile now.
+</p><a class="button full-width" href="{% url 'profile' %}">Continue to Profile</a><a class="auth-back" href="{% url 'edit_profile' %}">Complete My Profile</a>
+{% endblock %}

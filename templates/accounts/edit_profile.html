@@ -1,0 +1,15 @@
+{% extends 'accounts/layout.html' %}
+{% block account_content %}
+<section class="card">
+<h2>Personal Information
+</h2>
+<p class="muted">Keep your name and phone number up to date.
+</p>
+<form method="post">{% csrf_token %}{% include 'includes/fields.html' with two_columns=True %}
+<p class="small muted">Your email is managed securely and cannot be changed here.
+</p>
+<div class="actions"><button class="button" type="submit">Save Changes</button><a class="text-button" href="{% url 'profile' %}">Cancel</a>
+</div>
+</form>
+</section>
+{% endblock %}
