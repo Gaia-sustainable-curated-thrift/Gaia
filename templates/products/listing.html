@@ -12,9 +12,10 @@
 
     <h1 class="listing-title">{{ page_title }}</h1>
 
-    <div class="segment segment--full" role="tablist" aria-label="Choose category">
+    <div class="segment segment--full" role="tablist" aria-label="Choose category" data-listing-tabs>
         {% for category in categories %}
         <a class="segment__item {% if category == active_category %}is-active{% endif %}"
+           data-category-name="{{ category.name }}"
            href="{{ link_base }}?category={{ category.slug }}"
            {% if category == active_category %}aria-current="true"{% endif %}>{{ category.name }}</a>
         {% endfor %}
@@ -22,7 +23,11 @@
 
     <div class="product-grid">
         {% for product in products %}
-            {% include 'products/includes/product_card.html' with product=product %}
+            {% if active_category and product.category.name == active_category.name %}
+                {% include 'products/includes/product_card.html' with product=product %}
+            {% else %}
+                {% include 'products/includes/product_card.html' with product=product hidden=True %}
+            {% endif %}
         {% empty %}
             <div class="state">
                 {% include 'includes/icon.html' with name='bag' %}

@@ -3,10 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import render
-
-
-def home(request):
-    return render(request, "landing.html")
+from django.views.generic import RedirectView
 
 
 def not_found(request, exception=None):
@@ -29,7 +26,7 @@ urlpatterns = [
     # Pratinjau halaman 404 (produksi otomatis pakai templates/404.html)
     path("404/", not_found, name="preview-404"),
 
-    path("", home),
+    path("", RedirectView.as_view(pattern_name="products:home", permanent=False)),
 ]
 
 if settings.DEBUG:

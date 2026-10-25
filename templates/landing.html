@@ -1,91 +1,12 @@
+{% extends 'accounts/base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="GAIA is a circular fashion marketplace. A new home for pre-loved pieces is on its way.">
-    <title>GAIA · We're Cooking</title>
-    <link rel="preload" href="{% static 'fonts/cormorant-garamond-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
-    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
-    <script src="{% static 'js/landing.js' %}" defer></script>
-<link rel="stylesheet" href="{% static 'css/navigation.css' %}">
-    <script src="{% static 'js/navigation.js' %}" defer></script>
-</head>
-<body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    {% include 'includes/icons.html' %}
-    {% include 'includes/site_drawer.html' %}
-    <div class="landing-canvas" id="top">
-        <header class="topbar">
-            <div class="nav-left">
-                <button class="icon-button menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer" aria-haspopup="dialog" data-menu-toggle>
-                    {% include 'includes/icon.html' with name='menu' %}
-                </button>
-                <a class="brand" href="/" aria-label="GAIA home">
-                    <img src="{% static 'images/gaia-logo.png' %}" width="48" height="48" alt="">
-                    <span>GAIA</span>
-                </a>
-            </div>
-
-            <div class="search" id="landing-search" role="search" aria-label="Product search">
-                {% include 'includes/icon.html' with name='search' %}
-                <input type="search" aria-label="Product search, coming soon" placeholder="Search vintage denim, wool coats, silk scarves, or sustainable brands..." readonly>
-            </div>
-            <button class="icon-button search-toggle" type="button" aria-label="Show search" aria-expanded="false" aria-controls="landing-search" data-search-toggle>
-                {% include 'includes/icon.html' with name='search' %}
-            </button>
-
-            <nav class="nav-actions" aria-label="Account navigation">
-                <a class="icon-button" href="{% url 'orders' %}" aria-label="My orders">
-                    {% include 'includes/icon.html' with name='bag' %}
-                </a>
-                <a class="icon-button wishlist-link" href="{% url 'wishlist' %}" aria-label="My wishlist">
-                    {% include 'includes/icon.html' with name='heart' %}
-                </a>
-                <a class="account-link" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'login' %}{% endif %}">
-                    <span class="avatar" aria-hidden="true"></span>
-                    <span>{% if user.is_authenticated %}Hi, {{ user.first_name|default:user.username|truncatechars:12 }}{% else %}Log In{% endif %}</span>
-                </a>
-            </nav>
-        </header>
-
-        <main class="hero" id="main-content" aria-labelledby="hero-title">
-            <div class="hero-copy">
-                <h1 id="hero-title">We’re Cooking</h1>
-                <p>Stay tuned!</p>
-            </div>
-            <img class="hero-mark" src="{% static 'images/landing-mark.png' %}" width="235" height="225" alt="" fetchpriority="high">
-        </main>
-
-        <footer class="footer">
-            <div class="footer-top">
-                <a class="footer-logo" href="/" aria-label="GAIA home">
-                    <img src="{% static 'images/gaia-emblem.png' %}" width="232" height="232" alt="GAIA">
-                </a>
-                <div class="footer-content">
-                    <a class="footer-brand" href="/">GAIA</a>
-                    <div class="footer-links">
-                        <section class="footer-column" aria-labelledby="about-title">
-                            <h2 id="about-title">About Us</h2>
-                            <ul><li>Mission</li><li>Team</li><li>Newsletter</li></ul>
-                        </section>
-                        <section class="footer-column" aria-labelledby="support-title">
-                            <h2 id="support-title">Support</h2>
-                            <ul><li>Contact</li><li>Refund Policy</li><li>FAQ’s</li></ul>
-                        </section>
-                        <section class="footer-column" aria-labelledby="social-title">
-                            <h2 id="social-title">Social</h2>
-                            <ul><li>Instagram</li><li>LinkedIn</li><li>YouTube</li></ul>
-                        </section>
-                    </div>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <div class="legal-links"><span>Copyright @ GAIA</span><span class="terms-label">Terms of Service</span></div>
-                <a class="back-to-top" href="#top">Back to top <span aria-hidden="true">↑</span></a>
-            </div>
-        </footer>
+{% block title %}GAIA{% endblock %}
+{% block main %}
+<main class="coming-soon">
+    <div class="coming-soon__copy">
+        <h1>We&rsquo;re Cooking</h1>
+        <p>Stay tuned!</p>
     </div>
-</body>
-</html>
+    <img class="coming-soon__mark" src="{% static 'images/landing-mark.png' %}" width="235" height="225" alt="" fetchpriority="high">
+</main>
+{% endblock %}
