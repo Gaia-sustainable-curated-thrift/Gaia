@@ -8,6 +8,10 @@ SIZE_ORDER = ['xs', 's', 'm', 'l', 'xl']
 GENDER_ORDER = ['women', 'men']
 CONDITION_LABELS = {'signs_of_wear': 'Signs of Wear'}
 
+SAVED_COUNT = 100
+SELLER_RATING = '5.0'
+SELLER_REVIEWS = 120
+
 
 def order_categories(categories):
     return sorted(categories, key=lambda c: (CATEGORY_ORDER.get(c.name.lower(), 99), c.name))
@@ -182,4 +186,40 @@ def search(request):
         'category_facets': category_facets,
         'sizes': sizes,
         'conditions': conditions,
+    })
+
+
+def detail(request, slug):
+    product = get_object_or_404(
+        Product.objects
+        .select_related('category', 'category__parent', 'seller')
+        .prefetch_related('images'),
+        slug=slug,
+    )
+
+    images = list(product.images.all())
+    primary = product.primary_image
+    if primary in images:
+        images.remove(primary)
+        images.insert(0, primary)
+
+    related = (
+        Product.objects
+        .select_related('category')
+        .prefetch_related('images')
+        .exclude(pk=product.pk)
+    )
+    if product.category_id:
+        same_category = related.filter(category=product.category)
+        if same_category.exists():
+            related = same_category
+    related = related.order_by('-created_at')[:5]
+
+    return render(request, 'products/detail.html', {
+        'product': product,
+        'images': images,
+        'related': related,
+        'saved_count': SAVED_COUNT,
+        'seller_rating': SELLER_RATING,
+        'seller_reviews': SELLER_REVIEWS,
     })

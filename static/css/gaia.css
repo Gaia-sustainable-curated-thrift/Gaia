@@ -966,3 +966,298 @@
     .search-empty__copy h1 { font-size: 32px; }
     .search-empty__art { order: 1; width: 158px; }
 }
+
+/* ---------- Product detail ---------- */
+.pdp {
+    display: grid;
+    grid-template-columns: minmax(0, 680fr) minmax(0, 552fr);
+    gap: 0 44px;
+    align-items: start;
+}
+
+.pdp-gallery {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    display: flex;
+    gap: 32px;
+    min-width: 0;
+}
+
+.pdp-thumbs {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 0 0 100px;
+}
+
+.pdp-thumb {
+    width: 100px;
+    height: 100px;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--field);
+    cursor: pointer;
+}
+
+.pdp-thumb.is-active { border-color: var(--olive-dark); }
+
+.pdp-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.pdp-main-image {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--field);
+}
+
+.pdp-main-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.pdp-no-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--olive);
+}
+
+.pdp-no-image .icon { width: 48px; height: 48px; }
+
+.pdp-breadcrumb {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    font-size: 12px;
+    color: var(--grey-dark);
+}
+
+.pdp-breadcrumb a { color: var(--grey-dark); }
+
+.pdp-info {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    margin-top: 12px;
+}
+
+.pdp-title {
+    font-family: "EB Garamond", Georgia, serif;
+    font-size: 48px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--olive-dark);
+    margin: 0;
+}
+
+.pdp-price-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.pdp-price,
+.pdp-condition {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 2;
+    color: var(--olive);
+}
+
+.pdp-actions-block { margin-top: 15px; }
+
+.pdp-actions {
+    display: flex;
+    gap: 24px;
+}
+
+.pdp-actions .button {
+    flex: 1;
+    min-height: 48px;
+    gap: 12px;
+    padding: 8px 24px;
+    color: var(--wine-light);
+    font-size: 16px;
+}
+
+.pdp-actions .olive-button { color: var(--canvas); }
+
+.pdp-actions .icon { width: 24px; height: 24px; }
+
+.pdp-saved {
+    margin: 8px 0 0;
+    text-align: right;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--olive);
+}
+
+.pdp-seller { margin-top: 99px; }
+
+.pdp-seller-label {
+    font-family: "Plus Jakarta Sans", Arial, sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 2;
+    color: var(--olive);
+    margin: 0;
+}
+
+.pdp-seller-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+    margin-top: 4px;
+    padding: 12px;
+    border-radius: 20px;
+    background: var(--surface);
+}
+
+.pdp-seller-profile {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+}
+
+.pdp-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--selected);
+    color: var(--olive-dark);
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.pdp-seller-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pdp-username {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--olive);
+}
+
+.pdp-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--olive);
+}
+
+.pdp-rating-value { font-size: 16px; font-weight: 600; line-height: 1.5; }
+.pdp-rating-count { font-size: 16px; line-height: 1.5; }
+
+.pdp-rating .icon {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    stroke: none;
+}
+
+.pdp-chat {
+    flex-shrink: 0;
+    padding: 8px 24px;
+    color: var(--wine-light);
+}
+
+.pdp-also { margin-top: 72px; }
+
+.pdp-also__title {
+    font-family: "EB Garamond", Georgia, serif;
+    font-size: 48px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--olive-dark);
+    margin: 0 0 32px;
+}
+
+.pdp-related-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    column-gap: 32px;
+    row-gap: 40px;
+}
+
+/* ---------- Product detail responsive ---------- */
+@media (max-width: 1024px) {
+    .pdp {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 24px;
+    }
+    .pdp-breadcrumb { grid-column: 1; grid-row: auto; order: -1; }
+    .pdp-gallery {
+        grid-column: 1;
+        grid-row: auto;
+        order: 0;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .pdp-info { grid-column: 1; grid-row: auto; order: 1; margin-top: 0; }
+    .pdp-main-image { order: 0; }
+    .pdp-thumbs {
+        order: 1;
+        flex-direction: row;
+        gap: 9px;
+        flex: none;
+        overflow-x: auto;
+    }
+    .pdp-thumb {
+        width: 64px;
+        height: 64px;
+        border-radius: 12px;
+        flex: 0 0 64px;
+    }
+    .pdp-related-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+    .pdp-title { font-size: 32px; }
+    .pdp-price,
+    .pdp-condition { font-size: 16px; }
+    .pdp-condition { font-weight: 400; }
+    .pdp-actions { flex-direction: column; gap: 8px; }
+    .pdp-actions .button { font-size: 12px; min-height: 44px; }
+    .pdp-saved { text-align: center; }
+    .pdp-seller { margin-top: 0; }
+    .pdp-seller-label { font-size: 16px; }
+    .pdp-seller-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px;
+    }
+    .pdp-seller-profile { gap: 12px; }
+    .pdp-avatar { width: 48px; height: 48px; font-size: 16px; }
+    .pdp-username,
+    .pdp-rating-value,
+    .pdp-rating-count { font-size: 12px; }
+    .pdp-rating .icon { width: 16px; height: 16px; }
+    .pdp-chat { width: 100%; font-size: 12px; min-height: 44px; }
+    .pdp-also { margin-top: 24px; }
+    .pdp-also__title { font-size: 24px; margin-bottom: 24px; }
+    .pdp-related-grid { column-gap: 20px; row-gap: 24px; }
+}

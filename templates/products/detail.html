@@ -1,0 +1,90 @@
+{% extends 'products/base.html' %}
+{% load static account_tags %}
+{% block title %}{{ product.title }}{% endblock %}
+{% block main %}
+<main class="shop-main pdp-main">
+
+    <div class="pdp">
+        <div class="pdp-gallery" data-gallery>
+            <div class="pdp-thumbs">
+                {% for image in images %}
+                <button class="pdp-thumb {% if forloop.first %}is-active{% endif %}" type="button" data-gallery-thumb data-full="{{ image.image.url }}" aria-label="Show image {{ forloop.counter }}">
+                    <img src="{{ image.image.url }}" alt="" loading="lazy">
+                </button>
+                {% endfor %}
+            </div>
+            <div class="pdp-main-image">
+                {% with hero=images.0 %}
+                {% if hero %}
+                <img data-gallery-main src="{{ hero.image.url }}" alt="{{ product.title }}">
+                {% else %}
+                <div class="pdp-no-image">{% include 'includes/icon.html' with name='bag' %}</div>
+                {% endif %}
+                {% endwith %}
+                {% if product.status == 'sold' %}<span class="badge badge--sold">Sold</span>{% endif %}
+            </div>
+        </div>
+
+        <nav class="breadcrumb pdp-breadcrumb" aria-label="Breadcrumb">
+            <a href="{% url 'products:home' %}">Home</a>
+            <span aria-hidden="true">/</span>
+            {% if product.category.parent %}
+            <a href="{% url 'products:listing' product.category.parent.slug %}?category={{ product.category.slug }}">{{ product.category.name }}</a>
+            {% else %}
+            <span>{{ product.category.name }}</span>
+            {% endif %}
+        </nav>
+
+        <div class="pdp-info">
+            <h1 class="pdp-title">{{ product.title }}</h1>
+
+            <div class="pdp-price-row">
+                <span class="pdp-price">{{ product.price|rupiah }}</span>
+                <span class="pdp-condition">{{ product.get_condition_display }}{% if product.size %} &middot; {{ product.size }}{% endif %}</span>
+            </div>
+
+            <div class="pdp-actions-block">
+                <div class="pdp-actions">
+                    <button class="button pdp-bag" type="button" {% if not product.is_purchasable %}disabled{% endif %}>
+                        {% include 'includes/icon.html' with name='bag' %}<span>Add to bag</span>
+                    </button>
+                    <button class="button olive-button pdp-wish" type="button">
+                        {% include 'includes/icon.html' with name='heart' %}<span>Save to wishlist</span>
+                    </button>
+                </div>
+                <p class="pdp-saved">{{ saved_count }} people have saved this</p>
+            </div>
+
+            <div class="pdp-seller">
+                <h2 class="pdp-seller-label">Listed by</h2>
+                <div class="pdp-seller-card">
+                    <div class="pdp-seller-profile">
+                        <span class="pdp-avatar" aria-hidden="true">{{ product.seller|initials }}</span>
+                        <div class="pdp-seller-details">
+                            <span class="pdp-username">@{{ product.seller.username }}</span>
+                            <span class="pdp-rating">
+                                <span class="pdp-rating-value">{{ seller_rating }}</span>
+                                {% for i in "12345" %}{% include 'includes/icon.html' with name='star' %}{% endfor %}
+                                <span class="pdp-rating-count">({{ seller_reviews }})</span>
+                            </span>
+                        </div>
+                    </div>
+                    <a class="button pdp-chat" href="#">Chat</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if related %}
+    <section class="pdp-also">
+        <h2 class="pdp-also__title">Also see</h2>
+        <div class="product-grid pdp-related-grid">
+            {% for item in related %}
+                {% include 'products/includes/product_card.html' with product=item %}
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+</main>
+{% endblock %}

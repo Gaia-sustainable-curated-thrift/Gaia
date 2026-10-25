@@ -104,10 +104,29 @@
         box.appendChild(form);
     }
 
+    function initGallery() {
+        var gallery = document.querySelector('[data-gallery]');
+        if (!gallery) return;
+        var main = gallery.querySelector('[data-gallery-main]');
+        var thumbs = gallery.querySelectorAll('[data-gallery-thumb]');
+        if (!main || !thumbs.length) return;
+
+        thumbs.forEach(function (thumb) {
+            thumb.addEventListener('click', function () {
+                thumbs.forEach(function (other) {
+                    other.classList.toggle('is-active', other === thumb);
+                });
+                var full = thumb.getAttribute('data-full');
+                if (full) main.src = full;
+            });
+        });
+    }
+
     function init() {
         initCategoryTabs();
         initListingTabs();
         initFilterToggle();
+        initGallery();
         initDrawerSearch(initHeaderSearch());
     }
 
