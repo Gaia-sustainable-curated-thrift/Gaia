@@ -1,5 +1,5 @@
 {% load account_tags %}
-<article class="product-card">
+<article class="product-card" data-category="{{ product.category.name }}" {% if hidden %}hidden{% endif %}>
     <a class="product-card__media" href="#">
         {% with image=product.primary_image %}
         {% if image %}
@@ -8,8 +8,10 @@
         {% endwith %}
         {% if product.status == 'sold' %}<span class="badge badge--sold">Sold</span>{% endif %}
     </a>
-    <h3 class="product-card__title">{{ product.title }}</h3>
-    <p class="product-card__meta">{{ product.get_condition_display }} · {{ product.size }}</p>
-    <p class="product-card__price">{{ product.price|rupiah }}</p>
+    <div class="product-card__info">
+        <h3 class="product-card__title">{{ product.title }}</h3>
+        <p class="product-card__meta">{{ product.get_condition_display }} · {{ product.size }}</p>
+        <p class="product-card__price">{{ product.price|rupiah }}</p>
+    </div>
     <button class="button" type="button" {% if not product.is_purchasable %}disabled{% endif %}>Add to bag</button>
 </article>

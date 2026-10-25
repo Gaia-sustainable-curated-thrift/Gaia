@@ -1,0 +1,121 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% block title %}Search{% endblock %}
+{% block main %}
+<main class="shop-main search-main">
+
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="{% url 'products:home' %}">Home</a>
+        <span aria-hidden="true">/</span>
+        <span>Search</span>
+    </nav>
+
+    {% if products %}
+    <div class="search-head">
+        <h1 class="listing-title">Search Results for &ldquo;{{ q }}&rdquo;</h1>
+        <p class="search-sub">Showing results for {{ result_count }} product{{ result_count|pluralize }}.</p>
+    </div>
+
+    <div class="search-layout">
+        <aside class="filter-panel">
+            <form class="filter-form" method="get" action="{% url 'products:search' %}">
+                <input type="hidden" name="q" value="{{ q }}">
+
+                <div class="filter-panel__head">
+                    <h2>Filters</h2>
+                    <button class="filter-toggle" type="button" data-filter-toggle aria-expanded="true" aria-controls="filter-body" aria-label="Toggle filters">
+                        {% include 'includes/icon.html' with name='chevron' %}
+                    </button>
+                </div>
+
+                <div class="filter-panel__body" id="filter-body" data-filter-body>
+                    <div class="filter-actions">
+                        <button class="button filter-apply" type="submit"><span>Apply Filters</span>{% include 'includes/icon.html' with name='filter' %}</button>
+                        <a class="filter-clear" href="{% url 'products:search' %}?q={{ q|urlencode }}">Clear all</a>
+                    </div>
+
+                    <fieldset class="filter-group">
+                        <legend>Price Range</legend>
+                        <div class="filter-prices">
+                            <input class="filter-input" type="number" min="0" name="price_from" placeholder="From" value="{{ price_from }}">
+                            <input class="filter-input" type="number" min="0" name="price_to" placeholder="To" value="{{ price_to }}">
+                        </div>
+                    </fieldset>
+
+                    {% if genders %}
+                    <fieldset class="filter-group">
+                        <legend>Gender</legend>
+                        <div class="filter-options">
+                            {% for option in genders %}
+                            <label class="filter-option">
+                                <input type="checkbox" name="gender" value="{{ option.slug }}" {% if option.checked %}checked{% endif %}>
+                                <span>{{ option.name }}<span class="filter-count">({{ option.count }})</span></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                    {% endif %}
+
+                    {% if category_facets %}
+                    <fieldset class="filter-group">
+                        <legend>Category</legend>
+                        <div class="filter-options">
+                            {% for option in category_facets %}
+                            <label class="filter-option">
+                                <input type="checkbox" name="category" value="{{ option.name }}" {% if option.checked %}checked{% endif %}>
+                                <span>{{ option.name }}<span class="filter-count">({{ option.count }})</span></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                    {% endif %}
+
+                    {% if sizes %}
+                    <fieldset class="filter-group">
+                        <legend>Size</legend>
+                        <div class="filter-options">
+                            {% for option in sizes %}
+                            <label class="filter-option">
+                                <input type="checkbox" name="size" value="{{ option.value }}" {% if option.checked %}checked{% endif %}>
+                                <span>{{ option.value }}<span class="filter-count">({{ option.count }})</span></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                    {% endif %}
+
+                    {% if conditions %}
+                    <fieldset class="filter-group">
+                        <legend>Condition</legend>
+                        <div class="filter-options">
+                            {% for option in conditions %}
+                            <label class="filter-option">
+                                <input type="checkbox" name="condition" value="{{ option.value }}" {% if option.checked %}checked{% endif %}>
+                                <span>{{ option.label }}<span class="filter-count">({{ option.count }})</span></span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                    {% endif %}
+                </div>
+            </form>
+        </aside>
+
+        <div class="product-grid">
+            {% for product in products %}
+                {% include 'products/includes/product_card.html' with product=product %}
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="search-empty">
+        <div class="search-empty__copy">
+            <h1>No result yet for &ldquo;{{ q }}&rdquo;</h1>
+            <a class="button" href="{% url 'products:home' %}">Go back home &rarr;</a>
+        </div>
+        <div class="search-empty__art" aria-hidden="true"></div>
+    </div>
+    {% endif %}
+
+</main>
+{% endblock %}

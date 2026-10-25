@@ -54,30 +54,29 @@
     <section class="shop-section">
         <div class="section-head">
             <h2>Shop By Categories</h2>
-            <div class="segment segment--category" role="tablist" aria-label="Choose department">
-                {% for parent in parents %}
-                <a class="segment__item {% if parent == active_parent %}is-active{% endif %}"
-                   href="?gender={{ parent.slug }}"
-                   {% if parent == active_parent %}aria-current="true"{% endif %}>{{ parent.name }}'s</a>
+            <div class="segment segment--category" role="tablist" aria-label="Choose department" data-category-tabs>
+                {% for tab in gender_tabs %}
+                <a class="segment__item {% if tab.active %}is-active{% endif %}"
+                   data-gender="{{ tab.parent.slug }}"
+                   href="?gender={{ tab.parent.slug }}"
+                   {% if tab.active %}aria-current="true"{% endif %}>{{ tab.parent.name }}'s</a>
                 {% endfor %}
             </div>
         </div>
-        <div class="category-circles">
-            {% for category in categories %}
-            <a class="category-circle" href="{% if active_parent %}{% url 'products:listing' active_parent.slug %}?category={{ category.slug }}{% else %}#{% endif %}">
+        {% for tab in gender_tabs %}
+        <div class="category-circles" data-category-group data-gender="{{ tab.parent.slug }}" {% if not tab.active %}hidden{% endif %}>
+            {% for category in tab.categories %}
+            <a class="category-circle" href="{% url 'products:listing' tab.parent.slug %}?category={{ category.slug }}">
                 <span class="category-circle__img">
-                    {% if active_parent %}
-                    {% with path='images/cat-'|add:category.name|lower|add:'-'|add:active_parent.slug|add:'.png' %}
+                    {% with path='images/cat-'|add:category.name|lower|add:'-'|add:tab.parent.slug|add:'.png' %}
                     <img src="{% static path %}" alt="" loading="lazy">
                     {% endwith %}
-                    {% else %}
-                    <img src="{% static 'images/reference-coat.png' %}" alt="" loading="lazy">
-                    {% endif %}
                 </span>
                 <span>{{ category.name }}</span>
             </a>
             {% endfor %}
         </div>
+        {% endfor %}
     </section>
 
     <section class="sell-banner">
