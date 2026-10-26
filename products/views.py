@@ -38,7 +38,7 @@ def home(request):
         Product.objects
         .select_related('category')
         .prefetch_related('images')
-        .order_by('-created_at')[:10]
+        .order_by('-created_at')[:5]
     )
     stored_parents = {parent.slug: parent for parent in Category.objects.filter(parent__isnull=True)}
     parents = [

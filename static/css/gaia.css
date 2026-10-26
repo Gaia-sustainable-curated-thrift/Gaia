@@ -44,6 +44,28 @@
 }
 
 /* ---------- Shared shell: display font ---------- */
+.mobile-search-toggle { display: none; }
+.nav-bag { position: relative; }
+.nav-bag__count {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 4px;
+    border-radius: 50%;
+    background: var(--wine);
+    color: var(--wine-light);
+    font: 600 9px/1 "Plus Jakarta Sans", Arial, sans-serif;
+}
+.nav-bag__count[hidden] { display: none; }
+@media (max-width: 640px) {
+    .nav-bag__count { min-width: 18px; height: 18px; font-size: 8px; top: 0; right: 0; }
+}
+
 .brand,
 .footer-wordmark {
     font-family: "EB Garamond", Georgia, serif;
