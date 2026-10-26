@@ -1,0 +1,33 @@
+{% extends "accounts/base.html" %}
+{% load static %}
+
+{% block title %}Write a Seller Review{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reviews.css' %}">
+{% endblock %}
+
+{% block main %}
+<main class="reviews-page">
+    <h1>Write a Seller Review</h1>
+
+    <section class="review-form-card">
+        <p>
+            Reviewing seller:
+            <strong>{{ seller.get_full_name|default:seller.username }}</strong>
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {{ form.as_p }}
+
+            <button type="submit">Submit Review</button>
+
+            <a href="{% url 'reviews:seller_reviews' seller.pk %}">
+                Cancel
+            </a>
+        </form>
+    </section>
+</main>
+{% endblock %}

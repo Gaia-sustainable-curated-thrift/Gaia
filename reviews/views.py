@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.shortcuts import get_object_or_404, render
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404, redirect, render
 
+from .forms import ReviewForm
 from .models import Review
-
 
 def seller_reviews(request, seller_id):
     seller = get_object_or_404(
@@ -18,3 +20,33 @@ def seller_reviews(request, seller_id):
     }
 
     return render(request, "reviews/seller_reviews.html", context)
+
+@login_required(login_url="login")
+def create_review(request, seller_id):
+    seller = get_object_or_404(get_user_model(), pk=seller_id)
+
+    if seller == request.user:
+        raise PermissionDenied("Kamu tidak bisa mereview diri sendiri.")
+
+    if request.method == "POST":
+        form = ReviewForm(request.POST)
+
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.reviewer = request.user
+            review.seller = seller
+            review.save()
+
+            return redirect(
+                "reviews:seller_reviews",
+                seller_id=seller.pk,
+            )
+    else:
+        form = ReviewForm()
+
+    context = {
+        "form": form,
+        "seller": seller,
+    }
+
+    return render(request, "reviews/review_form.html", context)
