@@ -31,6 +31,14 @@
 
                 <p>{{ review.comment|linebreaksbr }}</p>
 
+                {% if user.is_authenticated and user.pk == review.reviewer_id %}
+                    <p>
+                        <a href="{% url 'reviews:edit_review' review.pk %}">
+                            Edit Review
+                        </a>
+                    </p>
+                {% endif %}
+
                 <time datetime="{{ review.created_at|date:'c' }}">
                     {{ review.created_at|date:"d M Y" }}
                 </time>

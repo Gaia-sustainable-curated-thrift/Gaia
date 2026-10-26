@@ -1,7 +1,9 @@
 {% extends "accounts/base.html" %}
 {% load static %}
 
-{% block title %}Write a Seller Review{% endblock %}
+{% block title %}
+    {% if is_edit %}Edit Review{% else %}Write a Seller Review{% endif %}
+{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/reviews.css' %}">
@@ -9,7 +11,13 @@
 
 {% block main %}
 <main class="reviews-page">
-    <h1>Write a Seller Review</h1>
+    <h1>
+        {% if is_edit %}
+            Edit Review
+        {% else %}
+            Write a Seller Review
+        {% endif %}
+    </h1>
 
     <section class="review-form-card">
         <p>
@@ -22,7 +30,13 @@
 
             {{ form.as_p }}
 
-            <button type="submit">Submit Review</button>
+            <button type="submit">
+                {% if is_edit %}
+                    Save Changes
+                {% else %}
+                    Submit Review
+                {% endif %}
+            </button>
 
             <a href="{% url 'reviews:seller_reviews' seller.pk %}">
                 Cancel

@@ -50,3 +50,32 @@ def create_review(request, seller_id):
     }
 
     return render(request, "reviews/review_form.html", context)
+
+@login_required(login_url="login")
+def edit_review(request, review_id):
+    review = get_object_or_404(
+        Review,
+        pk=review_id,
+        reviewer=request.user,
+    )
+
+    if request.method == "POST":
+        form = ReviewForm(request.POST, instance=review)
+
+        if form.is_valid():
+            form.save()
+
+            return redirect(
+                "reviews:seller_reviews",
+                seller_id=review.seller_id,
+            )
+    else:
+        form = ReviewForm(instance=review)
+
+    context = {
+        "form": form,
+        "seller": review.seller,
+        "is_edit": True,
+    }
+
+    return render(request, "reviews/review_form.html", context)
