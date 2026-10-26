@@ -36,6 +36,12 @@
                         <a href="{% url 'reviews:edit_review' review.pk %}">
                             Edit Review
                         </a>
+
+                        <span aria-hidden="true"> · </span>
+
+                        <a href="{% url 'reviews:delete_review' review.pk %}">
+                            Delete Review
+                        </a>
                     </p>
                 {% endif %}
 

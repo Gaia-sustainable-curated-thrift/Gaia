@@ -22,5 +22,11 @@ urlpatterns = [
         views.edit_review,
         name="edit_review",
     ),
-    
+
+    path(
+        "<int:review_id>/delete/",
+        views.delete_review,
+        name="delete_review",
+    ),
+
 ]

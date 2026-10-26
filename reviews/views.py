@@ -79,3 +79,27 @@ def edit_review(request, review_id):
     }
 
     return render(request, "reviews/review_form.html", context)
+
+@login_required(login_url="login")
+def delete_review(request, review_id):
+    review = get_object_or_404(
+        Review,
+        pk=review_id,
+        reviewer=request.user,
+    )
+
+    if request.method == "POST":
+        seller_id = review.seller_id
+        review.delete()
+
+        return redirect(
+            "reviews:seller_reviews",
+            seller_id=seller_id,
+        )
+
+    context = {
+        "review": review,
+        "seller": review.seller,
+    }
+
+    return render(request, "reviews/review_confirm_delete.html", context)
