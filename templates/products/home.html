@@ -38,13 +38,15 @@
         <h2 class="section-title-center">Discover</h2>
         <div class="discover-grid">
             <a class="discover-card" href="{% url 'products:listing' 'women' %}">
-                <img src="{% static 'images/discover-women.png' %}" alt="">
+                <img class="discover-card__image" src="{% static 'images/discover-women.png' %}" alt="">
+                <img class="discover-card__image--hover" src="{% static 'images/women-hover.png' %}" alt="" aria-hidden="true">
                 <span class="discover-card__sub">Shop for</span>
                 <span class="discover-card__title">Women</span>
                 <span class="button">Discover {% include 'includes/icon.html' with name='arrow-right' %}</span>
             </a>
             <a class="discover-card discover-card--men" href="{% url 'products:listing' 'men' %}">
-                <img src="{% static 'images/discover-men.png' %}" alt="">
+                <img class="discover-card__image" src="{% static 'images/discover-men.png' %}" alt="">
+                <img class="discover-card__image--hover" src="{% static 'images/men-hover.png' %}" alt="" aria-hidden="true">
                 <span class="discover-card__sub">Shop for</span>
                 <span class="discover-card__title">Men</span>
                 <span class="button">Discover {% include 'includes/icon.html' with name='arrow-right' %}</span>

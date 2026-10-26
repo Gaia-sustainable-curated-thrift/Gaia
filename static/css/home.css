@@ -1,19 +1,4 @@
 /* Homepage dimensions and typography from the desktop and mobile Figma frames. */
-body:has(.homepage-main) .topbar {
-    margin: 32px 20px 0;
-    border-radius: 20px;
-    background: var(--surface);
-}
-body:has(.homepage-main) .brand-group { gap: 8px; }
-body:has(.homepage-main) .brand { font-weight: 500; letter-spacing: 0; }
-body:has(.homepage-main) .topbar .icon-button { width: 48px; height: 48px; padding: 8px; }
-body:has(.homepage-main) .topbar .icon { width: 32px; height: 32px; }
-body:has(.homepage-main) .topbar .nav-orders { display: none; }
-body:has(.homepage-main) .nav-actions { gap: 8px; }
-body:has(.homepage-main) .account-link { font-size: 20px; font-weight: 600; }
-body:has(.homepage-main) .search-display { gap: 24px; padding: 12px 24px; }
-body:has(.homepage-main) .search-display > .icon { width: 28px; height: 28px; }
-
 .homepage-main { max-width: 1280px; width: calc(100% - 160px); padding: 0; margin: 46px auto 106px; }
 .homepage-main h1,
 .homepage-main h2 { font-family: "EB Garamond", Georgia, serif; font-weight: 500; line-height: 1.2; }
@@ -38,6 +23,15 @@ body:has(.homepage-main) .search-display > .icon { width: 28px; height: 28px; }
 .homepage-main .product-grid > .state { grid-column: 1 / -1; }
 .homepage-main .discover-grid { gap: 40px; }
 .homepage-main .discover-card { aspect-ratio: 620 / 627; padding: 0; gap: 8px; border-radius: 20px; }
+.homepage-main .discover-card { transition: background-color 320ms ease; }
+.homepage-main .discover-card img { transition: opacity 320ms ease; pointer-events: none; }
+.homepage-main .discover-card .discover-card__image--hover { opacity: 0; }
+.homepage-main .discover-card:is(:hover, :focus-visible) { background: #d1d2be; }
+.homepage-main .discover-card:is(:hover, :focus-visible) .discover-card__image { opacity: 0; }
+.homepage-main .discover-card:is(:hover, :focus-visible) .discover-card__image--hover { opacity: 1; }
+.homepage-main .discover-card__sub,
+.homepage-main .discover-card__title,
+.homepage-main .discover-card .button { z-index: 1; }
 .homepage-main .discover-card__sub { font-size: 20px; line-height: 2; font-weight: 600; }
 .homepage-main .discover-card__title { font-size: 64px; line-height: 1.2; }
 .homepage-main .discover-card .button { margin-top: 16px; }
@@ -75,22 +69,9 @@ body:has(.homepage-main) .footer-columns h2 { font-family: "EB Garamond", Georgi
     .homepage-main .sell-banner { padding: 40px; gap: 40px; }
     .homepage-main .sell-banner__art { width: 160px; }
     .homepage-main .sell-banner h2 { font-size: 40px; }
-    body:has(.homepage-main) .account-link { font-size: 14px; }
 }
 
 @media (max-width: 640px) {
-    body:has(.homepage-main) .topbar { margin: 8px 8px 0; min-height: 76px; padding: 16px; gap: 0; border-radius: 12px; flex-direction: row; flex-wrap: wrap; justify-content: space-between; }
-    body:has(.homepage-main) .brand-group { gap: 0; }
-    body:has(.homepage-main) .brand { font-size: 33px; gap: 12px; }
-    body:has(.homepage-main) .brand img { width: 44px; height: 44px; }
-    body:has(.homepage-main) .topbar .icon-button { width: 44px; height: 44px; padding: 8px; }
-    body:has(.homepage-main) .topbar .icon { width: 28px; height: 28px; }
-    body:has(.homepage-main) .nav-actions { gap: 4px; margin: 0; width: auto; }
-    body:has(.homepage-main) .nav-wishlist,
-    body:has(.homepage-main) .account-link { display: none; }
-    body:has(.homepage-main) .mobile-search-toggle { display: inline-flex; }
-    body:has(.homepage-main) .search-display { display: none; }
-    body:has(.homepage-main) .search-display.is-search-open { display: flex; order: 3; flex: 1 0 100%; margin-top: 12px; height: 48px; padding: 8px 12px; }
     .homepage-main { width: calc(100% - 32px); margin: 40px auto; }
     .homepage-main .hero-banner { display: flex; flex-direction: column; height: auto; padding: 32px 0 0; gap: 16px; }
     .homepage-main .hero-banner__copy { position: static; width: 100%; max-width: none; padding: 0 24px; transform: none; }
@@ -150,7 +131,10 @@ body:has(.homepage-main) .footer-columns h2 { font-family: "EB Garamond", Georgi
 }
 
 @media (max-width: 360px) {
-    body:has(.homepage-main) .topbar { padding: 12px 8px; }
-    body:has(.homepage-main) .brand { gap: 6px; font-size: 28px; }
     .homepage-main .home-recommendations .section-head .button { width: auto; padding: 8px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .homepage-main .discover-card,
+    .homepage-main .discover-card img { transition: none; }
 }
