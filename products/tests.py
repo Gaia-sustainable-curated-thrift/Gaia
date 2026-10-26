@@ -92,6 +92,24 @@ class BagTests(TestCase):
         self.assertRedirects(response, reverse('products:detail', args=[self.product.slug]))
         self.assertEqual(cart.count(self.client.session), 1)
 
+    def test_ajax_count_tracks_add_remove_and_undo_without_stale_toast(self):
+        headers = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+        add = reverse('products:bag_add', args=[self.product.slug])
+        for expected in [1, 2]:
+            response = self.client.post(add, **headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['bag_count'], expected)
+        response = self.client.post(
+            reverse('products:bag_set', args=[self.product.slug]), {'quantity': 0}, **headers,
+        )
+        self.assertEqual(response.json()['bag_count'], 0)
+        response = self.client.post(reverse('products:bag_undo'), **headers)
+        self.assertEqual(response.json()['bag_count'], 2)
+        response = self.client.get(reverse('products:home'))
+        self.assertContains(response, 'aria-label="Shopping bag, 2 items"')
+        self.assertContains(response, 'data-bag-count')
+        self.assertNotContains(response, 'toast toast--added')
+
     def test_detail_shows_added_toast(self):
         self.client.post(reverse('products:bag_add', args=[self.product.slug]))
         response = self.client.get(reverse('products:detail', args=[self.product.slug]))

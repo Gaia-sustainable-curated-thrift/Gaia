@@ -86,6 +86,21 @@
 
         if (placeholder) placeholder.remove();
         display.appendChild(form);
+        var mobileToggle = document.querySelector('[data-mobile-search-toggle]');
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', function () {
+                var open = display.classList.toggle('is-search-open');
+                mobileToggle.setAttribute('aria-expanded', String(open));
+                if (open) input.focus();
+            });
+            input.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    display.classList.remove('is-search-open');
+                    mobileToggle.setAttribute('aria-expanded', 'false');
+                    mobileToggle.focus();
+                }
+            });
+        }
         return url;
     }
 
@@ -203,6 +218,13 @@
                 if (!data) return;
                 var panel = document.querySelector('.bag-drawer__panel');
                 if (panel && data.drawer) panel.innerHTML = data.drawer;
+                document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
+                    badge.textContent = data.bag_count;
+                    badge.hidden = data.bag_count === 0;
+                });
+                document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
+                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' items');
+                });
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showBagToast(data.toast);
             }).catch(function () {

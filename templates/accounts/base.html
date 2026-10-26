@@ -18,7 +18,14 @@
 </div>
 <div class="search-display" data-search data-search-url="{% url 'products:search' %}">{% include 'includes/icon.html' with name='search' %}<span>Search vintage denim, clothing, or sustainable brands...</span>
 </div>
-<nav class="nav-actions" aria-label="Account navigation">{% if user.is_authenticated %}<a class="icon-button" href="{% url 'orders' %}" aria-label="Orders">{% include 'includes/icon.html' with name='orders' %}</a><a class="icon-button" href="{% url 'wishlist' %}" aria-label="Wishlist">{% include 'includes/icon.html' with name='heart' %}</a>{% endif %}<button class="icon-button" type="button" data-bag-toggle aria-controls="bag-drawer" aria-haspopup="dialog" aria-label="Shopping bag">{% include 'includes/icon.html' with name='bag' %}</button>{% if user.is_authenticated %}<a class="account-link" href="{% url 'profile' %}"><span class="nav-avatar" aria-hidden="true"></span>Hi, {{ user.first_name|default:user.username|truncatechars:14 }}</a>{% else %}<a class="account-link" href="{% url 'login' %}">Log In</a>{% endif %}
+<nav class="nav-actions" aria-label="Account navigation">
+<button class="icon-button mobile-search-toggle" type="button" data-mobile-search-toggle aria-label="Open search" aria-expanded="false">{% include 'includes/icon.html' with name='search' %}</button>
+{% if user.is_authenticated %}<a class="icon-button nav-orders" href="{% url 'orders' %}" aria-label="Orders">{% include 'includes/icon.html' with name='orders' %}</a>{% endif %}
+<button class="icon-button nav-bag" type="button" data-bag-toggle aria-controls="bag-drawer" aria-haspopup="dialog" aria-label="Shopping bag, {{ bag_count }} items">
+    {% include 'includes/icon.html' with name='bag' %}
+    <span class="nav-bag__count" data-bag-count aria-hidden="true" {% if not bag_count %}hidden{% endif %}>{{ bag_count }}</span>
+</button>
+{% if user.is_authenticated %}<a class="icon-button nav-wishlist" href="{% url 'wishlist' %}" aria-label="Wishlist">{% include 'includes/icon.html' with name='heart' %}</a><a class="account-link" href="{% url 'profile' %}"><span class="nav-avatar" aria-hidden="true"></span>Hi, {{ user.first_name|default:user.username|truncatechars:14 }}</a>{% else %}<a class="account-link" href="{% url 'login' %}">Log In</a>{% endif %}
 </nav>
 </header>
 {% block main %}
@@ -29,11 +36,11 @@
 <div class="footer-columns">
 <section>
 <h2>About Us
-</h2><a href="/#about-title">Our Mission</a><a href="/#about-title">Our Team</a><a href="/#about-title">Newsletter</a>
+</h2><a href="/#about-title">Mission</a><a href="/#about-title">Team</a><a href="/#about-title">Newsletter</a>
 </section>
 <section>
-<h2>Help
-</h2><a href="/#support-title">Contact Us</a><a href="/#support-title">Return Policy</a><a href="/#support-title">FAQ</a>
+<h2>Support
+</h2><a href="/#support-title">Contact</a><a href="/#support-title">Refund Policy</a><a href="/#support-title">FAQ’s</a>
 </section>
 <section>
 <h2>Social
@@ -42,7 +49,7 @@
 </div>
 </div>
 </div>
-<div class="footer-bottom"><span>© {% now 'Y' %} GAIA</span><span class="terms">A circular fashion marketplace</span><a href="#top">Back to top ↑</a>
+<div class="footer-bottom"><span>Copyright @ GAIA</span><span class="terms"><u>Terms of Service</u></span><a href="#top">Back to top ↑</a>
 </div>
 </footer>
 {% if user.is_authenticated %}
