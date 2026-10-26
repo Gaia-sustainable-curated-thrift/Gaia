@@ -10,14 +10,20 @@ class Command(BaseCommand):
     help = 'Seed demo categories and products for local development.'
 
     def add_arguments(self, parser):
-        parser.add_argument('--username', required=True, help='Seller account to attach demo products to.')
+        parser.add_argument('--username', help='Seller account to attach demo products to (defaults to first superuser).')
 
     def handle(self, *args, **options):
         User = get_user_model()
-        try:
-            seller = User.objects.get(username=options['username'])
-        except User.DoesNotExist as exc:
-            raise CommandError('Create the seller account first.') from exc
+        seller = None
+        if options.get('username'):
+            try:
+                seller = User.objects.get(username=options['username'])
+            except User.DoesNotExist as exc:
+                raise CommandError('Create the seller account first.') from exc
+        else:
+            seller = User.objects.filter(is_superuser=True).order_by('pk').first()
+            if seller is None:
+                raise CommandError('No superuser found. Pass --username <seller> or create a superuser first.')
 
         tree = {
             'Women': ['Tops', 'Bottoms', 'Shoes', 'Bags'],
@@ -42,7 +48,7 @@ class Command(BaseCommand):
             product, created = Product.objects.get_or_create(
                 seller=seller, title=title,
                 defaults={'price': price, 'condition': condition, 'status': status,
-                          'category': categories[category], 'brand': title.split()[0]},
+                          'category': categories[category]},
             )
             if created and sample.exists():
                 image = ProductImage(product=product, is_primary=True)

@@ -278,6 +278,9 @@
     color: var(--olive);
 }
 
+[data-listing-empty] { grid-column: 1 / -1; }
+[data-listing-empty][hidden] { display: none; }
+
 .state h2 {
     color: var(--olive);
     margin-bottom: 8px;
