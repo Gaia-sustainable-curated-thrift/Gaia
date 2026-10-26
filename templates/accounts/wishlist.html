@@ -9,7 +9,7 @@
 <div class="wishlist-copy">
 <h3>{{ item.title }}
 </h3>
-<p>{{ item.condition }} · {{ item.size }}<br>{{ item.price|rupiah }}
+<p>{{ item.condition }}<br>{{ item.price|rupiah }}
 </p>
 <form method="post" action="{% url 'wishlist_remove' item.pk %}">{% csrf_token %}<button class="button" type="submit">Remove from Wishlist</button>
 </form>
@@ -19,7 +19,7 @@
 <aside class="card wishlist-note">
 <h2>Mindful choices. New stories.
 </h2>
-<p class="muted">Your favorite pre-loved items are saved here. Consider size, condition, and your needs before buying.
+<p class="muted">Your favorite pre-loved items are saved here. Consider condition and your needs before buying.
 </p>
 <p class="small muted">Your wishlist saves favorites; item availability may change.
 </p>

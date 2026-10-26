@@ -24,11 +24,7 @@
     </div>
     <div class="site-drawer-bottom">
         <div class="site-drawer-sell-wrap">
-            {% if user.is_authenticated %}
-            <button class="site-drawer-sell" type="button" data-drawer-sell>Sell <span aria-hidden="true">＋</span></button>
-            {% else %}
-            <a class="site-drawer-sell" href="{% url 'register' %}">Sell <span aria-hidden="true">＋</span></a>
-            {% endif %}
+            <a class="site-drawer-sell" href="{% url 'products:sell' %}">Sell <span aria-hidden="true">+</span></a>
         </div>
         <div class="site-drawer-account-bar">
             <a class="site-drawer-account" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'login' %}{% endif %}">

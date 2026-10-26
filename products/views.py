@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
 from django.http import JsonResponse
@@ -9,10 +10,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from accounts.models import WishlistItem
 from . import cart
-from .models import Category, Product
+from .models import Category, Product, ProductImage
 
 CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
-SIZE_ORDER = ['xs', 's', 'm', 'l', 'xl']
 GENDER_ORDER = ['women', 'men']
 CONDITION_LABELS = {'signs_of_wear': 'Signs of Wear'}
 
@@ -106,10 +106,8 @@ def search(request):
     if q:
         base = base.filter(
             Q(title__icontains=q)
-            | Q(brand__icontains=q)
             | Q(description__icontains=q)
             | Q(style_tags__icontains=q)
-            | Q(color__icontains=q)
             | Q(category__name__icontains=q)
             | Q(category__parent__name__icontains=q)
         )
@@ -118,7 +116,6 @@ def search(request):
     price_to = request.GET.get('price_to', '').strip()
     selected_genders = request.GET.getlist('gender')
     selected_categories = request.GET.getlist('category')
-    selected_sizes = request.GET.getlist('size')
     selected_conditions = request.GET.getlist('condition')
 
     products = base
@@ -130,8 +127,6 @@ def search(request):
         products = products.filter(category__parent__slug__in=selected_genders)
     if selected_categories:
         products = products.filter(category__name__in=selected_categories)
-    if selected_sizes:
-        products = products.filter(size__in=selected_sizes)
     if selected_conditions:
         products = products.filter(condition__in=selected_conditions)
 
@@ -164,16 +159,6 @@ def search(request):
             'checked': category.name in selected_categories,
         })
 
-    raw_sizes = set(base.exclude(size='').values_list('size', flat=True).distinct())
-    sizes = [
-        {
-            'value': size,
-            'count': base.filter(size=size).count(),
-            'checked': size in selected_sizes,
-        }
-        for size in sorted(raw_sizes, key=lambda s: (SIZE_ORDER.index(s.lower()) if s.lower() in SIZE_ORDER else 99, s))
-    ]
-
     conditions = [
         {
             'value': value,
@@ -192,7 +177,6 @@ def search(request):
         'price_to': price_to,
         'genders': genders,
         'category_facets': category_facets,
-        'sizes': sizes,
         'conditions': conditions,
     })
 
@@ -230,6 +214,82 @@ def detail(request, slug):
         'saved_count': SAVED_COUNT,
         'seller_rating': SELLER_RATING,
         'seller_reviews': SELLER_REVIEWS,
+    })
+
+
+def _seller_parents():
+    return list(Category.objects.filter(parent__isnull=True).order_by('name'))
+
+
+@login_required
+def sell(request):
+    parents = _seller_parents()
+    conditions = [{'value': value, 'label': label} for value, label in Product.Condition.choices]
+
+    if request.method == 'POST':
+        errors = []
+        title = request.POST.get('title', '').strip()
+        category_id = request.POST.get('category')
+        price_raw = request.POST.get('price', '').strip()
+        description = request.POST.get('description', '').strip()
+        condition = request.POST.get('condition', Product.Condition.GOOD)
+        photos = request.FILES.getlist('photos')
+
+        if not title:
+            errors.append('Listing title is required.')
+        if not category_id:
+            errors.append('Choose a category.')
+
+        price = None
+        digits = ''.join(ch for ch in price_raw if ch.isdigit())
+        if not digits:
+            errors.append('Enter a price.')
+        else:
+            price = int(digits)
+
+        category = None
+        if category_id:
+            category = Category.objects.filter(pk=category_id, parent__isnull=False).first()
+            if category is None:
+                errors.append('Choose a valid category.')
+
+        if condition not in dict(Product.Condition.choices):
+            condition = Product.Condition.GOOD
+
+        if len(photos) > 5:
+            errors.append('Select maximum 5 photos.')
+
+        if not errors:
+            product = Product.objects.create(
+                seller=request.user,
+                title=title,
+                description=description,
+                price=price,
+                category=category,
+                condition=condition,
+            )
+            for index, photo in enumerate(photos):
+                ProductImage.objects.create(product=product, image=photo, is_primary=index == 0, order=index)
+            return redirect('products:detail', slug=product.slug)
+
+        return render(request, 'products/sell.html', {
+            'parents': parents,
+            'conditions': conditions,
+            'errors': errors,
+            'selected_parent': request.POST.get('parent', ''),
+            'form': {
+                'title': title,
+                'category': category_id or '',
+                'price': price_raw,
+                'description': description,
+                'condition': condition,
+            },
+        })
+
+    return render(request, 'products/sell.html', {
+        'parents': parents,
+        'conditions': conditions,
+        'selected_parent': parents[0].slug if parents else '',
     })
 
 
@@ -332,7 +392,6 @@ def wish_add(request, slug):
         product_key=product.slug,
         defaults={
             'title': product.title,
-            'size': product.size,
             'condition': product.get_condition_display(),
             'price': product.price,
             'image': image.image.url if image else '',

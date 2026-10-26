@@ -10,7 +10,7 @@
     </a>
     <div class="product-card__info">
         <h3 class="product-card__title">{{ product.title }}</h3>
-        <p class="product-card__meta">{{ product.get_condition_display }}{% if product.size %} · {{ product.size }}{% endif %}</p>
+        <p class="product-card__meta">{{ product.get_condition_display }}</p>
         <p class="product-card__price">{{ product.price|rupiah }}</p>
     </div>
     <form class="product-card__form" method="post" action="{% url 'products:bag_add' product.slug %}">

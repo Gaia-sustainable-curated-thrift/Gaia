@@ -16,7 +16,7 @@
         <div class="bag-item__body">
             <div class="bag-item__text">
                 <a class="bag-item__title" href="{% url 'products:detail' item.product.slug %}">{{ item.product.title }}</a>
-                <p class="bag-item__meta">{{ item.product.get_condition_display }}{% if item.product.size %} &middot; {{ item.product.size }}{% endif %}</p>
+                <p class="bag-item__meta">{{ item.product.get_condition_display }}</p>
             </div>
             <div class="bag-item__row">
                 <span class="bag-item__price">{{ item.line_total|rupiah }}</span>

@@ -1,0 +1,105 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% block title %}List an item{% endblock %}
+{% block main %}
+<main class="sell-main">
+    <div class="sell-head">
+        <a class="sell-back" href="{% url 'products:home' %}" aria-label="Back to home">
+            {% include 'includes/icon.html' with name='arrow-left' %}
+        </a>
+        <h1 class="sell-title">List an item</h1>
+    </div>
+
+    {% if errors %}
+    <ul class="sell-errors">
+        {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    <form class="sell-form" method="post" enctype="multipart/form-data" data-sell-form>
+        {% csrf_token %}
+
+        <section class="sell-section">
+            <h2 class="sell-label">Select maximum 5 photos</h2>
+            <div class="sell-photos" data-photos>
+                <label class="sell-photo-add" data-photo-add>
+                    {% include 'includes/icon.html' with name='plus' %}
+                    <input class="sell-photo-input" type="file" name="photos" accept="image/*" multiple data-photo-input>
+                </label>
+            </div>
+        </section>
+
+        <div class="sell-two-col">
+            <div class="sell-col sell-col--fixed">
+                <section class="sell-field">
+                    <h2 class="sell-label">Select category</h2>
+                    <div class="sell-dropdown" data-sell-dropdown>
+                        <button class="sell-select" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false">
+                            <span data-sell-display>Choose a category</span>
+                            {% include 'includes/icon.html' with name='caret-down' %}
+                        </button>
+                        <div class="sell-menu" data-sell-menu hidden>
+                            {% for parent in parents %}
+                            <div class="sell-menu__group">
+                                <span class="sell-menu__group-label">{{ parent.name }}</span>
+                                {% for child in parent.children.all %}
+                                <button class="sell-menu__option" type="button"
+                                        data-sell-option
+                                        data-parent="{{ parent.slug }}"
+                                        data-value="{{ child.pk }}"
+                                        data-label="{{ parent.name }}'s {{ child.name|lower }}">{{ child.name }}</button>
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" name="parent" value="{{ selected_parent }}" data-sell-parent>
+                        <input type="hidden" name="category" value="{{ form.category|default:'' }}" data-sell-value>
+                    </div>
+                </section>
+            </div>
+
+            <div class="sell-col">
+                <section class="sell-field">
+                    <h2 class="sell-label">Listing title</h2>
+                    <input class="sell-input" type="text" name="title" maxlength="200"
+                           placeholder="Subdued Angel Wings Hoodie"
+                           value="{{ form.title|default:'' }}">
+                </section>
+            </div>
+        </div>
+
+        <div class="sell-two-col">
+            <div class="sell-col sell-col--fixed">
+                <section class="sell-field">
+                    <h2 class="sell-label">Condition</h2>
+                    <div class="sell-chips" role="radiogroup" aria-label="Condition">
+                        {% for condition in conditions %}
+                        <label class="sell-chip">
+                            <input type="radio" name="condition" value="{{ condition.value }}"
+                                   {% if form.condition == condition.value or not form and condition.value == 'good' %}checked{% endif %}>
+                            <span>{{ condition.label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </section>
+            </div>
+
+            <div class="sell-col">
+                <section class="sell-field">
+                    <h2 class="sell-label">Price</h2>
+                    <input class="sell-input sell-price__input" type="text" name="price" inputmode="numeric"
+                           placeholder="2.000.000" data-price-input value="{{ form.price|default:'' }}">
+                </section>
+            </div>
+        </div>
+
+        <section class="sell-field">
+            <h2 class="sell-label">Description</h2>
+            <textarea class="sell-textarea" name="description" rows="4"
+                      placeholder="Tell buyers about the item, its fit, and any details worth knowing.">{{ form.description|default:'' }}</textarea>
+        </section>
+
+        <button class="button sell-submit" type="submit">List item</button>
+    </form>
+</main>
+{% endblock %}

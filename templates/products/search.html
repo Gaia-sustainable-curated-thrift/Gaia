@@ -70,20 +70,6 @@
                     </fieldset>
                     {% endif %}
 
-                    {% if sizes %}
-                    <fieldset class="filter-group">
-                        <legend>Size</legend>
-                        <div class="filter-options">
-                            {% for option in sizes %}
-                            <label class="filter-option">
-                                <input type="checkbox" name="size" value="{{ option.value }}" {% if option.checked %}checked{% endif %}>
-                                <span>{{ option.value }}<span class="filter-count">({{ option.count }})</span></span>
-                            </label>
-                            {% endfor %}
-                        </div>
-                    </fieldset>
-                    {% endif %}
-
                     {% if conditions %}
                     <fieldset class="filter-group">
                         <legend>Condition</legend>

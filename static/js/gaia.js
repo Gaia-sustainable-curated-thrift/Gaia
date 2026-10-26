@@ -207,6 +207,121 @@
         });
     }
 
+    function initSellForm() {
+        var form = document.querySelector('[data-sell-form]');
+        if (!form) return;
+
+        var photos = form.querySelector('[data-photos]');
+        var addTile = form.querySelector('[data-photo-add]');
+        var input = form.querySelector('[data-photo-input]');
+        if (photos && addTile && input) {
+            var MAX_PHOTOS = 5;
+            var chosen = [];
+
+            var syncInput = function () {
+                var dt = new DataTransfer();
+                chosen.forEach(function (file) { dt.items.add(file); });
+                input.files = dt.files;
+            };
+
+            var render = function () {
+                photos.querySelectorAll('.sell-photo').forEach(function (node) { node.remove(); });
+                chosen.forEach(function (file, index) {
+                    var tile = document.createElement('div');
+                    tile.className = 'sell-photo';
+
+                    var img = document.createElement('img');
+                    img.alt = '';
+                    var reader = new FileReader();
+                    reader.onload = function (e) { img.src = e.target.result; };
+                    reader.readAsDataURL(file);
+
+                    var remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.className = 'sell-photo__remove';
+                    remove.setAttribute('aria-label', 'Remove photo');
+                    remove.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>';
+                    remove.addEventListener('click', function () {
+                        chosen.splice(index, 1);
+                        syncInput();
+                        render();
+                    });
+
+                    tile.appendChild(img);
+                    tile.appendChild(remove);
+
+                    if (index === 0) {
+                        var cover = document.createElement('span');
+                        cover.className = 'sell-photo__cover';
+                        cover.textContent = 'Cover';
+                        tile.appendChild(cover);
+                    }
+                    photos.insertBefore(tile, addTile);
+                });
+                var full = chosen.length >= MAX_PHOTOS;
+                addTile.hidden = full;
+                addTile.style.display = full ? 'none' : '';
+            };
+
+            input.addEventListener('change', function () {
+                Array.prototype.forEach.call(input.files, function (file) {
+                    if (chosen.length < MAX_PHOTOS) chosen.push(file);
+                });
+                syncInput();
+                render();
+            });
+
+            render();
+        }
+
+        var dropdown = form.querySelector('[data-sell-dropdown]');
+        if (dropdown) {
+            var toggle = dropdown.querySelector('[data-sell-toggle]');
+            var menu = dropdown.querySelector('[data-sell-menu]');
+            var display = dropdown.querySelector('[data-sell-display]');
+            var valueInput = dropdown.querySelector('[data-sell-value]');
+            var parentInput = dropdown.querySelector('[data-sell-parent]');
+
+            function closeMenu() {
+                menu.hidden = true;
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+
+            toggle.addEventListener('click', function (event) {
+                event.stopPropagation();
+                var open = menu.hidden;
+                menu.hidden = !open;
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+
+            dropdown.querySelectorAll('[data-sell-option]').forEach(function (option) {
+                option.addEventListener('click', function () {
+                    dropdown.querySelectorAll('.is-active').forEach(function (el) { el.classList.remove('is-active'); });
+                    option.classList.add('is-active');
+                    display.textContent = option.getAttribute('data-label');
+                    valueInput.value = option.getAttribute('data-value');
+                    parentInput.value = option.getAttribute('data-parent');
+                    toggle.classList.add('is-set');
+                    closeMenu();
+                });
+            });
+
+            document.addEventListener('click', function (event) {
+                if (!dropdown.contains(event.target)) closeMenu();
+            });
+        }
+
+        var price = form.querySelector('[data-price-input]');
+        if (price) {
+            var formatPrice = function () {
+                var digits = price.value.replace(/\D/g, '');
+                price.value = digits ? Number(digits).toLocaleString('id-ID') : '';
+            };
+            price.addEventListener('input', formatPrice);
+            formatPrice();
+        }
+    }
+
     function init() {
         initCategoryTabs();
         initListingTabs();
@@ -214,6 +329,7 @@
         initGallery();
         initBagDrawer();
         initBagForms();
+        initSellForm();
         initToasts();
         initDrawerSearch(initHeaderSearch());
     }

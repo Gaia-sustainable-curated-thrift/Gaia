@@ -79,3 +79,46 @@ class BagTests(TestCase):
         self.client.post(reverse('products:bag_add', args=[self.product.slug]))
         response = self.client.get(reverse('products:detail', args=[self.product.slug]))
         self.assertContains(response, '/accounts/login/?next=')
+
+
+class SellTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('seller', password='pw')
+        self.parent = Category.objects.create(name='Women')
+        self.child = Category.objects.create(name='Tops', parent=self.parent)
+        self.url = reverse('products:sell')
+
+    def test_sell_requires_login(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_sell_form_renders_for_seller(self):
+        self.client.force_login(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Select maximum 5 photos')
+        self.assertContains(response, 'List item')
+
+    def test_listing_creates_product(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {
+            'title': 'Linen Shirt',
+            'category': self.child.pk,
+            'parent': self.parent.slug,
+            'price': '1.250.000',
+            'condition': Product.Condition.EXCELLENT,
+        })
+        product = Product.objects.get(title='Linen Shirt')
+        self.assertRedirects(response, reverse('products:detail', args=[product.slug]))
+        self.assertEqual(product.price, 1250000)
+        self.assertEqual(product.seller, self.user)
+        self.assertEqual(product.category, self.child)
+        self.assertEqual(product.condition, Product.Condition.EXCELLENT)
+
+    def test_listing_requires_title_and_price(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {'title': '', 'category': '', 'price': ''})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Product.objects.count(), 0)
+        self.assertContains(response, 'sell-errors')
