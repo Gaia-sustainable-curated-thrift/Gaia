@@ -1,0 +1,38 @@
+{% extends "accounts/base.html" %}
+
+{% block title %}Review & Rating{% endblock %}
+
+{% block main %}
+<main class="reviews-page">
+    <h1>Review &amp; Rating</h1>
+
+    <h2>{{ seller.get_full_name|default:seller.username }}</h2>
+    <p>Buyer experiences with this seller.</p>
+
+    <section class="reviews-list" aria-label="Seller reviews">
+        {% for review in reviews %}
+            <article class="review-card">
+                <h3>{{ review.title }}</h3>
+
+                <p>Rating: {{ review.rating }}/5</p>
+
+                <p>
+                    {% if review.is_anonymous %}
+                        Anonymous
+                    {% else %}
+                        {{ review.reviewer.get_full_name|default:review.reviewer.username }}
+                    {% endif %}
+                </p>
+
+                <p>{{ review.comment|linebreaksbr }}</p>
+
+                <time datetime="{{ review.created_at|date:'c' }}">
+                    {{ review.created_at|date:"d M Y" }}
+                </time>
+            </article>
+        {% empty %}
+            <p>No reviews yet for this seller.</p>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}
