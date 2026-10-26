@@ -67,9 +67,30 @@
         </div>
     </section>
 
+    <nav class="review-filters" aria-label="Filter reviews by rating">
+        <span class="filter-label">FILTER BY STARS</span>
+
+        <a href="{% url 'reviews:seller_reviews' seller.pk %}"
+           class="rating-filter{% if not selected_rating %} is-active{% endif %}">
+            All
+        </a>
+
+        {% for star in "54321" %}
+            <a href="?rating={{ star }}"
+               class="rating-filter{% if selected_rating == star %} is-active{% endif %}">
+                {{ star }} ★
+            </a>
+        {% endfor %}
+    </nav>
+
     <header class="reviews-list-heading">
         <h2>SELLER REVIEWS</h2>
-        <p>{{ total_reviews }} shared experience{{ total_reviews|pluralize }}</p>
+        <p>
+            {{ filtered_count }} review{{ filtered_count|pluralize }}
+            {% if selected_rating %}
+                with {{ selected_rating }} star{{ selected_rating|pluralize }}
+            {% endif %}
+        </p>
     </header>
 
     <section class="reviews-list" aria-label="Seller reviews">
@@ -126,8 +147,14 @@
         {% empty %}
             <div class="reviews-empty">
                 <span class="empty-stars" aria-hidden="true">☆☆☆☆☆</span>
-                <h3>No reviews yet</h3>
-                <p>Be the first to share your experience with this seller.</p>
+
+                {% if selected_rating %}
+                    <h3>No matching reviews</h3>
+                    <p>No reviews with {{ selected_rating }} stars yet.</p>
+                {% else %}
+                    <h3>No reviews yet</h3>
+                    <p>Be the first to share your experience with this seller.</p>
+                {% endif %}
             </div>
         {% endfor %}
     </section>

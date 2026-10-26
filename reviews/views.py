@@ -20,11 +20,20 @@ def seller_reviews(request, seller_id):
         total_reviews=Count("pk"),
     )
 
+    selected_rating = request.GET.get("rating", "")
+
+    if selected_rating in ["1", "2", "3", "4", "5"]:
+        reviews = reviews.filter(rating=int(selected_rating))
+    else:
+        selected_rating = ""
+
     context = {
         "seller": seller,
         "reviews": reviews,
         "average_rating": summary["average_rating"],
         "total_reviews": summary["total_reviews"],
+        "selected_rating": selected_rating,
+        "filtered_count": reviews.count(),
     }
 
     return render(request, "reviews/seller_reviews.html", context)
