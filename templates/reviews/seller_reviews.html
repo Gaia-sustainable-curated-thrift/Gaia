@@ -1,6 +1,11 @@
 {% extends "accounts/base.html" %}
+{% load static %}
 
 {% block title %}Review & Rating{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/reviews.css' %}">
+{% endblock %}
 
 {% block main %}
 <main class="reviews-page">
