@@ -1,0 +1,88 @@
+from .models import Product
+
+SESSION_KEY = 'bag'
+MAX_QUANTITY = 99
+
+
+def _read(session):
+    data = session.get(SESSION_KEY)
+    if not isinstance(data, dict):
+        return {}
+    cleaned = {}
+    for key, quantity in data.items():
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            continue
+        if quantity > 0:
+            cleaned[str(key)] = min(quantity, MAX_QUANTITY)
+    return cleaned
+
+
+def _write(session, data):
+    if data:
+        session[SESSION_KEY] = data
+    else:
+        session.pop(SESSION_KEY, None)
+    session.modified = True
+
+
+def quantity_for(session, product_id):
+    return _read(session).get(str(product_id), 0)
+
+
+def add(session, product_id, quantity=1):
+    data = _read(session)
+    key = str(product_id)
+    data[key] = min(data.get(key, 0) + max(1, int(quantity)), MAX_QUANTITY)
+    _write(session, data)
+
+
+def set_quantity(session, product_id, quantity):
+    data = _read(session)
+    key = str(product_id)
+    quantity = int(quantity)
+    if quantity <= 0:
+        data.pop(key, None)
+    else:
+        data[key] = min(quantity, MAX_QUANTITY)
+    _write(session, data)
+
+
+def remove(session, product_id):
+    data = _read(session)
+    data.pop(str(product_id), None)
+    _write(session, data)
+
+
+def items(session):
+    data = _read(session)
+    if not data:
+        return []
+    ids = [int(key) for key in data if str(key).isdigit()]
+    products = (
+        Product.objects
+        .select_related('category')
+        .prefetch_related('images')
+        .filter(pk__in=ids)
+    )
+    by_id = {str(product.pk): product for product in products}
+    result = []
+    for key, quantity in data.items():
+        product = by_id.get(key)
+        if not product:
+            continue
+        result.append({
+            'product': product,
+            'quantity': quantity,
+            'line_total': product.price * quantity,
+        })
+    return result
+
+
+def count(session):
+    return sum(item['quantity'] for item in items(session))
+
+
+def subtotal(session):
+    return sum(item['line_total'] for item in items(session))

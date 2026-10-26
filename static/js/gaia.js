@@ -122,11 +122,99 @@
         });
     }
 
+    function initBagDrawer() {
+        var drawer = document.getElementById('bag-drawer');
+        var toggles = document.querySelectorAll('[data-bag-toggle]');
+        if (!drawer || !toggles.length) return;
+
+        toggles.forEach(function (toggle) {
+            toggle.addEventListener('click', function () {
+                if (!drawer.open) drawer.showModal();
+            });
+        });
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target === drawer) drawer.close();
+        });
+
+        if (drawer.hasAttribute('data-bag-open') && !drawer.open) {
+            drawer.showModal();
+        }
+    }
+
+    function dismissToast(toast, duration) {
+        window.setTimeout(function () {
+            toast.classList.add('is-leaving');
+            window.setTimeout(function () { toast.remove(); }, 300);
+        }, duration);
+    }
+
+    function initToasts() {
+        document.querySelectorAll('[data-toast]').forEach(function (toast) {
+            var duration = parseInt(toast.getAttribute('data-toast-duration'), 10) || 4000;
+            dismissToast(toast, duration);
+        });
+    }
+
+    function showBagToast(toast) {
+        if (!toast || toast.kind !== 'added') return;
+        var el = document.createElement('div');
+        el.className = 'toast toast--added';
+        el.setAttribute('role', 'status');
+        el.setAttribute('data-toast', '');
+        el.setAttribute('data-toast-duration', '4000');
+
+        var text = document.createElement('span');
+        text.className = 'toast__text';
+        text.textContent = toast.text;
+        el.appendChild(text);
+
+        if (toast.icon) {
+            var icon = document.createElement('span');
+            icon.className = 'toast__icon';
+            icon.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-bag"></use></svg>';
+            el.appendChild(icon);
+        }
+
+        document.body.appendChild(el);
+        dismissToast(el, 4000);
+    }
+
+    function initBagForms() {
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (!form.matches('form[action*="/bag/"]')) return;
+
+            event.preventDefault();
+            var drawer = document.getElementById('bag-drawer');
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.ok ? response.json() : null;
+            }).then(function (data) {
+                if (!data) return;
+                var panel = document.querySelector('.bag-drawer__panel');
+                if (panel && data.drawer) panel.innerHTML = data.drawer;
+                if (data.open && drawer && !drawer.open) drawer.showModal();
+                showBagToast(data.toast);
+            }).catch(function () {
+                form.submit();
+            });
+        });
+    }
+
     function init() {
         initCategoryTabs();
         initListingTabs();
         initFilterToggle();
         initGallery();
+        initBagDrawer();
+        initBagForms();
+        initToasts();
         initDrawerSearch(initHeaderSearch());
     }
 

@@ -45,12 +45,20 @@
 
             <div class="pdp-actions-block">
                 <div class="pdp-actions">
-                    <button class="button pdp-bag" type="button" {% if not product.is_purchasable %}disabled{% endif %}>
-                        {% include 'includes/icon.html' with name='bag' %}<span>Add to bag</span>
-                    </button>
-                    <button class="button olive-button pdp-wish" type="button">
-                        {% include 'includes/icon.html' with name='heart' %}<span>Save to wishlist</span>
-                    </button>
+                    <form class="pdp-action-form" method="post" action="{% url 'products:bag_add' product.slug %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="button pdp-bag" type="submit" {% if not product.is_purchasable %}disabled{% endif %}>
+                            {% include 'includes/icon.html' with name='bag' %}<span>Add to bag</span>
+                        </button>
+                    </form>
+                    <form class="pdp-action-form" method="post" action="{% url 'products:wish_add' product.slug %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="button olive-button pdp-wish" type="submit">
+                            {% include 'includes/icon.html' with name='heart' %}<span>Save to wishlist</span>
+                        </button>
+                    </form>
                 </div>
                 <p class="pdp-saved">{{ saved_count }} people have saved this</p>
             </div>

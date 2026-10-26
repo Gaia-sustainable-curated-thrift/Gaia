@@ -1,6 +1,14 @@
+from django.conf import settings
+from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
-from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
+from accounts.models import WishlistItem
+from . import cart
 from .models import Category, Product
 
 CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
@@ -223,3 +231,116 @@ def detail(request, slug):
         'seller_rating': SELLER_RATING,
         'seller_reviews': SELLER_REVIEWS,
     })
+
+
+def _product_url(product):
+    return reverse('products:detail', args=[product.slug])
+
+
+def _redirect_back(request, fallback):
+    target = request.POST.get('next') or request.GET.get('next')
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(target)
+    return redirect(fallback)
+
+
+def _is_ajax(request):
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+def _bag_json(request, *, toast=None, open_drawer=False):
+    items = cart.items(request.session)
+    context = {
+        'bag_items': items,
+        'bag_count': sum(item['quantity'] for item in items),
+        'bag_subtotal': sum(item['line_total'] for item in items),
+        'bag_toast': toast,
+        'bag_open': open_drawer,
+    }
+    return JsonResponse({
+        'ok': True,
+        'bag_count': context['bag_count'],
+        'drawer': render_to_string('includes/bag_drawer_body.html', context, request=request),
+        'toast': toast if toast and toast.get('kind') == 'added' else None,
+        'open': open_drawer,
+    })
+
+
+@require_POST
+def bag_add(request, slug):
+    product = get_object_or_404(Product, slug=slug)
+    cart.add(request.session, product.pk)
+    toast = {
+        'kind': 'added',
+        'text': f'Added \u201c{product.title}\u201d to bag',
+        'icon': True,
+    }
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast)
+    request.session['bag_toast'] = toast
+    return _redirect_back(request, _product_url(product))
+
+
+@require_POST
+def bag_set(request, slug):
+    product = get_object_or_404(Product, slug=slug)
+    try:
+        quantity = int(request.POST.get('quantity', 1))
+    except (TypeError, ValueError):
+        quantity = 1
+
+    toast = None
+    if quantity <= 0:
+        previous = cart.quantity_for(request.session, product.pk)
+        cart.remove(request.session, product.pk)
+        if previous:
+            request.session['bag_undo'] = {'product_id': product.pk, 'quantity': previous}
+            toast = {'kind': 'removed', 'text': 'Item removed', 'undo': True}
+    else:
+        cart.set_quantity(request.session, product.pk, quantity)
+
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast, open_drawer=True)
+    request.session['bag_toast'] = toast
+    request.session['bag_open'] = True
+    return _redirect_back(request, _product_url(product))
+
+
+@require_POST
+def bag_undo(request):
+    entry = request.session.pop('bag_undo', None)
+    toast = None
+    if entry:
+        cart.set_quantity(request.session, entry['product_id'], entry.get('quantity', 1))
+        toast = {'kind': 'added', 'text': 'Item added back to bag', 'icon': True}
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast, open_drawer=True)
+    request.session['bag_toast'] = toast
+    request.session['bag_open'] = True
+    return _redirect_back(request, reverse('products:home'))
+
+
+@require_POST
+def wish_add(request, slug):
+    product = get_object_or_404(Product, slug=slug)
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+
+    image = product.primary_image
+    WishlistItem.objects.update_or_create(
+        user=request.user,
+        product_key=product.slug,
+        defaults={
+            'title': product.title,
+            'size': product.size,
+            'condition': product.get_condition_display(),
+            'price': product.price,
+            'image': image.image.url if image else '',
+            'removed': False,
+        },
+    )
+    request.session['bag_toast'] = {
+        'kind': 'added',
+        'text': f'Saved \u201c{product.title}\u201d to wishlist',
+    }
+    return _redirect_back(request, _product_url(product))

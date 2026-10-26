@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase
+from django.urls import reverse
+from accounts.models import WishlistItem
+from products import cart
 from products.models import BasketItem, Category, Product
 
 
@@ -30,3 +33,49 @@ class ProductModelTests(TestCase):
         BasketItem.objects.create(user=self.buyer, product=self.product)
         with self.assertRaises(IntegrityError):
             BasketItem.objects.create(user=self.buyer, product=self.product)
+
+
+class BagTests(TestCase):
+    def setUp(self):
+        self.seller = get_user_model().objects.create_user('seller', password='pw')
+        self.category = Category.objects.create(name='Outerwear')
+        self.product = Product.objects.create(seller=self.seller, title='Trench Coat', price=300000, category=self.category)
+
+    def test_add_to_bag_stores_in_session(self):
+        response = self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.assertRedirects(response, reverse('products:detail', args=[self.product.slug]))
+        self.assertEqual(cart.count(self.client.session), 1)
+
+    def test_detail_shows_added_toast(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        response = self.client.get(reverse('products:detail', args=[self.product.slug]))
+        self.assertContains(response, 'to bag')
+
+    def test_decrease_to_zero_removes_and_offers_undo(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.client.post(reverse('products:bag_set', args=[self.product.slug]), {'quantity': 0})
+        self.assertEqual(cart.count(self.client.session), 0)
+        response = self.client.get(reverse('products:detail', args=[self.product.slug]))
+        self.assertContains(response, 'Item removed')
+        self.assertContains(response, 'Undo')
+
+    def test_undo_restores_removed_item(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.client.post(reverse('products:bag_set', args=[self.product.slug]), {'quantity': 0})
+        self.client.post(reverse('products:bag_undo'))
+        self.assertEqual(cart.count(self.client.session), 1)
+
+    def test_wish_add_redirects_anonymous_to_login(self):
+        response = self.client.post(reverse('products:wish_add', args=[self.product.slug]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+
+    def test_wish_add_saves_for_authenticated_user(self):
+        self.client.force_login(self.seller)
+        self.client.post(reverse('products:wish_add', args=[self.product.slug]))
+        self.assertTrue(WishlistItem.objects.filter(user=self.seller, product_key=self.product.slug).exists())
+
+    def test_checkout_links_to_login_for_anonymous(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        response = self.client.get(reverse('products:detail', args=[self.product.slug]))
+        self.assertContains(response, '/accounts/login/?next=')
