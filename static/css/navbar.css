@@ -1,0 +1,144 @@
+/* Shared navbar component. Page styles must not override this component.
+   Desktop source: Figma 350:5068. Responsive variants use the same tokens. */
+.gaia-navbar {
+    --nav-padding: 24px 32px;
+    --nav-margin: 32px 20px 0;
+    --nav-radius: 20px;
+    --nav-gap: 32px;
+    --nav-control: 48px;
+    --nav-icon: 32px;
+    --nav-logo: 48px;
+    --nav-brand-size: 36px;
+    --nav-account-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--nav-gap);
+    min-height: 106px;
+    margin: var(--nav-margin);
+    padding: var(--nav-padding);
+    border-radius: var(--nav-radius);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "Plus Jakarta Sans", Arial, sans-serif;
+}
+.gaia-navbar .brand-group { display: flex; align-items: center; flex-shrink: 0; gap: 8px; }
+.gaia-navbar .brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    width: 155.25px;
+    height: var(--nav-logo);
+    color: #565924;
+    font: 500 var(--nav-brand-size)/1.2 "EB Garamond", Georgia, serif;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+.gaia-navbar .brand img { display: block; width: var(--nav-logo); height: var(--nav-logo); object-fit: contain; }
+.gaia-navbar .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 var(--nav-control);
+    width: var(--nav-control);
+    height: var(--nav-control);
+    margin: 0;
+    padding: 8px;
+    border: 0;
+    border-radius: 12px;
+    color: var(--ink);
+    background: transparent;
+}
+.gaia-navbar .nav-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: auto; margin: 0; flex-shrink: 0; }
+.gaia-navbar .icon { width: var(--nav-icon); height: var(--nav-icon); }
+.gaia-navbar .account-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 40px;
+    margin: 0;
+    color: var(--olive-dark);
+    font-size: var(--nav-account-size);
+    font-weight: 600;
+    line-height: 2;
+    white-space: nowrap;
+}
+.gaia-navbar .nav-avatar { display: block; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; background: #d9d9d9; }
+.gaia-navbar .search-display {
+    display: flex;
+    align-items: center;
+    order: 0;
+    align-self: auto;
+    flex: 1 1 auto;
+    gap: 24px;
+    width: auto;
+    min-width: 0;
+    height: 58px;
+    margin: 0;
+    padding: 12px 24px;
+    border: 2px solid var(--wine-dark);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--ink);
+    font-size: 20px;
+    line-height: 1.5;
+}
+.gaia-navbar .search-display > .icon { width: 28px; height: 28px; color: var(--wine-dark); }
+.gaia-navbar .search-form { display: flex; flex: 1; min-width: 0; }
+.gaia-navbar .search-form input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; outline: none; color: var(--ink); font: inherit; }
+.gaia-navbar .search-form input::placeholder { color: #959593; }
+.gaia-navbar .mobile-search-toggle { display: none; }
+
+/* Bag count is shared by every page and updated by the bag fetch response. */
+.gaia-navbar .nav-bag { position: relative; }
+.gaia-navbar .nav-bag__count {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 4px;
+    border-radius: 50%;
+    background: var(--wine);
+    color: var(--wine-light);
+    font: 600 9px/1 "Plus Jakarta Sans", Arial, sans-serif;
+}
+.gaia-navbar .nav-bag__count[hidden] { display: none; }
+
+@media (max-width: 1024px) {
+    .gaia-navbar { --nav-gap: 16px; --nav-account-size: 16px; --nav-control: 44px; --nav-icon: 28px; flex-wrap: wrap; }
+    .gaia-navbar .search-display { display: none; }
+    .gaia-navbar .mobile-search-toggle { display: inline-flex; }
+    .gaia-navbar .search-display.is-search-open { display: flex; order: 3; flex: 1 0 100%; width: 100%; }
+}
+@media (max-width: 640px) {
+    .gaia-navbar {
+        --nav-padding: 16px;
+        --nav-margin: 8px 8px 0;
+        --nav-radius: 12px;
+        --nav-gap: 0;
+        --nav-control: 44px;
+        --nav-logo: 44px;
+        --nav-brand-size: 33px;
+        --nav-account-size: 12px;
+        min-height: 76px;
+        flex-direction: row;
+    }
+    .gaia-navbar .brand-group { gap: 0; }
+    .gaia-navbar .brand { width: auto; gap: 16px; }
+    .gaia-navbar .nav-actions { gap: 4px; }
+    .gaia-navbar .nav-wishlist,
+    .gaia-navbar .account-link { display: none; }
+    .gaia-navbar .search-display.is-search-open { margin-top: 12px; height: 48px; padding: 8px 16px; gap: 16px; font-size: 16px; }
+    .gaia-navbar .search-display > .icon { width: 20px; height: 20px; }
+    .gaia-navbar .nav-bag__count { min-width: 18px; height: 18px; font-size: 8px; top: 0; right: 0; }
+}
+@media (max-width: 380px) {
+    .gaia-navbar { --nav-padding: 12px 8px; --nav-control: 32px; --nav-icon: 24px; --nav-logo: 32px; --nav-brand-size: 26px; }
+    .gaia-navbar .brand { gap: 6px; }
+    .gaia-navbar .nav-actions { gap: 3px; }
+}

@@ -53,6 +53,31 @@ class ListingEmptyStateTests(TestCase):
                         self.assertContains(response, 'Go back home', status_code=404)
 
 
+class SharedNavbarTests(TestCase):
+    def test_anonymous_navbar_uses_shared_component_without_member_actions(self):
+        for path in ['/products/', '/products/search/', '/accounts/login/']:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertTemplateUsed(response, 'includes/navbar.html')
+                self.assertContains(response, 'css/navbar.css')
+                self.assertContains(response, 'nav-bag')
+                self.assertContains(response, 'nav-login')
+                self.assertNotContains(response, 'nav-wishlist')
+                self.assertNotContains(response, 'nav-profile')
+
+    def test_authenticated_navbar_is_shared_by_product_and_account_pages(self):
+        user = get_user_model().objects.create_user('navbar-seller')
+        self.client.force_login(user)
+        for path in ['/products/', '/products/search/', '/products/sell/', '/accounts/profile/', '/accounts/wishlist/']:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertTemplateUsed(response, 'includes/navbar.html')
+                self.assertContains(response, 'nav-wishlist')
+                self.assertContains(response, 'nav-profile')
+                self.assertNotContains(response, 'nav-login')
+                self.assertNotContains(response, 'nav-orders')
+
+
 class ProductModelTests(TestCase):
     def setUp(self):
         self.seller = get_user_model().objects.create_user('seller', password='pw')

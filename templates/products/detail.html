@@ -25,6 +25,7 @@
             </div>
         </div>
 
+        <div class="pdp-details">
         <nav class="breadcrumb pdp-breadcrumb" aria-label="Breadcrumb">
             <a href="{% url 'products:home' %}">Home</a>
             <span aria-hidden="true">/</span>
@@ -72,7 +73,7 @@
                             <span class="pdp-username">@{{ product.seller.username }}</span>
                             <span class="pdp-rating">
                                 <span class="pdp-rating-value">{{ seller_rating }}</span>
-                                {% for i in "12345" %}{% include 'includes/icon.html' with name='star' %}{% endfor %}
+                                <span class="pdp-rating-stars" aria-label="5 out of 5 stars" role="img">{% for i in "12345" %}{% include 'includes/icon.html' with name='star' %}{% endfor %}</span>
                                 <span class="pdp-rating-count">({{ seller_reviews }})</span>
                             </span>
                         </div>
@@ -81,12 +82,13 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
     {% if related %}
     <section class="pdp-also">
-        <h2 class="pdp-also__title">Also see</h2>
-        <div class="product-grid pdp-related-grid">
+        <h2 class="pdp-also__title" id="also-see-title">Also see</h2>
+        <div class="product-grid pdp-related-grid" role="region" aria-labelledby="also-see-title" tabindex="0">
             {% for item in related %}
                 {% include 'products/includes/product_card.html' with product=item %}
             {% endfor %}
