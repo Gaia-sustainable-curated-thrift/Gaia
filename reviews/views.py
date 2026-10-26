@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
+from django.db.models import Avg, Count
 
 from .forms import ReviewForm
 from .models import Review
@@ -14,9 +15,16 @@ def seller_reviews(request, seller_id):
 
     reviews = Review.objects.filter(seller=seller)
 
+    summary = reviews.aggregate(
+        average_rating=Avg("rating"),
+        total_reviews=Count("pk"),
+    )
+
     context = {
         "seller": seller,
         "reviews": reviews,
+        "average_rating": summary["average_rating"],
+        "total_reviews": summary["total_reviews"],
     }
 
     return render(request, "reviews/seller_reviews.html", context)

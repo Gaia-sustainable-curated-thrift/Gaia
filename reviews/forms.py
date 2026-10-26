@@ -14,7 +14,7 @@ class ReviewForm(forms.ModelForm):
         ]
 
         widgets = {
-            "rating": forms.Select(choices=[
+            "rating": forms.RadioSelect(choices=[
                 (1, "1 star"),
                 (2, "2 stars"),
                 (3, "3 stars"),
