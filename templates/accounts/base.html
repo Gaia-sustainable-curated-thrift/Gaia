@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
     <script src="{% static 'js/navigation.js' %}" defer></script>
 <link rel="stylesheet" href="{% static 'css/gaia.css' %}">
+<link rel="stylesheet" href="{% static 'css/navbar.css' %}">
     <script src="{% static 'js/gaia.js' %}" defer></script>
 {% block extra_css %}{% endblock %}
 </head>
@@ -13,21 +14,7 @@
 {% include 'includes/icons.html' %}
     {% include 'includes/site_drawer.html' %}
     {% include 'includes/bag_drawer.html' %}
-<header class="topbar">
-<div class="brand-group"><button class="icon-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-drawer" aria-haspopup="dialog" data-menu-toggle>{% include 'includes/icon.html' with name='menu' %}</button><a class="brand" href="{% url 'products:home' %}"><img src="{% static 'images/gaia-logo.png' %}" alt="" width="48" height="48"><span>GAIA</span></a>
-</div>
-<div class="search-display" data-search data-search-url="{% url 'products:search' %}">{% include 'includes/icon.html' with name='search' %}<span>Search vintage denim, clothing, or sustainable brands...</span>
-</div>
-<nav class="nav-actions" aria-label="Account navigation">
-<button class="icon-button mobile-search-toggle" type="button" data-mobile-search-toggle aria-label="Open search" aria-expanded="false">{% include 'includes/icon.html' with name='search' %}</button>
-{% if user.is_authenticated %}<a class="icon-button nav-orders" href="{% url 'orders' %}" aria-label="Orders">{% include 'includes/icon.html' with name='orders' %}</a>{% endif %}
-<button class="icon-button nav-bag" type="button" data-bag-toggle aria-controls="bag-drawer" aria-haspopup="dialog" aria-label="Shopping bag, {{ bag_count }} items">
-    {% include 'includes/icon.html' with name='bag' %}
-    <span class="nav-bag__count" data-bag-count aria-hidden="true" {% if not bag_count %}hidden{% endif %}>{{ bag_count }}</span>
-</button>
-{% if user.is_authenticated %}<a class="icon-button nav-wishlist" href="{% url 'wishlist' %}" aria-label="Wishlist">{% include 'includes/icon.html' with name='heart' %}</a><a class="account-link" href="{% url 'profile' %}"><span class="nav-avatar" aria-hidden="true"></span>Hi, {{ user.first_name|default:user.username|truncatechars:14 }}</a>{% else %}<a class="account-link" href="{% url 'login' %}">Log In</a>{% endif %}
-</nav>
-</header>
+{% include 'includes/navbar.html' %}
 {% block main %}
 {% endblock %}
 <footer class="site-footer">

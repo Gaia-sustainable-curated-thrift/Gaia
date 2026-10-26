@@ -250,7 +250,6 @@ def sell(request):
         title = request.POST.get('title', '').strip()
         category_id = request.POST.get('category')
         price_raw = request.POST.get('price', '').strip()
-        description = request.POST.get('description', '').strip()
         condition = request.POST.get('condition', Product.Condition.GOOD)
         photos = request.FILES.getlist('photos')
 
@@ -282,7 +281,6 @@ def sell(request):
             product = Product.objects.create(
                 seller=request.user,
                 title=title,
-                description=description,
                 price=price,
                 category=category,
                 condition=condition,
@@ -300,7 +298,6 @@ def sell(request):
                 'title': title,
                 'category': category_id or '',
                 'price': price_raw,
-                'description': description,
                 'condition': condition,
             },
         })
