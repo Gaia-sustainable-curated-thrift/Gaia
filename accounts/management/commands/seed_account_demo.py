@@ -23,7 +23,7 @@ class Command(BaseCommand):
         ]:
             AccountOrder.objects.get_or_create(number=f'DEMO-{user.pk}-{suffix}', defaults={
                 'user': user, 'date': date(2026, 10, day), 'status': status,
-                'title': 'Burberry Trench Coat', 'size': 'M', 'condition': 'Very good condition',
+                'title': 'Burberry Trench Coat', 'condition': 'Very good condition',
                 'image': 'images/reference-coat.png', 'subtotal': 300000, 'shipping': 20000,
                 'recipient': user.get_full_name() or user.username, 'phone': '+62 812 3456 7890',
                 'address': 'Jl. Melati No. 12, Menteng\nJakarta Pusat, DKI Jakarta 10310',
@@ -31,7 +31,7 @@ class Command(BaseCommand):
                 'status_note': note,
             })
         WishlistItem.objects.get_or_create(user=user, product_key='demo-coat', defaults={
-            'title': 'Burberry Trench Coat', 'size': 'M', 'condition': 'Excellent',
+            'title': 'Burberry Trench Coat', 'condition': 'Excellent',
             'price': 300000, 'image': 'images/reference-coat.png',
         })
         self.stdout.write(self.style.SUCCESS('Reference orders and wishlist added to the selected demo account.'))

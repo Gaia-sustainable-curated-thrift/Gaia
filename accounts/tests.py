@@ -33,8 +33,8 @@ class AccountFlowTests(TestCase):
         self.user = User.objects.create_user('keishajanice', 'keisha@example.com', 'Sustainable!2026', first_name='Keisha Janice')
         self.other = User.objects.create_user('other', 'other@example.com', 'Different!2026')
         self.client.force_login(self.user)
-        self.order = AccountOrder.objects.create(user=self.user, number='GAIA-1026001', date='2026-10-08', status='in_transit', title='Burberry Trench Coat', size='M', condition='Very good', subtotal=300000, shipping=20000, recipient='Keisha Janice', address='Jakarta')
-        self.item = WishlistItem.objects.create(user=self.user, product_key='coat', title='Burberry Trench Coat', size='M', condition='Excellent', price=300000)
+        self.order = AccountOrder.objects.create(user=self.user, number='GAIA-1026001', date='2026-10-08', status='in_transit', title='Burberry Trench Coat', condition='Very good', subtotal=300000, shipping=20000, recipient='Keisha Janice', address='Jakarta')
+        self.item = WishlistItem.objects.create(user=self.user, product_key='coat', title='Burberry Trench Coat', condition='Excellent', price=300000)
 
     def test_all_account_pages_render(self):
         for name in ['profile', 'edit_profile', 'orders', 'wishlist', 'account_settings', 'password_change']:

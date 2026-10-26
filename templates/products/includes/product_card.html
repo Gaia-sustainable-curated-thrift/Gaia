@@ -1,6 +1,6 @@
 {% load account_tags %}
 <article class="product-card" data-category="{{ product.category.name }}" {% if hidden %}hidden{% endif %}>
-    <a class="product-card__media" href="#">
+    <a class="product-card__media" href="{% url 'products:detail' product.slug %}">
         {% with image=product.primary_image %}
         {% if image %}
         <img src="{{ image.image.url }}" alt="{{ product.title }}" loading="lazy">
@@ -10,8 +10,12 @@
     </a>
     <div class="product-card__info">
         <h3 class="product-card__title">{{ product.title }}</h3>
-        <p class="product-card__meta">{{ product.get_condition_display }} · {{ product.size }}</p>
+        <p class="product-card__meta">{{ product.get_condition_display }}</p>
         <p class="product-card__price">{{ product.price|rupiah }}</p>
     </div>
-    <button class="button" type="button" {% if not product.is_purchasable %}disabled{% endif %}>Add to bag</button>
+    <form class="product-card__form" method="post" action="{% url 'products:bag_add' product.slug %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="button" type="submit" {% if not product.is_purchasable %}disabled{% endif %}>Add to bag</button>
+    </form>
 </article>

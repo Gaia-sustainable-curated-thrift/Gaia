@@ -1,4 +1,12 @@
-def basket_count(request):
-    if request.user.is_authenticated:
-        return {'basket_count': request.user.basket_items.count()}
-    return {'basket_count': 0}
+from . import cart
+
+
+def basket(request):
+    items = cart.items(request.session)
+    return {
+        'bag_items': items,
+        'bag_count': sum(item['quantity'] for item in items),
+        'bag_subtotal': sum(item['line_total'] for item in items),
+        'bag_toast': request.session.pop('bag_toast', None),
+        'bag_open': request.session.pop('bag_open', False),
+    }

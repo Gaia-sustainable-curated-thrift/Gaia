@@ -1,0 +1,71 @@
+{% load account_tags %}
+<span class="bag-drawer__handle" aria-hidden="true"></span>
+<header class="bag-drawer__head">
+    <h2 class="bag-drawer__title">Shopping Bag ({{ bag_count }})</h2>
+</header>
+
+{% if bag_items %}
+<div class="bag-drawer__items">
+    {% for item in bag_items %}
+    <article class="bag-item">
+        <a class="bag-item__media" href="{% url 'products:detail' item.product.slug %}" tabindex="-1" aria-hidden="true">
+            {% with hero=item.product.primary_image %}
+            {% if hero %}<img src="{{ hero.image.url }}" alt="" loading="lazy">{% endif %}
+            {% endwith %}
+        </a>
+        <div class="bag-item__body">
+            <div class="bag-item__text">
+                <a class="bag-item__title" href="{% url 'products:detail' item.product.slug %}">{{ item.product.title }}</a>
+                <p class="bag-item__meta">{{ item.product.get_condition_display }}</p>
+            </div>
+            <div class="bag-item__row">
+                <span class="bag-item__price">{{ item.line_total|rupiah }}</span>
+                <div class="bag-stepper">
+                    <form method="post" action="{% url 'products:bag_set' item.product.slug %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="quantity" value="{{ item.quantity|add:'-1' }}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="bag-stepper__btn" type="submit" aria-label="Decrease quantity of {{ item.product.title }}">{% include 'includes/icon.html' with name='minus' %}</button>
+                    </form>
+                    <span class="bag-stepper__value">{{ item.quantity }}</span>
+                    <form method="post" action="{% url 'products:bag_set' item.product.slug %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="quantity" value="{{ item.quantity|add:'1' }}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="bag-stepper__btn" type="submit" aria-label="Increase quantity of {{ item.product.title }}">{% include 'includes/icon.html' with name='plus' %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bag-drawer__empty">
+    <p>Your bag is empty.</p>
+</div>
+{% endif %}
+
+{% if bag_toast and bag_toast.kind == 'removed' %}
+<div class="bag-toast bag-toast--removed" role="status">
+    <span class="bag-toast__text">{{ bag_toast.text }}</span>
+    <form method="post" action="{% url 'products:bag_undo' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="bag-toast__undo" type="submit">Undo</button>
+    </form>
+</div>
+{% endif %}
+
+{% if bag_items %}
+<footer class="bag-drawer__summary">
+    <div class="bag-summary">
+        <div class="bag-summary__text">
+            <span class="bag-summary__label">Subtotal</span>
+            <small class="bag-summary__note">Shipping and taxes calculated at checkout.</small>
+        </div>
+        <span class="bag-summary__value">{{ bag_subtotal|rupiah }}</span>
+    </div>
+    <a class="button bag-checkout" href="{% if user.is_authenticated %}#{% else %}{% url 'login' %}?next={{ request.get_full_path|urlencode }}{% endif %}">Checkout</a>
+</footer>
+{% endif %}
