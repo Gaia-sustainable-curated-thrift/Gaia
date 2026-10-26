@@ -1,10 +1,56 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from accounts.models import WishlistItem
 from products import cart
 from products.models import BasketItem, Category, Product
+
+
+class ListingEmptyStateTests(TestCase):
+    def test_home_categories_render_without_database_categories(self):
+        response = self.client.get(reverse('products:home'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['gender_tabs']), 2)
+        for gender in ['women', 'men']:
+            for category in ['tops', 'bottoms', 'shoes', 'bags']:
+                self.assertContains(response, f'images/cat-{category}-{gender}.png')
+                self.assertContains(response, f'/products/shop/{gender}/?category={gender}-{category}')
+
+    def test_home_can_select_men_without_database_categories(self):
+        response = self.client.get(reverse('products:home'), {'gender': 'men'})
+        self.assertEqual(response.context['active_parent'].slug, 'men')
+        self.assertTrue(response.context['gender_tabs'][1]['active'])
+
+    def test_valid_departments_without_catalog_show_empty_state(self):
+        for path in ['/products/shop/women/', '/products/shop/men/', '/products/picked/']:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'No products yet')
+                self.assertFalse(response.context['has_active_products'])
+                self.assertEqual(len(response.context['categories']), 4)
+
+    def test_empty_active_tab_with_products_in_another_category(self):
+        seller = get_user_model().objects.create_user('seller')
+        parent = Category.objects.create(name='Women')
+        tops = Category.objects.create(name='Tops', parent=parent)
+        bags = Category.objects.create(name='Bags', parent=parent)
+        Product.objects.create(seller=seller, title='Shirt', category=tops, price=100000)
+        response = self.client.get(reverse('products:listing', args=['women']), {'category': bags.slug})
+        self.assertFalse(response.context['has_active_products'])
+        response = self.client.get(reverse('products:listing', args=['women']), {'category': tops.slug})
+        self.assertTrue(response.context['has_active_products'])
+
+    def test_unknown_paths_use_designed_404_in_both_debug_modes(self):
+        for debug in [True, False]:
+            with override_settings(DEBUG=debug):
+                for path in ['/unknown/path/', '/products/missing-item/', '/products/shop/unknown/']:
+                    with self.subTest(debug=debug, path=path):
+                        response = self.client.get(path)
+                        self.assertEqual(response.status_code, 404)
+                        self.assertTemplateUsed(response, '404.html')
+                        self.assertContains(response, 'Go back home', status_code=404)
 
 
 class ProductModelTests(TestCase):

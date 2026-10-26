@@ -28,13 +28,12 @@
             {% else %}
                 {% include 'products/includes/product_card.html' with product=product hidden=True %}
             {% endif %}
-        {% empty %}
-            <div class="state">
+        {% endfor %}
+            <div class="state" data-listing-empty {% if has_active_products %}hidden{% endif %}>
                 {% include 'includes/icon.html' with name='bag' %}
-                <h2>No items yet</h2>
+                <h2>No products yet</h2>
                 <p>Products will appear here once sellers add them.</p>
             </div>
-        {% endfor %}
     </div>
 
 </main>

@@ -33,6 +33,7 @@
         var tabs = document.querySelector('[data-listing-tabs]');
         if (!tabs) return;
         var cards = document.querySelectorAll('.product-card[data-category]');
+        var empty = document.querySelector('[data-listing-empty]');
 
         tabs.addEventListener('click', function (event) {
             var item = event.target.closest('.segment__item');
@@ -44,6 +45,9 @@
             cards.forEach(function (card) {
                 card.hidden = card.getAttribute('data-category') !== name;
             });
+            if (empty) {
+                empty.hidden = Array.prototype.some.call(cards, function (card) { return !card.hidden; });
+            }
         });
     }
 

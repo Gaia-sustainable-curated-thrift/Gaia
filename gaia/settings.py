@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     ]
 
 MIDDLEWARE = [
+    'gaia.middleware.NotFoundPageMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

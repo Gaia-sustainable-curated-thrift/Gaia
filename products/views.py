@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -25,6 +25,14 @@ def order_categories(categories):
     return sorted(categories, key=lambda c: (CATEGORY_ORDER.get(c.name.lower(), 99), c.name))
 
 
+def department_categories(parent, slug):
+    existing = {category.name.lower(): category for category in parent.children.all()} if parent and parent.pk else {}
+    return [
+        existing.get(name.lower()) or Category(name=name, slug=f'{slug}-{name.lower()}')
+        for name in ['Tops', 'Bottoms', 'Shoes', 'Bags']
+    ]
+
+
 def home(request):
     picked = (
         Product.objects
@@ -32,13 +40,17 @@ def home(request):
         .prefetch_related('images')
         .order_by('-created_at')[:10]
     )
-    parents = list(Category.objects.filter(parent__isnull=True))
+    stored_parents = {parent.slug: parent for parent in Category.objects.filter(parent__isnull=True)}
+    parents = [
+        stored_parents.get(slug) or Category(name=slug.capitalize(), slug=slug)
+        for slug in GENDER_ORDER
+    ]
     gender = request.GET.get('gender', 'women')
     active_parent = next((p for p in parents if p.slug == gender), None) or (parents[0] if parents else None)
     gender_tabs = [
         {
             'parent': parent,
-            'categories': order_categories(parent.children.all()),
+            'categories': department_categories(parent, parent.slug),
             'active': parent == active_parent,
         }
         for parent in parents
@@ -55,15 +67,18 @@ def listing(request, gender=None):
     category_slug = request.GET.get('category')
 
     if gender:
-        parent = get_object_or_404(Category, slug=gender, parent__isnull=True)
-        page_title = f"Shop {parent.name}'s"
-        crumb = parent.name
-        link_base = reverse('products:listing', args=[parent.slug])
+        if gender not in GENDER_ORDER:
+            raise Http404('Unknown department')
+        parent = parents.filter(slug=gender).first()
+        department_name = gender.capitalize()
+        page_title = f"Shop {department_name}'s"
+        crumb = department_name
+        link_base = reverse('products:listing', args=[gender])
         products = (
             Product.objects
             .select_related('category')
             .prefetch_related('images')
-            .filter(category__parent=parent)
+            .filter(category__parent=parent) if parent else Product.objects.none()
         )
     else:
         parent = parents.first()
@@ -76,7 +91,7 @@ def listing(request, gender=None):
             .prefetch_related('images')
         )
 
-    categories = order_categories(parent.children.all()) if parent else []
+    categories = department_categories(parent, gender or (parent.slug if parent else 'all'))
 
     if category_slug:
         active_category = next((c for c in categories if c.slug == category_slug), None)
@@ -91,6 +106,10 @@ def listing(request, gender=None):
         'parents': parents,
         'categories': categories,
         'active_category': active_category,
+        'has_active_products': any(
+            product.category and active_category and product.category.name == active_category.name
+            for product in products
+        ),
         'products': products,
         'link_base': link_base,
     })
