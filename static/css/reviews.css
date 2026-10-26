@@ -84,3 +84,61 @@
     align-items: center;
     justify-content: center;
 }
+
+.reviews-page .review-form-card {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 24px;
+    border-radius: 16px;
+    background: #fefefe;
+}
+
+.reviews-page .review-form-card label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.reviews-page .review-form-card input[type="text"],
+.reviews-page .review-form-card select,
+.reviews-page .review-form-card textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #b8b9a8;
+    border-radius: 8px;
+    background: #fefefe;
+    color: #252710;
+    font: inherit;
+}
+
+.reviews-page .review-form-card textarea {
+    resize: vertical;
+}
+
+.reviews-page .review-form-card label[for="id_is_anonymous"] {
+    display: inline;
+}
+
+.reviews-page .review-form-card button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #6b6f2d;
+    color: white;
+    font: inherit;
+    cursor: pointer;
+}
+
+.reviews-page .review-form-card button:hover {
+    background: #555922;
+}
+
+.reviews-page .review-form-card a {
+    margin-left: 16px;
+    color: #740f35;
+}
+
+.reviews-page .review-form-card .errorlist {
+    color: #740f35;
+}
