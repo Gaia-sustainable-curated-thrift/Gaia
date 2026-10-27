@@ -1,0 +1,49 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout | Gaia</title>
+    <link rel="stylesheet" href="{% static 'css/transaction.css' %}">
+</head>
+<body>
+<main class="transaction-page">
+    <header class="transaction-header">
+        <p class="transaction-eyebrow">GAIA · YOUR ORDER</p>
+        <h1>Checkout</h1>
+        <p class="transaction-description">Review your order before continuing.</p>
+    </header>
+
+    <div class="transaction-layout">
+        <section class="transaction-card">
+            <h2>Order Summary</h2>
+            {% for item in cart_items %}
+                <div class="transaction-item">
+                    <span>{{ item.product.title }} × {{ item.quantity }}</span>
+                    <strong>{{ item.line_total }}</strong>
+                </div>
+            {% empty %}
+                <p>Your bag is empty.</p>
+            {% endfor %}
+            <div class="transaction-total">
+                <span>Total</span><strong>{{ subtotal }}</strong>
+            </div>
+        </section>
+
+        <section class="transaction-card">
+            <h2>Shipping Address</h2>
+            <p class="transaction-section-description">Enter your delivery details on the next step.</p>
+            <a class="transaction-button" href="{% url 'transaction:shipping' %}">
+                Continue to Shipping →
+            </a>
+        </section>
+    </div>
+
+    <div class="transaction-footer-actions">
+        <a class="transaction-back-link" href="{% url 'products:home' %}">← Continue Shopping</a>
+    </div>
+</main>
+</body>
+</html>

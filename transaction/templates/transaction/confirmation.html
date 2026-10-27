@@ -1,0 +1,79 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation | Gaia</title>
+    <link rel="stylesheet" href="{% static 'css/transaction.css' %}">
+</head>
+<body>
+<main class="transaction-page">
+    <header class="transaction-header">
+        <p class="transaction-eyebrow">GAIA · YOUR ORDER</p>
+        <h1>{% if completed %}Order Confirmed!{% else %}Review Your Order{% endif %}</h1>
+        <p class="transaction-description">
+            {% if completed %}Your order has been saved successfully.{% else %}Check your details before placing your order.{% endif %}
+        </p>
+    </header>
+
+    {% if completed %}
+        {% for order in orders %}
+            <section class="transaction-card confirmation-card">
+                <h2>{{ order.title }}</h2>
+                <p>Order number: {{ order.number }}</p>
+                <p>Subtotal: {{ order.subtotal }}</p>
+                <p>Payment: {{ order.payment_method }}</p>
+                <p>Status: {{ order.get_status_display }}</p>
+            </section>
+        {% empty %}
+            <section class="transaction-card">
+                <p>No order details are available.</p>
+            </section>
+        {% endfor %}
+
+        <div class="transaction-footer-actions">
+            <a class="transaction-button" href="{% url 'orders' %}">View My Orders</a>
+            <a class="transaction-back-link" href="{% url 'products:home' %}">Continue Shopping →</a>
+        </div>
+    {% else %}
+        <div class="transaction-layout">
+            <section class="transaction-card">
+                <h2>Order Summary</h2>
+                {% for item in cart_items %}
+                    <div class="transaction-item">
+                        <span>{{ item.product.title }} × {{ item.quantity }}</span>
+                        <strong>{{ item.line_total }}</strong>
+                    </div>
+                {% endfor %}
+                <div class="transaction-total">
+                    <span>Subtotal</span><strong>{{ subtotal }}</strong>
+                </div>
+            </section>
+
+            <section class="transaction-card">
+                <h2>Shipping Address</h2>
+                <p>{{ address.recipient }}</p>
+                <p>{{ address.phone }}</p>
+                <p>{{ address.address }}, {{ address.city }}, {{ address.postal_code }}, {{ address.country }}</p>
+                <a href="{% url 'transaction:shipping' %}">Edit Address</a>
+
+                <h2 class="transaction-subheading">Payment Method</h2>
+                <p>{{ payment_method }}</p>
+                <a href="{% url 'transaction:payment' %}">Change Payment</a>
+            </section>
+        </div>
+
+        <form method="post" class="transaction-form transaction-confirm-form">
+            {% csrf_token %}
+            <button class="transaction-button" type="submit">Place Order →</button>
+        </form>
+
+        <div class="transaction-footer-actions">
+            <a class="transaction-back-link" href="{% url 'transaction:payment' %}">← Back to Payment</a>
+        </div>
+    {% endif %}
+</main>
+</body>
+</html>

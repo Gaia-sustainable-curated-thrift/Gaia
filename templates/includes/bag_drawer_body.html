@@ -66,6 +66,11 @@
         </div>
         <span class="bag-summary__value">{{ bag_subtotal|rupiah }}</span>
     </div>
-    <a class="button bag-checkout" href="{% if user.is_authenticated %}#{% else %}{% url 'login' %}?next={{ request.get_full_path|urlencode }}{% endif %}">Checkout</a>
+    
+    <a class="button bag-checkout"
+    href="{% if user.is_authenticated %}{% url 'transaction:checkout' %}{% else %}{% url 'login' %}?next={% url 'transaction:checkout' %}{% endif %}">
+        Checkout
+    </a>
+
 </footer>
 {% endif %}

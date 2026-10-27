@@ -1,0 +1,48 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shipping | Gaia</title>
+    <link rel="stylesheet" href="{% static 'css/transaction.css' %}">
+</head>
+<body>
+<main class="transaction-page">
+    <header class="transaction-header">
+        <p class="transaction-eyebrow">GAIA · DELIVERY DETAILS</p>
+        <h1>Shipping Address</h1>
+        <p class="transaction-description">Enter or update your delivery address.</p>
+    </header>
+
+    <section class="transaction-card transaction-form-card">
+        <form method="post" class="transaction-form">
+            {% csrf_token %}
+
+            {% if address_form.non_field_errors %}
+                {{ address_form.non_field_errors }}
+            {% endif %}
+
+            {% for field in address_form %}
+                <div class="transaction-form-field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                        <p class="transaction-field-errors">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+            <button class="transaction-button" type="submit">
+                Save Address & Continue →
+            </button>
+        </form>
+    </section>
+
+    <div class="transaction-footer-actions">
+        <a class="transaction-back-link" href="{% url 'transaction:checkout' %}">← Back to Checkout</a>
+    </div>
+</main>
+</body>
+</html>
