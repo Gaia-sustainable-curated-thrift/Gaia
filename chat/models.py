@@ -7,17 +7,16 @@ from products.models import Product
 
 
 class Conversation(models.Model):
-    """One thread between a customer (buyer) and the other side: a seller, or Gaia Care."""
     class Kind(models.TextChoices):
-        PRODUCT = 'product', 'Product'   # buyer <-> seller about a listing
-        ORDER = 'order', 'Order'         # buyer <-> Gaia Care about an order
-        SUPPORT = 'support', 'Support'   # buyer <-> Gaia Care, general help
+        PRODUCT = 'product', 'Product'
+        ORDER = 'order', 'Order'
+        SUPPORT = 'support', 'Support'
 
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PRODUCT)
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='conversations')
     order = models.ForeignKey(AccountOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name='conversations')
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='buyer_conversations')
-    # For order/support threads this is the Gaia Care account.
+    # chat order/support: diisi akun Gaia Care
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='seller_conversations')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -43,7 +42,6 @@ class Conversation(models.Model):
         return self.seller if user.pk == self.buyer_id else self.buyer
 
     def title_for(self, user):
-        """Name shown in the inbox row and chat header."""
         if self.kind == self.Kind.ORDER and self.order:
             return f'Order #{self.order.number}'
         other = self.other_participant(user)
@@ -68,7 +66,7 @@ class Message(models.Model):
         DECLINED = 'declined', 'Declined'
 
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
-    # Empty for system notices such as "Pesanan GA-2048 telah dikirim".
+    # kosong untuk pesan sistem
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='chat_messages')
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.TEXT)
     body = models.TextField(max_length=2000, blank=True)
