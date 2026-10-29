@@ -6,7 +6,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import resolve, reverse
-from accounts.models import WishlistItem
+from django.utils import timezone
+from accounts.models import AccountOrder, WishlistItem
 from products import cart
 from products.models import BasketItem, Category, Product
 from products.test_forms import uploaded_photo
@@ -414,6 +415,163 @@ class EditListingTests(TestCase):
         self.assertEqual(conversation.product_id, self.product.pk)
         self.assertEqual(conversation.product.slug, old_slug)
         self.assertEqual(conversation.product.title, 'Updated Shirt')
+
+
+class DeleteListingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_user('delete-owner')
+        cls.other = get_user_model().objects.create_user('delete-other')
+        cls.product = Product.objects.create(seller=cls.owner, title='Delete This Shirt', price=125000)
+
+    def delete_url(self):
+        return reverse('products:delete', args=[self.product.slug])
+
+    def test_anonymous_delete_requires_login(self):
+        response = self.client.post(self.delete_url())
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response.url)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_another_user_cannot_delete_the_listing(self):
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.post(self.delete_url(), {'seller': self.owner.pk}).status_code, 404)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_staff_status_does_not_bypass_ownership(self):
+        self.other.is_staff = True
+        self.other.is_superuser = True
+        self.other.save(update_fields=['is_staff', 'is_superuser'])
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 404)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_only_post_can_delete(self):
+        self.client.force_login(self.owner)
+        for method in [self.client.get, self.client.head, self.client.put, self.client.delete]:
+            with self.subTest(method=method.__name__):
+                self.assertEqual(method(self.delete_url()).status_code, 405)
+                self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_csrf_is_required(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.owner)
+        self.assertEqual(client.post(self.delete_url()).status_code, 403)
+        self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_only_owner_sees_the_confirmation_dialog_and_delete_action(self):
+        detail = reverse('products:detail', args=[self.product.slug])
+        self.assertNotContains(self.client.get(detail), 'delete-listing-dialog')
+        self.client.force_login(self.other)
+        self.assertNotContains(self.client.get(detail), 'delete-listing-dialog')
+        self.client.force_login(self.owner)
+        response = self.client.get(detail)
+        self.assertContains(response, 'id="delete-listing-dialog"')
+        self.assertContains(response, self.delete_url())
+        self.assertContains(response, 'form method="dialog"')
+        self.assertContains(response, 'permanently removed')
+
+    def test_delete_removes_only_the_chosen_product_and_its_image_records(self):
+        photo = self.product.images.create(image='products/deleted-photo.png')
+        keep = Product.objects.create(seller=self.owner, title='Keep This Shirt', price=150000)
+        old_detail = reverse('products:detail', args=[self.product.slug])
+        self.client.force_login(self.owner)
+        response = self.client.post(self.delete_url())
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('products:home'))
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+        self.assertFalse(type(photo).objects.filter(pk=photo.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=keep.pk).exists())
+        self.assertContains(self.client.get(response.url), 'Listing deleted.')
+        self.assertNotContains(self.client.get(response.url), 'Listing deleted.')
+        self.assertEqual(self.client.get(old_detail).status_code, 404)
+
+    def test_sold_listing_can_be_deleted_by_its_owner(self):
+        self.product.status = Product.Status.SOLD
+        self.product.save(update_fields=['status'])
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 302)
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+    def test_deleted_and_unknown_slugs_return_404(self):
+        self.client.force_login(self.owner)
+        url = self.delete_url()
+        self.assertEqual(self.client.post(url).status_code, 302)
+        self.assertEqual(self.client.post(url).status_code, 404)
+        self.assertEqual(self.client.post(reverse('products:delete', args=['missing-listing'])).status_code, 404)
+
+    def test_deleted_item_is_removed_from_the_current_bag_and_undo_entry(self):
+        keep = Product.objects.create(seller=self.owner, title='Keep In Bag', price=150000)
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session['bag'] = {str(self.product.pk): 2, str(keep.pk): 1}
+        session['bag_undo'] = {'product_id': self.product.pk, 'quantity': 2}
+        session.save()
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 302)
+        self.assertEqual(self.client.session['bag'], {str(keep.pk): 1})
+        self.assertNotIn('bag_undo', self.client.session)
+
+    def test_undo_for_a_different_product_is_preserved(self):
+        keep = Product.objects.create(seller=self.owner, title='Other Removed Item', price=150000)
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session['bag_undo'] = {'product_id': keep.pk, 'quantity': 1}
+        session.save()
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 302)
+        self.assertEqual(self.client.session['bag_undo']['product_id'], keep.pk)
+
+    def test_existing_chat_and_messages_survive_product_deletion(self):
+        from chat.models import Conversation, Message
+
+        conversation = Conversation.objects.create(product=self.product, buyer=self.other, seller=self.owner)
+        text = Message.objects.create(conversation=conversation, sender=self.other, body='Is this still available?')
+        shared = Message.objects.create(conversation=conversation, sender=self.other, kind=Message.Kind.PRODUCT, product=self.product)
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 302)
+        conversation.refresh_from_db()
+        text.refresh_from_db()
+        shared.refresh_from_db()
+        self.assertIsNone(conversation.product_id)
+        self.assertIsNone(shared.product_id)
+        self.assertEqual(text.body, 'Is this still available?')
+        self.assertEqual(conversation.messages.count(), 2)
+        self.assertContains(self.client.get(reverse('chat:room', args=[conversation.pk])), 'Is this still available?')
+
+    def test_order_and_wishlist_snapshots_keep_their_data_and_picture(self):
+        self.client.force_login(self.owner)
+        with TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            photo = self.product.images.create(image=uploaded_photo('order-picture.png'), is_primary=True)
+            image_url = photo.image.url
+            order = AccountOrder.objects.create(
+                user=self.other, number='DELETE-TEST-001', date=timezone.localdate(), status='completed',
+                title=self.product.title, condition='Good', image=image_url,
+                subtotal=self.product.price, recipient='Buyer', address='Jakarta',
+            )
+            saved = WishlistItem.objects.create(
+                user=self.other, product_key=self.product.slug, title=self.product.title,
+                condition='Good', price=self.product.price, image=image_url,
+            )
+            self.assertEqual(self.client.post(self.delete_url()).status_code, 302)
+            order.refresh_from_db()
+            saved.refresh_from_db()
+            self.assertEqual(order.title, 'Delete This Shirt')
+            self.assertEqual(order.subtotal, 125000)
+            self.assertEqual(order.image, image_url)
+            self.assertEqual(saved.image, image_url)
+            self.assertTrue(photo.image.storage.exists(photo.image.name))
+            self.client.force_login(self.other)
+            self.assertEqual(self.client.get(reverse('order_detail', args=[order.pk])).status_code, 200)
+
+    def test_buyer_checkout_handles_a_product_deleted_from_their_bag(self):
+        buyer = Client()
+        buyer.force_login(self.other)
+        buyer.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 302)
+        self.assertEqual(cart.items(buyer.session), [])
+        response = buyer.get(reverse('transaction:checkout'))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('products:home'))
 
 
 class SellTests(TestCase):

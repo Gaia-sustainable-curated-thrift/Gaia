@@ -295,6 +295,19 @@ def edit(request, slug):
     return _listing_form_page(request, product)
 
 
+@login_required
+@require_POST
+def delete_listing(request, slug):
+    product = get_object_or_404(Product, slug=slug, seller=request.user)
+    product_id = product.pk
+    product.delete()
+    cart.remove(request.session, product_id)
+    if request.session.get('bag_undo', {}).get('product_id') == product_id:
+        request.session.pop('bag_undo')
+    request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing deleted.'}
+    return redirect('products:home')
+
+
 def _product_url(product):
     return reverse('products:detail', args=[product.slug])
 

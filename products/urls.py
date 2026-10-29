@@ -14,5 +14,6 @@ urlpatterns = [
     path('bag/undo/', views.bag_undo, name='bag_undo'),
     path('wishlist/add/<slug:slug>/', views.wish_add, name='wish_add'),
     path('<slug:slug>/edit/', views.edit, name='edit'),
+    path('<slug:slug>/delete/', views.delete_listing, name='delete'),
     path('<slug:slug>/', views.detail, name='detail'),
 ]

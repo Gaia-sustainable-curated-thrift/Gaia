@@ -79,7 +79,10 @@
                         </div>
                     </div>
                     {% if user == product.seller %}
-                    <a class="button pdp-edit" href="{% url 'products:edit' product.slug %}">Edit listing</a>
+                    <div class="pdp-owner-actions">
+                        <a class="button pdp-edit" href="{% url 'products:edit' product.slug %}">Edit listing</a>
+                        <button class="button secondary pdp-delete" type="button" data-delete-listing aria-haspopup="dialog" aria-controls="delete-listing-dialog" aria-expanded="false">Delete</button>
+                    </div>
                     {% elif user.is_authenticated %}
                     <form method="post" action="{% url 'chat:start' product.pk %}">{% csrf_token %}<button class="button pdp-chat" type="submit">Chat</button></form>
                     {% else %}
@@ -103,4 +106,21 @@
     {% endif %}
 
 </main>
+{% if user == product.seller %}
+<dialog class="pdp-delete-dialog" id="delete-listing-dialog" aria-labelledby="delete-listing-title" aria-describedby="delete-listing-description">
+    <div class="dialog-content">
+        <h2 id="delete-listing-title">Delete this listing?</h2>
+        <p id="delete-listing-description">&ldquo;{{ product.title }}&rdquo; will be permanently removed from the catalog.</p>
+        <div class="actions">
+            <form method="dialog">
+                <button class="button secondary" type="submit" autofocus>Cancel</button>
+            </form>
+            <form method="post" action="{% url 'products:delete' product.slug %}">
+                {% csrf_token %}
+                <button class="button" type="submit">Delete listing</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+{% endif %}
 {% endblock %}

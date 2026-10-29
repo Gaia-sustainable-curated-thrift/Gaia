@@ -207,7 +207,7 @@
         var requestPending = false;
         document.addEventListener('submit', function (event) {
             var form = event.target;
-            if (!form.matches('form[action*="/bag/"]')) return;
+            if (!form.matches('form[action]') || !/\/bag\/(add|set|undo)\//.test(new URL(form.action).pathname)) return;
             if (typeof window.fetch !== 'function') return;
 
             event.preventDefault();
@@ -367,6 +367,22 @@
         }
     }
 
+    function initListingDelete() {
+        var dialog = document.getElementById('delete-listing-dialog');
+        var toggle = document.querySelector('[data-delete-listing]');
+        if (!dialog || !toggle) return;
+        toggle.addEventListener('click', function () {
+            if (!dialog.open) dialog.showModal();
+            toggle.setAttribute('aria-expanded', 'true');
+        });
+        dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
+        dialog.addEventListener('click', function (event) {
+            if (event.target !== dialog) return;
+            var bounds = dialog.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+        });
+    }
+
     function init() {
         initCategoryTabs();
         initListingTabs();
@@ -375,6 +391,7 @@
         initBagDrawer();
         initBagForms();
         initSellForm();
+        initListingDelete();
         initToasts();
         initDrawerSearch(initHeaderSearch());
     }

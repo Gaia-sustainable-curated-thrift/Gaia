@@ -1185,6 +1185,11 @@
     color: var(--wine-light);
 }
 .pdp-edit { margin-left: auto; }
+.pdp-owner-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.pdp-owner-actions .button { padding: 8px 16px; }
+.pdp-delete { color: var(--wine); }
+.pdp-delete-dialog h2 { font-family: "EB Garamond", Georgia, serif; font-size: 32px; line-height: 1.2; color: var(--olive-dark); margin: 0 0 16px; }
+.pdp-delete-dialog .actions { gap: 12px; }
 
 .pdp-also { margin-top: 72px; }
 
@@ -1267,6 +1272,8 @@
     .pdp-rating .icon { width: 16px; height: 16px; }
     .pdp-chat,
     .pdp-edit { width: 100%; font-size: 12px; min-height: 44px; }
+    .pdp-owner-actions { width: 100%; }
+    .pdp-owner-actions .button { flex: 1; width: auto; min-height: 44px; font-size: 12px; }
     .pdp-also { margin-top: 24px; }
     .pdp-also__title { font-size: 24px; margin-bottom: 24px; }
     .pdp-related-grid {
