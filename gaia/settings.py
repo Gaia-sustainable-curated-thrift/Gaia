@@ -80,6 +80,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'accounts.context_processors.social_login',
                 'products.context_processors.basket',
+                'chat.context_processors.unread_chat_count',
             ],
         },
     },

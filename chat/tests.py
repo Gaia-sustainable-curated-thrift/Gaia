@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from accounts.models import AccountOrder
 from products.models import Product
 from . import services
@@ -83,3 +84,78 @@ class ChatServiceTests(TestCase):
         self.assertEqual(list(services.conversations_for(self.buyer)), [support, self.convo])
         services.send_message(self.convo, self.buyer, body='naik lagi')
         self.assertEqual(list(services.conversations_for(self.buyer)), [self.convo, support])
+
+
+class ChatPageTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user('seller', password='pw', first_name='Studio Terra')
+        self.buyer = User.objects.create_user('buyer', password='pw')
+        self.product = Product.objects.create(seller=self.seller, title='The Everyday Tote', price=289000)
+        self.client.force_login(self.buyer)
+
+    def test_empty_inbox_offers_gaia_care(self):
+        response = self.client.get(reverse('chat:inbox'))
+        self.assertContains(response, 'Belum ada percakapan')
+        self.assertContains(response, 'Start Chat')
+        response = self.client.post(reverse('chat:support'), follow=True)
+        self.assertContains(response, 'Gaia Care')
+
+    def test_inbox_lists_conversations_with_unread_badge(self):
+        convo = services.start_conversation(self.buyer, self.product)
+        services.send_message(convo, self.seller, body='Masih ada kak')
+        response = self.client.get(reverse('chat:inbox'))
+        self.assertContains(response, 'KOTAK MASUK')
+        self.assertContains(response, 'Studio Terra')
+        self.assertContains(response, 'chat-badge')
+        self.assertContains(self.client.get(reverse('chat:inbox'), {'q': 'denim'}), 'Tidak ada percakapan yang cocok')
+
+    def test_room_shows_product_card_and_thread(self):
+        response = self.client.post(reverse('chat:start', args=[self.product.pk]), follow=True)
+        self.assertContains(response, 'The Everyday Tote')
+        self.assertContains(response, 'Rp289.000')
+        self.assertContains(response, 'Buat penawaran')
+        self.assertContains(response, 'id="chat-initial"')
+
+    def test_room_is_private_and_needs_login(self):
+        convo = services.start_conversation(self.buyer, self.product)
+        self.client.force_login(User.objects.create_user('stranger', password='pw'))
+        self.assertEqual(self.client.get(reverse('chat:room', args=[convo.pk])).status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('chat:inbox')).status_code, 302)
+
+
+class ChatEntryPointTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user('seller', password='pw', first_name='Studio Terra')
+        self.buyer = User.objects.create_user('buyer', password='pw')
+        self.product = Product.objects.create(seller=self.seller, title='The Everyday Tote', price=289000)
+        self.client.force_login(self.buyer)
+
+    def test_navbar_icon_shows_unread_badge(self):
+        convo = services.start_conversation(self.buyer, self.product)
+        services.send_message(convo, self.seller, body='Halo')
+        response = self.client.get(reverse('chat:inbox'))
+        self.assertContains(response, 'class="icon-button nav-chat"')
+        self.assertContains(response, 'Chats, 1 unread')
+        self.assertContains(response, 'aria-label="My chats"')  # menu drawer
+        self.assertContains(self.client.get(reverse('profile')), 'Messages')  # My Account sidebar
+
+    def test_product_page_chat_button(self):
+        url = reverse('products:detail', args=[self.product.slug])
+        self.assertContains(self.client.get(url), reverse('chat:start', args=[self.product.pk]))
+        self.client.force_login(self.seller)
+        self.assertNotContains(self.client.get(url), 'pdp-chat')  # no chat with yourself
+        self.client.logout()
+        self.assertContains(self.client.get(url), f'{reverse("login")}?next=')
+
+    def test_footer_contact_opens_gaia_care(self):
+        response = self.client.get(reverse('chat:support'), follow=True)
+        self.assertContains(response, 'Gaia Care')
+        self.assertContains(self.client.get(reverse('chat:inbox')), reverse('chat:support'))
+
+    def test_order_chat_only_for_order_owner(self):
+        order = AccountOrder.objects.create(user=self.buyer, number='GA-2048', date='2026-10-12', status='in_transit', title='Tote', subtotal=1, recipient='B', address='Depok')
+        self.assertContains(self.client.get(reverse('order_detail', args=[order.pk])), reverse('chat:order', args=[order.pk]))
+        self.assertContains(self.client.get(reverse('chat:order', args=[order.pk]), follow=True), 'Order #GA-2048')
+        self.client.force_login(self.seller)
+        self.assertEqual(self.client.get(reverse('chat:order', args=[order.pk])).status_code, 404)

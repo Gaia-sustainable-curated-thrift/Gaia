@@ -32,6 +32,7 @@
                 <span class="site-drawer-name">{% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}{% else %}Log In{% endif %}</span>
             </a>
             <a class="site-drawer-account-icon" href="{% url 'orders' %}" aria-label="My orders">{% include 'includes/icon.html' with name='bag' %}</a>
+            <a class="site-drawer-account-icon" href="{% url 'chat:inbox' %}" aria-label="My chats">{% include 'includes/icon.html' with name='chat' %}</a>
             <a class="site-drawer-account-icon" href="{% url 'wishlist' %}" aria-label="My wishlist">{% include 'includes/icon.html' with name='heart' %}</a>
         </div>
     </div>
