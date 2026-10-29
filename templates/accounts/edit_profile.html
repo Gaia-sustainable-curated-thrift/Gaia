@@ -1,15 +1,33 @@
 {% extends 'accounts/layout.html' %}
+{% load account_tags static %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/avatar.css' %}"><script src="{% static 'js/avatar.js' %}" defer></script>{% endblock %}
 {% block account_content %}
 <section class="card">
-<h2>Personal Information
-</h2>
-<p class="muted">Keep your name and phone number up to date.
-</p>
-<form method="post">{% csrf_token %}{% include 'includes/fields.html' with two_columns=True %}
-<p class="small muted">Your email is managed securely and cannot be changed here.
-</p>
-<div class="actions"><button class="button" type="submit">Save Changes</button><a class="text-button" href="{% url 'profile' %}">Cancel</a>
-</div>
-</form>
+    <h2>Personal Information</h2>
+    <p class="muted">Keep your photo and personal details up to date.</p>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="avatar-editor">
+            <div class="avatar-preview" aria-live="polite">
+                <img data-avatar-preview {% if profile.avatar %}src="{{ profile.avatar.url }}"{% else %}hidden{% endif %} alt="Your profile photo">
+                <span data-avatar-fallback {% if profile.avatar %}hidden{% endif %}>{{ user|initials }}</span>
+            </div>
+            <div class="avatar-controls">
+                <label for="{{ form.avatar.id_for_label }}">Change profile photo</label>
+                {{ form.avatar }}
+                <p class="small muted" id="avatar-help">{{ form.avatar.help_text }} Changes are saved when you select Save Changes.</p>
+                <p class="small avatar-feedback" data-avatar-feedback role="status"></p>
+                {% if form.avatar.errors %}<div class="field-errors" role="alert">{{ form.avatar.errors }}</div>{% endif %}
+            </div>
+        </div>
+        <div class="form-fields two-columns">
+            {% for field in form %}{% if field.name != 'avatar' %}
+                <div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-errors" id="{{ field.auto_id }}_errors">{{ field.errors }}</div>{% endif %}</div>
+            {% endif %}{% endfor %}
+        </div>
+        <p class="small muted">Your email is managed securely and cannot be changed here.</p>
+        <div class="actions"><button class="button" type="submit">Save Changes</button><a class="text-button" href="{% url 'profile' %}">Cancel</a></div>
+    </form>
 </section>
 {% endblock %}

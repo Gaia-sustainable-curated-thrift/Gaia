@@ -46,7 +46,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'products',
+<<<<<<< HEAD
     'transaction',
+=======
+    'chat',
+>>>>>>> 8e81c6589fe580b94aeddae9fa784c3ac469fb33
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -80,6 +84,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'accounts.context_processors.social_login',
                 'products.context_processors.basket',
+                'chat.context_processors.unread_chat_count',
             ],
         },
     },

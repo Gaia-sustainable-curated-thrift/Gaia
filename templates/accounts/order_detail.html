@@ -45,5 +45,5 @@
 <p class="small muted">{% if order.status == 'awaiting_payment' %}Unpaid{% else %}Paid{% endif %} · {{ order.payment_method }}
 </p>
 </section>
-</div><a class="button olive-button" href="{% url 'orders' %}">Back to Orders</a>
+</div><div class="actions"><a class="button olive-button" href="{% url 'orders' %}">Back to Orders</a><a class="button secondary" href="{% url 'chat:order' order.pk %}">Tanya soal pesanan ini</a></div>
 {% endblock %}
