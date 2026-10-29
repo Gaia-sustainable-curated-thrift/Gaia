@@ -79,6 +79,7 @@
                         </div>
                     </div>
                     {% if user == product.seller %}
+                    <a class="button pdp-edit" href="{% url 'products:edit' product.slug %}">Edit listing</a>
                     {% elif user.is_authenticated %}
                     <form method="post" action="{% url 'chat:start' product.pk %}">{% csrf_token %}<button class="button pdp-chat" type="submit">Chat</button></form>
                     {% else %}

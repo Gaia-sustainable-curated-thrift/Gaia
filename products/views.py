@@ -242,22 +242,31 @@ def _seller_parents():
     return list(Category.objects.filter(parent__isnull=True).prefetch_related('children').order_by('name'))
 
 
-@login_required
-def sell(request):
+def _listing_form_page(request, product=None):
+    editing = product is not None
+    existing_images = list(product.images.all()) if editing else []
     form = ProductListingForm(
         request.POST if request.method == 'POST' else None,
         request.FILES if request.method == 'POST' else None,
+        instance=product,
     )
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             product = form.save(commit=False)
             product.seller = request.user
             product.save()
+            next_order = max((image.order for image in existing_images), default=-1) + 1
             for index, photo in enumerate(form.cleaned_data['photos']):
-                ProductImage.objects.create(product=product, image=photo, is_primary=index == 0, order=index)
+                ProductImage.objects.create(
+                    product=product, image=photo,
+                    is_primary=not existing_images and index == 0, order=next_order + index,
+                )
+        if editing:
+            request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing updated.'}
         return redirect('products:detail', slug=product.slug)
 
-    selected_category = getattr(form, 'cleaned_data', {}).get('category')
+    selected_category = form.cleaned_data.get('category') if form.is_bound else (product.category if editing else None)
+    cover = product.primary_image if editing else None
     return render(request, 'products/sell.html', {
         'parents': _seller_parents(),
         'conditions': [{'value': value, 'label': label} for value, label in Product.Condition.choices],
@@ -265,7 +274,25 @@ def sell(request):
         'errors': [message for messages in form.errors.values() for message in messages],
         'selected_category': selected_category,
         'selected_parent': selected_category.parent.slug if selected_category else '',
+        'editing': editing,
+        'product': product,
+        'existing_images': existing_images,
+        'cover_id': cover.pk if cover else None,
     })
+
+
+@login_required
+def sell(request):
+    return _listing_form_page(request)
+
+
+@login_required
+def edit(request, slug):
+    product = get_object_or_404(
+        Product.objects.select_related('category__parent').prefetch_related('images'),
+        slug=slug, seller=request.user,
+    )
+    return _listing_form_page(request, product)
 
 
 def _product_url(product):

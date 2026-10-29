@@ -79,3 +79,9 @@ class ProductListingForm(forms.ModelForm):
 
     def clean_condition(self):
         return self.cleaned_data['condition'] or Product.Condition.GOOD
+
+    def clean_photos(self):
+        photos = self.cleaned_data['photos']
+        if self.instance.pk and photos and self.instance.images.count() + len(photos) > MAX_PHOTOS:
+            raise ValidationError('A listing can have maximum 5 photos in total.', code='too_many_photos')
+        return photos

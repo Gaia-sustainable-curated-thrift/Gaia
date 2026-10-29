@@ -1,12 +1,15 @@
+from tempfile import TemporaryDirectory
+
 from django.contrib.auth import get_user_model
 from django.core.checks import Tags, run_checks
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import resolve, reverse
 from accounts.models import WishlistItem
 from products import cart
 from products.models import BasketItem, Category, Product
+from products.test_forms import uploaded_photo
 
 
 class RoutingConfigurationTests(SimpleTestCase):
@@ -224,6 +227,193 @@ class BagTests(TestCase):
         self.client.post(reverse('products:bag_add', args=[self.product.slug]))
         response = self.client.get(reverse('products:detail', args=[self.product.slug]))
         self.assertContains(response, '/accounts/login/?next=')
+
+
+class EditListingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_user('listing-owner')
+        cls.other = get_user_model().objects.create_user('other-user')
+        women = Category.objects.create(name='Women')
+        men = Category.objects.create(name='Men')
+        cls.category = Category.objects.create(name='Tops', parent=women)
+        cls.other_category = Category.objects.create(name='Tops', parent=men)
+        cls.product = Product.objects.create(
+            seller=cls.owner, title='Original Shirt', category=cls.category,
+            condition='excellent', price=125000, description='Existing description',
+        )
+        cls.front = cls.product.images.create(image='products/front.png', order=0)
+        cls.cover = cls.product.images.create(image='products/cover.png', order=4, is_primary=True)
+
+    def data(self, **changes):
+        data = {
+            'title': 'Updated Shirt', 'category': self.other_category.pk,
+            'condition': 'good', 'price': '175.000',
+        }
+        data.update(changes)
+        return data
+
+    def edit_url(self):
+        return reverse('products:edit', args=[self.product.slug])
+
+    def test_edit_requires_login_for_get_and_post(self):
+        for method in [self.client.get, self.client.post]:
+            response = method(self.edit_url(), self.data())
+            self.assertEqual(response.status_code, 302)
+            self.assertIn('/accounts/login/', response.url)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.title, 'Original Shirt')
+
+    def test_only_the_owner_sees_the_edit_link(self):
+        detail_url = reverse('products:detail', args=[self.product.slug])
+        self.assertNotContains(self.client.get(detail_url), self.edit_url())
+        self.client.force_login(self.other)
+        response = self.client.get(detail_url)
+        self.assertNotContains(response, self.edit_url())
+        self.assertContains(response, reverse('chat:start', args=[self.product.pk]))
+        self.client.force_login(self.owner)
+        self.assertContains(self.client.get(detail_url), self.edit_url())
+
+    def test_another_user_cannot_read_or_submit_the_edit_form(self):
+        self.client.force_login(self.other)
+        for method in [self.client.get, self.client.post]:
+            self.assertEqual(method(self.edit_url(), self.data()).status_code, 404)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.title, 'Original Shirt')
+        self.assertEqual(self.product.price, 125000)
+
+    def test_staff_status_does_not_bypass_listing_ownership(self):
+        self.other.is_staff = True
+        self.other.is_superuser = True
+        self.other.save(update_fields=['is_staff', 'is_superuser'])
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.post(self.edit_url(), self.data()).status_code, 404)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.seller, self.owner)
+
+    def test_owner_get_reuses_the_prefilled_form_without_changing_data(self):
+        self.client.force_login(self.owner)
+        original_updated_at = self.product.updated_at
+        response = self.client.get(self.edit_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'products/sell.html')
+        self.assertContains(response, 'Save changes')
+        self.assertContains(response, 'value="Original Shirt"')
+        self.assertEqual(response.context['form']['condition'].value(), 'excellent')
+        self.assertEqual(response.context['selected_category'], self.category)
+        self.assertEqual(response.context['cover_id'], self.cover.pk)
+        self.assertEqual(len(response.context['existing_images']), 2)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.updated_at, original_updated_at)
+
+    def test_owner_updates_fields_without_creating_a_new_product_or_replacing_photos(self):
+        self.client.force_login(self.owner)
+        old_slug = self.product.slug
+        photo_ids = set(self.product.images.values_list('pk', flat=True))
+        response = self.client.post(self.edit_url(), self.data())
+        self.assertRedirects(response, reverse('products:detail', args=[old_slug]), fetch_redirect_response=False)
+        self.product.refresh_from_db()
+        self.assertEqual(Product.objects.count(), 1)
+        self.assertEqual(self.product.title, 'Updated Shirt')
+        self.assertEqual(self.product.category, self.other_category)
+        self.assertEqual(self.product.price, 175000)
+        self.assertEqual(self.product.condition, 'good')
+        self.assertEqual(self.product.seller, self.owner)
+        self.assertEqual(self.product.slug, old_slug)
+        self.assertEqual(self.product.description, 'Existing description')
+        self.assertEqual(set(self.product.images.values_list('pk', flat=True)), photo_ids)
+        self.assertEqual(self.product.primary_image.pk, self.cover.pk)
+        self.assertContains(self.client.get(response.url), 'Listing updated.')
+        self.assertNotContains(self.client.get(response.url), 'Listing updated.')
+
+    def test_invalid_submission_does_not_update_the_product(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.edit_url(), self.data(price='-100'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('price', response.context['form'].errors)
+        self.assertContains(response, 'value="Updated Shirt"')
+        self.assertEqual(len(response.context['existing_images']), 2)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.title, 'Original Shirt')
+        self.assertEqual(self.product.price, 125000)
+
+    def test_manipulated_seller_slug_and_status_are_ignored(self):
+        self.product.status = Product.Status.SOLD
+        self.product.save(update_fields=['status'])
+        old_slug = self.product.slug
+        self.client.force_login(self.owner)
+        response = self.client.post(self.edit_url(), self.data(seller=self.other.pk, slug='changed-url', status='available'))
+        self.assertEqual(response.status_code, 302)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.seller, self.owner)
+        self.assertEqual(self.product.slug, old_slug)
+        self.assertEqual(self.product.status, Product.Status.SOLD)
+
+    def test_new_photos_are_appended_up_to_five_without_changing_the_cover(self):
+        self.client.force_login(self.owner)
+        with TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            response = self.client.post(self.edit_url(), self.data(
+                photos=[uploaded_photo(f'extra-{index}.png') for index in range(3)],
+            ))
+            self.assertEqual(response.status_code, 302)
+            photos = list(self.product.images.all())
+            self.assertEqual([photo.order for photo in photos], [0, 4, 5, 6, 7])
+            self.assertEqual(sum(photo.is_primary for photo in photos), 1)
+            self.assertEqual(self.product.primary_image.pk, self.cover.pk)
+            self.assertTrue(all(photo.image.storage.exists(photo.image.name) for photo in photos[2:]))
+
+    def test_existing_and_new_photos_cannot_exceed_five(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.edit_url(), self.data(
+            photos=[uploaded_photo(f'extra-{index}.png') for index in range(4)],
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('photos', response.context['form'].errors)
+        self.assertEqual(self.product.images.count(), 2)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.title, 'Original Shirt')
+
+    def test_first_photo_added_to_an_imageless_listing_becomes_the_cover(self):
+        self.product.images.all().delete()
+        self.client.force_login(self.owner)
+        with TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            response = self.client.post(self.edit_url(), self.data(photos=[uploaded_photo()]))
+            self.assertEqual(response.status_code, 302)
+            photo = self.product.images.get()
+            self.assertTrue(photo.is_primary)
+            self.assertEqual(photo.order, 0)
+
+    def test_non_image_upload_leaves_existing_photos_unchanged(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.edit_url(), self.data(
+            photos=SimpleUploadedFile('fake.png', b'not an image', content_type='image/png'),
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('photos', response.context['form'].errors)
+        self.assertEqual(self.product.images.count(), 2)
+
+    def test_csrf_is_required_for_edit(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.owner)
+        self.assertEqual(client.post(self.edit_url(), self.data()).status_code, 403)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.title, 'Original Shirt')
+
+    def test_unknown_listing_returns_404(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get(reverse('products:edit', args=['missing-listing'])).status_code, 404)
+
+    def test_edit_keeps_existing_chat_product_references(self):
+        from chat.models import Conversation
+
+        conversation = Conversation.objects.create(product=self.product, buyer=self.other, seller=self.owner)
+        old_slug = self.product.slug
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.post(self.edit_url(), self.data()).status_code, 302)
+        conversation.refresh_from_db()
+        self.assertEqual(conversation.product_id, self.product.pk)
+        self.assertEqual(conversation.product.slug, old_slug)
+        self.assertEqual(conversation.product.title, 'Updated Shirt')
 
 
 class SellTests(TestCase):

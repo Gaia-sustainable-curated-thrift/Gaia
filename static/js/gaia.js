@@ -260,6 +260,7 @@
         var input = form.querySelector('[data-photo-input]');
         if (photos && addTile && input) {
             var MAX_PHOTOS = 5;
+            var existingCount = photos.querySelectorAll('[data-existing-photo]').length;
             var chosen = [];
 
             var syncInput = function () {
@@ -269,7 +270,7 @@
             };
 
             var render = function () {
-                photos.querySelectorAll('.sell-photo').forEach(function (node) { node.remove(); });
+                photos.querySelectorAll('.sell-photo:not([data-existing-photo])').forEach(function (node) { node.remove(); });
                 chosen.forEach(function (file, index) {
                     var tile = document.createElement('div');
                     tile.className = 'sell-photo';
@@ -294,7 +295,7 @@
                     tile.appendChild(img);
                     tile.appendChild(remove);
 
-                    if (index === 0) {
+                    if (index === 0 && existingCount === 0) {
                         var cover = document.createElement('span');
                         cover.className = 'sell-photo__cover';
                         cover.textContent = 'Cover';
@@ -302,14 +303,14 @@
                     }
                     photos.insertBefore(tile, addTile);
                 });
-                var full = chosen.length >= MAX_PHOTOS;
+                var full = chosen.length + existingCount >= MAX_PHOTOS;
                 addTile.hidden = full;
                 addTile.style.display = full ? 'none' : '';
             };
 
             input.addEventListener('change', function () {
                 Array.prototype.forEach.call(input.files, function (file) {
-                    if (chosen.length < MAX_PHOTOS) chosen.push(file);
+                    if (chosen.length + existingCount < MAX_PHOTOS) chosen.push(file);
                 });
                 syncInput();
                 render();

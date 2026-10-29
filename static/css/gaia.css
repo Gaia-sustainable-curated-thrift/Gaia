@@ -1118,9 +1118,10 @@
 
 .pdp-seller-card {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 40px;
+    gap: 16px;
     margin-top: 4px;
     padding: 12px;
     border-radius: 20px;
@@ -1177,11 +1178,13 @@
     stroke: none;
 }
 
-.pdp-chat {
+.pdp-chat,
+.pdp-edit {
     flex-shrink: 0;
     padding: 8px 24px;
     color: var(--wine-light);
 }
+.pdp-edit { margin-left: auto; }
 
 .pdp-also { margin-top: 72px; }
 
@@ -1262,7 +1265,8 @@
     .pdp-rating-value { font-weight: 400; }
     .pdp-rating-stars { gap: 4px; }
     .pdp-rating .icon { width: 16px; height: 16px; }
-    .pdp-chat { width: 100%; font-size: 12px; min-height: 44px; }
+    .pdp-chat,
+    .pdp-edit { width: 100%; font-size: 12px; min-height: 44px; }
     .pdp-also { margin-top: 24px; }
     .pdp-also__title { font-size: 24px; margin-bottom: 24px; }
     .pdp-related-grid {
@@ -1703,6 +1707,7 @@
 }
 
 .sell-section { display: flex; flex-direction: column; gap: 16px; }
+.sell-photo-note { margin: 0; font-size: 14px; color: var(--olive-dark); line-height: 1.5; }
 
 .sell-field { display: flex; flex-direction: column; gap: 16px; }
 
