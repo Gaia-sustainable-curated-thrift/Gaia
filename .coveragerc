@@ -1,0 +1,14 @@
+[run]
+branch = True
+source = accounts
+omit =
+    accounts/tests.py
+    accounts/migrations/*
+
+[report]
+show_missing = True
+precision = 2
+fail_under = 91
+
+[html]
+directory = htmlcov
