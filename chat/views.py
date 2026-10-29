@@ -3,13 +3,13 @@ from django.contrib import messages as flash
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
+from accounts.models import AccountOrder
 from products.models import Product
 from . import services
 from .models import Conversation, Message
 
 
 def _get_conversation(request, pk):
-    """Ambil chat; orang yang bukan peserta dapat 404 (nggak bisa intip chat orang)."""
     conversation = get_object_or_404(Conversation.objects.select_related('buyer', 'seller', 'product', 'order'), pk=pk)
     if not conversation.has_participant(request.user):
         raise Http404
@@ -25,13 +25,13 @@ def _inbox_rows(request):
     return [services.serialize_conversation(c, request.user) for c in rows]
 
 
-# Page
+# Halaman
 
 @login_required
 def inbox(request):
     return render(request, 'chat/inbox.html', {
         'rows': _inbox_rows(request),
-        'has_any': services.conversations_for(request.user).exists(),   # False -> tampil "Belum ada percakapan"
+        'has_any': services.conversations_for(request.user).exists(),
         'q': request.GET.get('q', ''),
         'filter': request.GET.get('filter', 'all'),
     })
@@ -52,7 +52,7 @@ def room(request, pk):
     })
 
 
-# Button buka chat
+# Tombol buka chat
 
 @login_required
 @require_POST
@@ -67,7 +67,7 @@ def start_product_chat(request, product_id):
 
 
 @login_required
-@require_POST
+@require_http_methods(['GET', 'POST'])
 def start_support_chat(request):
     try:
         conversation = services.start_support_conversation(request.user)
@@ -77,7 +77,15 @@ def start_support_chat(request):
     return redirect('chat:room', pk=conversation.pk)
 
 
-# API JSON
+@login_required
+@require_http_methods(['GET', 'POST'])
+def start_order_chat(request, order_id):
+    order = get_object_or_404(AccountOrder, pk=order_id, user=request.user)
+    conversation = services.start_order_conversation(order)
+    return redirect('chat:room', pk=conversation.pk)
+
+
+# API
 
 @login_required
 def api_conversations(request):
@@ -93,9 +101,15 @@ def api_messages(request, pk):
         after = request.GET.get('after', '0')
         new = conversation.messages.filter(pk__gt=int(after) if after.isdigit() else 0).select_related('sender', 'product')
         services.mark_read(conversation, request.user)
-        return JsonResponse({'messages': [services.serialize_message(m, request.user) for m in new]})
+        last_read = conversation.messages.filter(sender=request.user, read_at__isnull=False).order_by('-pk').first()
+        offers = conversation.messages.filter(kind=Message.Kind.OFFER).select_related('sender', 'product')
+        return JsonResponse({
+            'messages': [services.serialize_message(m, request.user) for m in new],
+            'last_read_id': last_read.pk if last_read else 0,
+            'offers': [services.serialize_message(m, request.user) for m in offers],
+        })
 
-    # POST: kirim pesan 
+    # POST: kirim pesan
     kind = request.POST.get('kind', Message.Kind.TEXT)
     product = None
     if kind == Message.Kind.PRODUCT:
