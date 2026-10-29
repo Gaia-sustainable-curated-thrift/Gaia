@@ -3,7 +3,7 @@
 {% block account_content %}
 <section class="card profile-card">
 <div class="profile-banner">
-<div class="profile-avatar">{{ user|initials }}
+<div class="profile-avatar">{% if profile.avatar %}<img src="{{ profile.avatar.url }}" alt="Profile photo of {{ user.get_full_name|default:user.username }}" width="72" height="72">{% else %}{{ user|initials }}{% endif %}
 </div>
 <div>
 <h2>{{ user.get_full_name|default:user.username }}

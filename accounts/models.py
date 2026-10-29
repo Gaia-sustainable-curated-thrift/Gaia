@@ -1,9 +1,11 @@
 from django.conf import settings
 from django.db import models
+from .avatars import avatar_upload_path
 
 
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+    avatar = models.ImageField(upload_to=avatar_upload_path, blank=True)
     phone = models.CharField(max_length=30, blank=True)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
