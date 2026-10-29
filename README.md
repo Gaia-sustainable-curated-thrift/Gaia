@@ -27,7 +27,7 @@ Pembagian tanggung jawab MVP adalah **Danar: User, Kayla: Product, Deva: Chat, S
 
 | No. | Penanggung jawab | Modul | Target pengembangan MVP |
 | --: | ---------------- | ----- | ----------------------- |
-| 1 | **Danar** | **User / Authentication** | Registrasi, login/logout, login Google, profil dan edit profil, verifikasi email, serta ganti/reset password. |
+| 1 | **Danar** | **User / Authentication** | Registrasi, login/logout, login Google, pengelolaan profil, verifikasi email, ganti/reset password, serta penyimpanan produk favorit melalui WishlistItem. |
 | 2 | **Kayla** | **Product / Listing** | Pengelolaan listing, foto produk, kategori, harga, kondisi, status ketersediaan, detail produk, serta pencarian/filter dasar untuk menemukan produk. |
 | 3 | **Deva** | **Chat / Messaging** | Percakapan dan pesan antara buyer dan seller untuk membahas produk serta transaksi. |
 | 4 | **Salma** | **Transaksi** | Keranjang, checkout, pembuatan pesanan, alur pembayaran, serta pelacakan status transaksi. |
@@ -35,12 +35,23 @@ Pembagian tanggung jawab MVP adalah **Danar: User, Kayla: Product, Deva: Chat, S
 
 Pencarian/filter dasar menjadi bagian pendukung Product, dan keranjang menjadi bagian Transaksi. Keduanya tidak memiliki penanggung jawab modul terpisah. Status implementasi dan integrasi masing-masing modul dijelaskan di bawah.
 
+### Deskripsi Modul User (Danar)
+
+Modul User pada app `accounts` mengelola identitas pengguna, autentikasi, profil pribadi, dan produk favorit. Modul ini mencakup:
+
+- **Registrasi:** pengguna mengisi nama lengkap, email, password, dan konfirmasi password. `RegisterForm` memvalidasi input serta menolak email yang sudah digunakan tanpa membedakan huruf besar/kecil. Username dibuat otomatis dari nama dengan akhiran angka jika sudah terpakai. User dan Profile dibuat dalam satu transaksi database, password disimpan sebagai hash melalui mekanisme Django, lalu aplikasi membuat sesi login dan mencoba mengirim email verifikasi.
+- **Login dan logout:** login menerima email atau username menggunakan autentikasi bawaan Django. Login Google menggunakan `django-allauth` jika kredensial tersedia. Session mengenali pengguna pada request berikutnya; logout melalui POST mengakhiri sesi tanpa menghapus akun. Halaman pribadi dilindungi dengan `login_required`.
+- **Profil:** model `Profile` terhubung satu-ke-satu (`OneToOneField`) dengan User bawaan Django. User menyimpan username, email, nama, dan password hash; Profile menyimpan `phone`, `city`, `country`, serta `email_verified`. Pengguna dapat melihat dan mengubah profilnya sendiri. Email tidak dapat diubah melalui form edit profil. Modul juga menyediakan verifikasi email bertoken yang berlaku 24 jam, ganti password, dan reset password. Verifikasi email belum menjadi syarat untuk login.
+- **WishlistItem:** model ini menyimpan produk favorit dan terhubung banyak-ke-satu (`ForeignKey`) ke User. Field-nya meliputi `product_key`, `title`, `condition`, `price`, `image`, dan `removed`. Pasangan `user` dan `product_key` diberi constraint unik agar satu produk tidak tersimpan ganda untuk pengguna yang sama. Aksi simpan dari modul Product membuat atau memperbarui snapshot produk pada wishlist pengguna. Pengguna hanya dapat melihat dan menghapus item miliknya sendiri. Penghapusan memakai soft delete (`removed=True`), sedangkan ID item terakhir disimpan dalam session agar bisa dikembalikan melalui Undo.
+
+`WishlistItem` menyimpan snapshot informasi produk berdasarkan slug pada `product_key`, bukan ForeignKey langsung ke Product. Perubahan produk tidak otomatis memperbarui seluruh snapshot wishlist. Fitur hapus akun belum tersedia; penghapusan item wishlist tidak sama dengan penghapusan User.
+
 ## User Roles dalam MVP
 
 | Role | Peran dan target hak akses |
 | ---- | ------------------------- |
 | **Guest** | Melihat katalog, mencari produk, dan melihat detail produk; registrasi/login untuk menggunakan fitur akun. |
-| **Registered User** | Dapat berperan sebagai buyer dan seller: mengelola profil/listing sendiri, berkomunikasi, bertransaksi, serta memberikan review/rating sesuai ketentuan transaksi. |
+| **Registered User** | Dapat berperan sebagai buyer dan seller: mengelola profil/listing sendiri, menyimpan produk ke wishlist, berkomunikasi, bertransaksi, serta memberikan review/rating sesuai ketentuan transaksi. |
 | **Admin** | Mengelola data melalui Django admin untuk mendukung operasional MVP. Dashboard dan moderasi lanjutan bukan bagian target MVP saat ini. |
 
 ## Status Implementasi Saat Ini
@@ -49,13 +60,13 @@ Status berikut berdasarkan source code pada checkout lokal saat README ini diper
 
 | Modul | Yang sudah tersedia | Yang masih perlu dikembangkan/diselesaikan |
 | ----- | ------------------- | ----------------------------------------- |
-| **User** | Registrasi, login/logout, profil/edit profil, verifikasi email bertoken, ganti/reset password, dan integrasi Google OAuth melalui `django-allauth`. | Pengiriman email ke inbox memerlukan SMTP; Google login memerlukan kredensial dan callback yang sesuai. Belum ada fitur hapus akun oleh pengguna. |
+| **User** | Registrasi, login/logout, profil/edit profil, verifikasi email bertoken, ganti/reset password, Google OAuth melalui `django-allauth`, serta tambah/lihat/hapus/undo wishlist melalui `WishlistItem`. | Pengiriman email ke inbox memerlukan SMTP; Google login memerlukan kredensial dan callback yang sesuai. Belum ada fitur hapus akun oleh pengguna. |
 | **Product** | Katalog, detail, kategori, search/filter, pembuatan listing dan upload multi-foto lokal, serta status produk pada model. | Melengkapi alur edit/hapus listing pada UI dan integrasi antarmodul. |
 | **Chat** | Belum ditemukan modul percakapan/pesan di checkout ini. | Model, endpoint, UI percakapan, otorisasi peserta, dan mekanisme pengiriman pesan. |
 | **Transaksi** | Keranjang berbasis session serta tampilan daftar/detail snapshot pesanan (`AccountOrder`) pada halaman akun. | Checkout masih placeholder untuk pengguna yang login; pembuatan pesanan dari checkout, pembayaran, dan pembaruan status transaksi belum terintegrasi. |
 | **Review & Rating** | Detail produk menampilkan nilai rating/jumlah review dari konstanta tampilan. | Model dan alur pemberian review/rating nyata, penyimpanan data, serta validasi kelayakan berdasarkan transaksi. |
 
-Wishlist sudah tersedia sebagai fitur tambahan pada kode: penambahan dari produk, daftar favorit, hapus, dan undo. Keberadaannya tidak menjadikannya prioritas atau syarat penyelesaian MVP lima modul di atas.
+Wishlist dasar termasuk dalam modul User yang menjadi tanggung jawab Danar. Modul Product menyediakan aksi untuk menyimpan produk, sedangkan modul User menyimpan data favorit dan menyediakan halaman wishlist, penghapusan, serta undo.
 
 ## API dan Integrasi MVP
 
@@ -76,7 +87,7 @@ Setelah User, Product, Chat, Transaksi, dan Review & Rating selesai serta terint
 
 - Community / Social Feed dan interaksi sosial.
 - Outfit Generator dan rekomendasi berbasis AI.
-- Wishlist lanjutan dan notifikasi favorit; implementasi dasar yang sudah ada tetap dipertahankan sebagai fitur tambahan.
+- Wishlist lanjutan dan notifikasi favorit; wishlist dasar sudah termasuk dalam modul User pada MVP.
 - Dashboard khusus, statistik, moderasi, dan pelaporan lanjutan.
 - Peta/autocomplete alamat, Lemari pribadi, serta fitur pencarian, nego, dan notifikasi lanjutan di luar kebutuhan dasar MVP.
 - Integrasi tambahan seperti penyimpanan cloud sesuai kebutuhan operasional.
