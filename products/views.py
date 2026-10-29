@@ -261,9 +261,23 @@ def _listing_form_page(request, product=None):
                     product=product, image=photo,
                     is_primary=not existing_images and index == 0, order=next_order + index,
                 )
-        if editing:
-            request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing updated.'}
+        message = 'Listing updated.' if editing else 'Listing created.'
+        if editing or _is_ajax(request):
+            request.session['bag_toast'] = {'kind': 'added', 'text': message}
+        if _is_ajax(request):
+            return JsonResponse({
+                'ok': True,
+                'product_id': product.pk,
+                'redirect_url': _product_url(product),
+                'message': message,
+            }, status=200 if editing else 201)
         return redirect('products:detail', slug=product.slug)
+
+    if request.method == 'POST' and _is_ajax(request):
+        return JsonResponse({
+            'ok': False,
+            'errors': {field: list(messages) for field, messages in form.errors.items()},
+        }, status=400)
 
     selected_category = form.cleaned_data.get('category') if form.is_bound else (product.category if editing else None)
     cover = product.primary_image if editing else None

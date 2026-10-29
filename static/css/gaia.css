@@ -1706,6 +1706,11 @@
 }
 
 .sell-errors li + li { margin-top: 4px; }
+.sell-errors[hidden] { display: none; }
+.sell-submit-status { margin: 0; color: var(--olive-dark); font-size: 14px; }
+.sell-submit-status:empty { display: none; }
+.sell-form [aria-invalid="true"] { border-color: var(--wine); }
+.sell-form[aria-busy="true"] .sell-submit { cursor: progress; opacity: 0.7; }
 
 .sell-form {
     display: flex;

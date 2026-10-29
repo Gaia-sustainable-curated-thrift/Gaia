@@ -367,6 +367,108 @@
         }
     }
 
+    function initListingSubmit() {
+        var form = document.querySelector('[data-sell-form]');
+        if (!form) return;
+        var errors = document.querySelector('[data-listing-errors]');
+        var status = form.querySelector('[data-listing-status]');
+        var button = form.querySelector('.sell-submit');
+        var originalLabel = button.textContent;
+        var submitting = false;
+        var navigating = false;
+
+        function clearErrors() {
+            errors.textContent = '';
+            errors.hidden = true;
+            form.querySelectorAll('[aria-invalid]').forEach(function (control) {
+                control.removeAttribute('aria-invalid');
+                control.removeAttribute('aria-describedby');
+            });
+        }
+
+        function showErrors(messages) {
+            clearErrors();
+            Object.keys(messages).forEach(function (field) {
+                messages[field].forEach(function (message) {
+                    var item = document.createElement('li');
+                    item.textContent = message;
+                    errors.appendChild(item);
+                });
+            });
+            form.querySelectorAll('[name]').forEach(function (control) {
+                if (messages[control.name]) {
+                    control.setAttribute('aria-invalid', 'true');
+                    control.setAttribute('aria-describedby', 'listing-errors');
+                }
+            });
+            if (messages.category) {
+                var categoryToggle = form.querySelector('[data-sell-toggle]');
+                categoryToggle.setAttribute('aria-invalid', 'true');
+                categoryToggle.setAttribute('aria-describedby', 'listing-errors');
+            }
+            errors.hidden = false;
+            errors.focus();
+        }
+
+        form.addEventListener('submit', function (event) {
+            if (typeof window.fetch !== 'function') return;
+            event.preventDefault();
+            if (submitting) return;
+            submitting = true;
+            clearErrors();
+            form.setAttribute('aria-busy', 'true');
+            button.disabled = true;
+            button.textContent = 'Menyimpan…';
+            status.textContent = 'Menyimpan…';
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            }).then(function (response) {
+                if (response.redirected) {
+                    var target = new URL(response.url, window.location.href);
+                    if (target.origin !== window.location.origin) throw new Error('Unexpected redirect');
+                    navigating = true;
+                    window.location.assign(target.href);
+                    return null;
+                }
+                if (response.status === 403 || response.status === 404) {
+                    showErrors({ __all__: [response.status === 403
+                        ? 'Sesi tidak valid atau akses ditolak. Muat ulang halaman sebelum mencoba lagi.'
+                        : 'Listing tidak ditemukan atau Anda tidak memiliki akses.'] });
+                    return null;
+                }
+                return response.json();
+            }).then(function (data) {
+                if (!data) return;
+                if (data.ok && typeof data.redirect_url === 'string') {
+                    var target = new URL(data.redirect_url, window.location.href);
+                    if (target.origin !== window.location.origin) throw new Error('Unexpected redirect');
+                    status.textContent = data.message || 'Listing tersimpan.';
+                    navigating = true;
+                    window.location.assign(target.href);
+                } else if (data.ok === false && data.errors && typeof data.errors === 'object') {
+                    showErrors(data.errors);
+                } else {
+                    throw new Error('Invalid listing response');
+                }
+            }).catch(function () {
+                // Do not replay a POST whose result is unknown.
+                showErrors({ __all__: ['Penyimpanan belum dapat dikonfirmasi. Periksa katalog sebelum mencoba lagi.'] });
+            }).finally(function () {
+                if (!navigating) {
+                    submitting = false;
+                    form.removeAttribute('aria-busy');
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                    status.textContent = '';
+                }
+            });
+        });
+    }
+
     function initListingDelete() {
         var dialog = document.getElementById('delete-listing-dialog');
         var toggle = document.querySelector('[data-delete-listing]');
@@ -391,6 +493,7 @@
         initBagDrawer();
         initBagForms();
         initSellForm();
+        initListingSubmit();
         initListingDelete();
         initToasts();
         initDrawerSearch(initHeaderSearch());

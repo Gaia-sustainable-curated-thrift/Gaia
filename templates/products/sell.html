@@ -10,17 +10,15 @@
         <h1 class="sell-title">{% if editing %}Edit listing{% else %}List an item{% endif %}</h1>
     </div>
 
-    {% if errors %}
-    <ul class="sell-errors">
+    <ul class="sell-errors" id="listing-errors" data-listing-errors role="alert" tabindex="-1" {% if not errors %}hidden{% endif %}>
         {% for error in errors %}<li>{{ error }}</li>{% endfor %}
     </ul>
-    {% endif %}
 
     <form class="sell-form" method="post" enctype="multipart/form-data" data-sell-form>
         {% csrf_token %}
 
         <section class="sell-section">
-            <h2 class="sell-label">Select maximum 5 photos</h2>
+            <h2 class="sell-label" id="listing-photos-label">Select maximum 5 photos</h2>
             {% if existing_images %}<p class="sell-photo-note">Existing photos are kept. Add more photos up to five in total.</p>{% endif %}
             <div class="sell-photos" data-photos>
                 {% for image in existing_images %}
@@ -31,7 +29,7 @@
                 {% endfor %}
                 <label class="sell-photo-add" data-photo-add>
                     {% include 'includes/icon.html' with name='plus' %}
-                    <input class="sell-photo-input" type="file" name="photos" accept="image/*" multiple data-photo-input>
+                    <input class="sell-photo-input" type="file" name="photos" accept="image/*" multiple data-photo-input aria-labelledby="listing-photos-label">
                 </label>
             </div>
         </section>
@@ -39,10 +37,10 @@
         <div class="sell-two-col">
             <div class="sell-col sell-col--fixed">
                 <section class="sell-field">
-                    <h2 class="sell-label">Select category</h2>
+                    <h2 class="sell-label" id="listing-category-label">Select category</h2>
                     <div class="sell-dropdown" data-sell-dropdown>
-                        <button class="sell-select{% if selected_category %} is-set{% endif %}" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false">
-                            <span data-sell-display>{% if selected_category %}{{ selected_category.parent.name }}'s {{ selected_category.name|lower }}{% else %}Choose a category{% endif %}</span>
+                        <button class="sell-select{% if selected_category %} is-set{% endif %}" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false" aria-labelledby="listing-category-label listing-category-value">
+                            <span id="listing-category-value" data-sell-display>{% if selected_category %}{{ selected_category.parent.name }}'s {{ selected_category.name|lower }}{% else %}Choose a category{% endif %}</span>
                             {% include 'includes/icon.html' with name='caret-down' %}
                         </button>
                         <div class="sell-menu" data-sell-menu hidden>
@@ -67,8 +65,8 @@
 
             <div class="sell-col">
                 <section class="sell-field">
-                    <h2 class="sell-label">Listing title</h2>
-                    <input class="sell-input" type="text" name="title" maxlength="200"
+                    <label class="sell-label" for="listing-title">Listing title</label>
+                    <input class="sell-input" id="listing-title" type="text" name="title" maxlength="200"
                            placeholder="Subdued Angel Wings Hoodie"
                            value="{{ form.title.value|default_if_none:'' }}">
                 </section>
@@ -78,8 +76,8 @@
         <div class="sell-two-col">
             <div class="sell-col sell-col--fixed">
                 <section class="sell-field">
-                    <h2 class="sell-label">Condition</h2>
-                    <div class="sell-chips" role="radiogroup" aria-label="Condition">
+                    <h2 class="sell-label" id="listing-condition-label">Condition</h2>
+                    <div class="sell-chips" role="radiogroup" aria-labelledby="listing-condition-label">
                         {% for condition in conditions %}
                         <label class="sell-chip">
                             <input type="radio" name="condition" value="{{ condition.value }}"
@@ -93,14 +91,15 @@
 
             <div class="sell-col">
                 <section class="sell-field">
-                    <h2 class="sell-label">Price</h2>
-                    <input class="sell-input sell-price__input" type="text" name="price" inputmode="numeric"
+                    <label class="sell-label" for="listing-price">Price</label>
+                    <input class="sell-input sell-price__input" id="listing-price" type="text" name="price" inputmode="numeric"
                            placeholder="2.000.000" data-price-input value="{{ form.price.value|default_if_none:'' }}">
                 </section>
             </div>
         </div>
 
         <button class="button sell-submit" type="submit">{% if editing %}Save changes{% else %}List item{% endif %}</button>
+        <p class="sell-submit-status" data-listing-status role="status" aria-live="polite"></p>
     </form>
 </main>
 {% endblock %}
