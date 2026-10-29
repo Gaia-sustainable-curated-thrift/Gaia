@@ -46,11 +46,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'products',
-<<<<<<< HEAD
     'transaction',
-=======
     'chat',
->>>>>>> 8e81c6589fe580b94aeddae9fa784c3ac469fb33
     'allauth',
     'allauth.account',
     'allauth.socialaccount',

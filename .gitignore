@@ -10,3 +10,5 @@ media/
 htmlcov/
 coverage.json
 env/
+*.py[cod]
+.venv/
