@@ -198,3 +198,69 @@ class ReviewBrowserTests(StaticLiveServerTestCase):
         expect(page.locator("[data-review-status]")).to_be_visible()
         expect(page.locator("[data-review-status]")).to_have_class("review-status is-error")
         expect(page.locator('form[action$="/helpful/"] button').first).to_be_enabled()
+
+    def test_shared_navbar_fits_desktop_tablet_and_phone(self):
+        self.author.first_name = 'VeryLongAccountName' * 7
+        self.author.save(update_fields=['first_name'])
+        for width in [320, 360, 390, 768, 1024, 1280, 1920]:
+            for user in [None, self.author]:
+                page = self.page(user, width=width)
+                paths = [reverse('products:home'), reverse('products:detail', args=[self.product.slug]),
+                         reverse('reviews:seller_reviews', args=[self.seller.pk])]
+                if user:
+                    paths += [reverse('profile'), reverse('orders'), reverse('wishlist'), reverse('chat:inbox')]
+                for path in paths:
+                    with self.subTest(width=width, user=bool(user), path=path):
+                        page.goto(self.live_server_url + path)
+                        box = page.locator('.gaia-navbar').bounding_box()
+                        self.assertLessEqual(box['x'] + box['width'], width + 1)
+                        self.assertLessEqual(abs(box['x'] + box['width'] / 2 - width / 2), 2)
+                        brand = page.locator('.gaia-navbar .brand-group').bounding_box()
+                        actions = page.locator('.gaia-navbar .nav-actions').bounding_box()
+                        self.assertLessEqual(brand['x'] + brand['width'], actions['x'] + 1)
+                        for control in page.locator('.gaia-navbar .icon-button').all():
+                            if control.is_visible():
+                                bounds = control.bounding_box()
+                                self.assertGreaterEqual(bounds['width'], 40)
+                                self.assertGreaterEqual(bounds['height'], 40)
+                if width in [320, 390, 768, 1920]:
+                    self.screenshot(page, f'navbar-{width}-{"member" if user else "guest"}.png')
+                page.context.close()
+
+    def test_mobile_navbar_search_menu_and_bag_work(self):
+        page = self.page(self.author, width=360)
+        page.goto(self.list_url)
+        page.get_by_role('button', name='Open search', exact=True).click()
+        field = page.locator('#navbar-search input')
+        expect(field).to_be_visible()
+        field.fill('Vintage coat')
+        field.press('Enter')
+        expect(page).to_have_url(re.compile(r'/products/search/\?q=Vintage\+coat'))
+        page.get_by_role('button', name='Open menu', exact=True).click()
+        expect(page.locator('#site-drawer')).to_be_visible()
+        page.keyboard.press('Escape')
+        expect(page.locator('#site-drawer')).not_to_be_visible()
+        page.locator('[data-bag-toggle]').click()
+        expect(page.locator('#bag-drawer')).to_be_visible()
+        page.keyboard.press('Escape')
+        expect(page.locator('#bag-drawer')).not_to_be_visible()
+
+    def test_review_mobile_handles_long_content(self):
+        self.seller.username = 's' * 150
+        self.seller.save(update_fields=['username'])
+        review = Review.objects.first()
+        review.title = 'X' * 100
+        review.comment = 'Y' * 2000
+        review.save()
+        for width in [320, 360, 390, 768]:
+            page = self.page(self.author, width=width)
+            for path in [reverse('reviews:seller_reviews', args=[self.seller.pk]),
+                         reverse('reviews:create_review', args=[self.seller.pk])]:
+                with self.subTest(width=width, path=path):
+                    page.goto(self.live_server_url + path)
+                    self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width + 1)
+            page.context.close()
+            seller_page = self.page(self.seller, width=width)
+            seller_page.goto(self.live_server_url + reverse('reviews:account_reviews'))
+            self.assertLessEqual(seller_page.evaluate('document.documentElement.scrollWidth'), width + 1)
+            seller_page.context.close()

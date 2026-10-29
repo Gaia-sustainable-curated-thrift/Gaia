@@ -161,8 +161,8 @@ def create_review(request, seller_id, order_id=None):
     form = ReviewForm(data, orders=orders)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
-            order = AccountOrder.objects.select_for_update().get(pk=form.cleaned_data['order'].pk)
-            if (order.user_id != request.user.pk or order.seller_id != seller.pk
+            order = AccountOrder.objects.select_for_update().filter(pk=form.cleaned_data['order'].pk).first()
+            if (order is None or order.user_id != request.user.pk or order.seller_id != seller.pk
                     or order.status != AccountOrder.Status.COMPLETED
                     or Review.objects.filter(order=order).exists()):
                 form.add_error('order', 'This order is no longer eligible for a review.')

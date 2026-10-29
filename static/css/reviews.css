@@ -234,3 +234,17 @@ body:has(.reviews-page) { background: #fbf9f2; }
     font-size: 12px;
     font-weight: 600;
 }
+
+/* Long user content must wrap without widening a phone viewport. */
+.reviews-page h1, .reviews-page h2, .reviews-page h3 {
+    overflow-wrap: anywhere;
+}
+.reviews-page .reviews-breadcrumb > * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+.reviews-page .review-author > div:last-child,
+.reviews-page .selected-seller > div:last-child {
+    min-width: 0;
+}

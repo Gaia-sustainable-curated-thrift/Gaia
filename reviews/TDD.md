@@ -87,6 +87,22 @@ syarat diarahkan ke View My Orders. Pengunjung tetap diarahkan melalui login.
 Menghapus review membuat pesanan tersebut tersedia kembali untuk diulas.
 Seluruh 72 tes review lulus dan tes browser memeriksa tombol setelah submit.
 
+## 8. Audit sebelum merge dan responsivitas
+
+**Red:** tes pesanan yang dihapus setelah validasi menghasilkan error server.
+Tes browser menemukan toolbar kecil berukuran 32px, navbar tidak terpusat
+pada desktop lebar, serta overflow review dengan judul/nama yang panjang.
+
+**Green:** pesanan yang hilang ditangani sebagai validasi form; navbar memiliki
+lebar dan margin terpusat yang konsisten serta kontrol minimal 40px pada ponsel.
+Judul dan breadcrumb review membungkus teks panjang. Navbar diuji sebagai guest
+dan member pada 320/360/390/768/1024/1280/1920px, termasuk pencarian, menu, dan bag.
+Uji mobile mencakup halaman review, form, serta review dalam akun seller.
+Tes tambahan juga memastikan edit tidak dapat mengganti order/reviewer/seller.
+
+Temuan konfigurasi produksi global dilaporkan terpisah; paket ini tidak
+mengklaim production settings atau seluruh modul lain sudah diaudit keamanan.
+
 ## Regresi yang diuji
 
 - Create, edit, delete, input tidak valid, dan metode request.
@@ -103,12 +119,12 @@ Seluruh 72 tes review lulus dan tes browser memeriksa tombol setelah submit.
 
 ## Hasil pengujian
 
-- Tes modul review: 72 tes lulus.
-- Tes browser review: 4 tes lulus.
-- Tes seluruh proyek: 200 tes lulus.
+- Tes modul review: 74 tes lulus.
+- Tes browser review dan navbar: 7 tes lulus.
+- Tes seluruh proyek: 202 tes lulus.
 - Django system check: tidak ditemukan masalah.
-- Coverage Python modul review dengan pengukuran cabang: 98,01%.
-- Coverage `reviews/views.py`: 98,36%.
+- Coverage Python modul review dengan pengukuran cabang: 98,51%.
+- Coverage `reviews/views.py`: 99,18%.
 
 Coverage dihitung dari kode Python produksi pada app `reviews`.
 Template, CSS, JavaScript, migrasi, dan kode tes tidak dihitung

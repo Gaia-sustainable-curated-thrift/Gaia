@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
@@ -8,6 +9,7 @@ from django.urls import reverse
 from accounts.models import AccountOrder
 from products.models import Product
 from .models import Review
+from .forms import ReviewForm
 
 
 class VerifiedPurchaseTests(TestCase):
@@ -178,6 +180,36 @@ class VerifiedPurchaseTests(TestCase):
 
     def seller_page(self, **query):
         return self.client.get(reverse('reviews:seller_reviews', args=[self.seller.pk]), query)
+
+    def test_order_removed_between_validation_and_save_is_handled(self):
+        order = self.order()
+        original_valid = ReviewForm.is_valid
+
+        def remove_order(form):
+            valid = original_valid(form)
+            if valid:
+                AccountOrder.objects.filter(pk=order.pk).delete()
+            return valid
+
+        with patch.object(ReviewForm, 'is_valid', remove_order):
+            response = self.submit(order)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'no longer eligible')
+        self.assertFalse(Review.objects.exists())
+
+    def test_edit_cannot_change_purchase_or_identity(self):
+        order = self.order()
+        self.submit(order)
+        review = Review.objects.get(order=order)
+        other_order = self.order(user=self.other, seller=self.other_seller, product=self.other_product)
+        self.client.post(reverse('reviews:edit_review', args=[review.pk]), {
+            'rating': 3, 'title': 'Updated', 'comment': 'Updated',
+            'order': other_order.pk, 'reviewer': self.other.pk, 'seller': self.other_seller.pk,
+        })
+        review.refresh_from_db()
+        self.assertEqual((review.order_id, review.reviewer_id, review.seller_id),
+                         (order.pk, self.buyer.pk, self.seller.pk))
+        self.assertEqual(review.rating, 3)
 
     def test_available_purchase_offers_rate_seller(self):
         self.order()

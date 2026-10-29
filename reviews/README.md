@@ -92,3 +92,12 @@ yang belum direview. Jika semua sudah diulas, tombol menjadi Edit My Review.
 Buyer tanpa pesanan yang memenuhi syarat diarahkan ke View My Orders.
 Pengunjung tetap masuk melalui login. Aturan ini berlaku pada halaman penuh
 dan respons filter AJAX; pemeriksaan backend tetap berlaku pada setiap POST.
+
+## Pemeriksaan sebelum merge
+
+Audit tambahan memeriksa order yang hilang saat submit, manipulasi identitas
+saat edit, dan overflow teks panjang. Navbar bersama diuji pada 320–1920px
+sebagai guest/member di halaman produk, review, akun, orders, wishlist, dan chat.
+Tes browser memeriksa pencarian mobile, menu, bag, form review, dan akun seller.
+Konfigurasi produksi global dan layout checkout terpisah memerlukan pemeriksaan
+deployment kelompok; kelulusan tes lokal bukan jaminan keamanan seluruh aplikasi.
