@@ -1,0 +1,3 @@
+{% if is_seller %}
+<a href="{% url 'reviews:account_reviews' %}" class="{% if active == 'reviews' %}active{% endif %}" {% if active == 'reviews' %}aria-current="page"{% endif %}>{% include "includes/icon.html" with name="star" %}Seller Reviews</a>
+{% endif %}

@@ -1,0 +1,41 @@
+{% extends "accounts/base.html" %}
+{% block title %}{% if is_edit %}Edit Review{% else %}Write a Seller Review{% endif %}{% endblock %}
+{% block extra_css %}{% include "reviews/_assets.html" %}{% endblock %}
+{% block main %}
+<main class="reviews-page reviews-form-page">
+    <header class="reviews-heading">
+        <nav class="reviews-breadcrumb" aria-label="Breadcrumb">
+            <a href="{% url 'products:home' %}">Home</a><span>/</span>
+            <a href="{% url 'reviews:seller_reviews' seller.pk %}">Seller Reviews</a><span>/</span>
+            <span aria-current="page">{% if is_edit %}Edit Review{% else %}Write Review{% endif %}</span>
+        </nav>
+        <h1>{% if is_edit %}Edit Review{% else %}Write a Seller Review{% endif %}</h1>
+        <p>Share an honest experience and help others choose more mindfully.</p>
+    </header>
+    <div class="review-form-layout row">
+        <div class="col-12 col-lg-8">
+            <section class="review-form-card">
+                <p class="summary-label">SELLER YOU'RE REVIEWING</p>
+                <div class="selected-seller">
+                    <div class="seller-avatar" aria-hidden="true">{{ seller.username|first|upper }}</div>
+                    <div><h2>{{ seller.get_full_name|default:seller.username }}</h2><p>Seller &middot; Pre-loved fashion</p></div>
+                </div>
+                <form method="post" data-review-form>
+                    <div data-form-fields>{% include "reviews/_form_fields.html" %}</div>
+                </form>
+            </section>
+        </div>
+        <aside class="col-12 col-lg-4">
+            <section class="review-writing-tips">
+                <h2>REVIEW YOUR SELLER EXPERIENCE</h2>
+                <ol>
+                    <li>Was the seller friendly and polite when communicating?</li>
+                    <li>Did the seller respond promptly and help with your questions?</li>
+                    <li>Were they honest and did they keep their promises?</li>
+                    <li>Focus on your experience. Avoid personal details or offensive language.</li>
+                </ol>
+            </section>
+        </aside>
+    </div>
+</main>
+{% endblock %}

@@ -2,7 +2,8 @@
    Desktop source: Figma 350:5068. Responsive variants use the same tokens. */
 .gaia-navbar {
     --nav-padding: 24px 32px;
-    --nav-margin: 32px 20px 0;
+    --nav-margin: 32px auto 0;
+    --nav-inset: 20px;
     --nav-radius: 20px;
     --nav-gap: 32px;
     --nav-control: 48px;
@@ -10,6 +11,9 @@
     --nav-logo: 48px;
     --nav-brand-size: 36px;
     --nav-account-size: 20px;
+    box-sizing: border-box;
+    width: calc(100% - var(--nav-inset) - var(--nav-inset));
+    max-width: 1400px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -85,6 +89,8 @@
     line-height: 1.5;
 }
 .gaia-navbar .search-display > .icon { width: 28px; height: 28px; color: var(--wine-dark); }
+.gaia-navbar .nav-account-label { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.gaia-navbar .nav-actions .nav-avatar { display: block; }
 .gaia-navbar .search-form { display: flex; flex: 1; min-width: 0; }
 .gaia-navbar .search-form input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; outline: none; color: var(--ink); font: inherit; }
 .gaia-navbar .search-form input::placeholder { color: #959593; }
@@ -113,33 +119,36 @@
 @media (max-width: 1024px) {
     .gaia-navbar { --nav-gap: 16px; --nav-account-size: 16px; --nav-control: 44px; --nav-icon: 28px; flex-wrap: wrap; }
     .gaia-navbar .search-display { display: none; }
+    .gaia-navbar .nav-account-label { display: none; }
     .gaia-navbar .mobile-search-toggle { display: inline-flex; }
     .gaia-navbar .search-display.is-search-open { display: flex; order: 3; flex: 1 0 100%; width: 100%; }
 }
 @media (max-width: 640px) {
     .gaia-navbar {
-        --nav-padding: 16px;
-        --nav-margin: 8px 8px 0;
+        --nav-padding: 12px;
+        --nav-margin: 8px auto 0;
+        --nav-inset: 8px;
         --nav-radius: 12px;
         --nav-gap: 0;
         --nav-control: 44px;
-        --nav-logo: 44px;
-        --nav-brand-size: 33px;
+        --nav-logo: 36px;
+        --nav-brand-size: 28px;
         --nav-account-size: 12px;
         min-height: 76px;
         flex-direction: row;
     }
     .gaia-navbar .brand-group { gap: 0; }
-    .gaia-navbar .brand { width: auto; gap: 16px; }
+    .gaia-navbar .brand { width: auto; gap: 8px; }
     .gaia-navbar .nav-actions { gap: 4px; }
     .gaia-navbar .nav-wishlist,
     .gaia-navbar .account-link { display: none; }
+    .gaia-navbar .nav-login { display: inline-flex; min-height: 44px; padding: 0 4px; font-size: 14px; }
     .gaia-navbar .search-display.is-search-open { margin-top: 12px; height: 48px; padding: 8px 16px; gap: 16px; font-size: 16px; }
     .gaia-navbar .search-display > .icon { width: 20px; height: 20px; }
     .gaia-navbar .nav-bag__count { min-width: 18px; height: 18px; font-size: 8px; top: 0; right: 0; }
 }
 @media (max-width: 380px) {
-    .gaia-navbar { --nav-padding: 12px 8px; --nav-control: 32px; --nav-icon: 24px; --nav-logo: 32px; --nav-brand-size: 26px; }
+    .gaia-navbar { --nav-padding: 12px 8px; --nav-control: 40px; --nav-icon: 24px; --nav-logo: 28px; --nav-brand-size: 24px; }
     .gaia-navbar .brand { gap: 6px; }
     .gaia-navbar .nav-actions { gap: 3px; }
 }
