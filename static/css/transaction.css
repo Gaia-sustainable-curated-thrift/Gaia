@@ -1,0 +1,351 @@
+
+/* ===== GAIA TRANSACTION ===== */
+
+:root {
+    --cream: #faf8f0;
+    --white: #ffffff;
+    --olive: #74752f;
+    --burgundy: #790b3a;
+    --text: #39392e;
+    --muted: #929084;
+    --border: #e9e5d9;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--text);
+    font: 14px/1.6 Arial, sans-serif;
+}
+
+a {
+    color: var(--olive);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--burgundy);
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+}
+
+/* ===== PAGE LAYOUT ===== */
+
+.transaction-page {
+    width: min(100% - 40px, 1000px);
+    margin: 0 auto;
+    padding: 50px 0;
+}
+
+.transaction-header {
+    margin-bottom: 30px;
+}
+
+.transaction-eyebrow,
+.order-modal-eyebrow {
+    color: var(--olive);
+    font-size: 11px;
+    letter-spacing: 2px;
+}
+
+.transaction-header h1 {
+    margin: 8px 0;
+    font: 400 36px/1.2 Georgia, serif;
+}
+
+.transaction-description,
+.transaction-section-description {
+    color: var(--muted);
+}
+
+.transaction-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+}
+
+.transaction-card {
+    padding: 25px;
+    margin-bottom: 20px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.transaction-card h2 {
+    margin-top: 0;
+    font: 400 22px Georgia, serif;
+}
+
+.transaction-subheading {
+    margin-top: 28px;
+}
+
+/* ===== ORDER SUMMARY ===== */
+
+.transaction-item,
+.transaction-total,
+.detail-row,
+.modal-order-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.transaction-total {
+    margin-top: 12px;
+    border-bottom: 0;
+    font-size: 16px;
+}
+
+.transaction-total strong,
+.modal-order-total strong {
+    color: var(--burgundy);
+}
+
+.transaction-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.transaction-back-link,
+.transaction-inline-link {
+    font-size: 13px;
+}
+
+.transaction-inline-link {
+    display: inline-block;
+    margin-top: 8px;
+}
+
+/* ===== BUTTONS ===== */
+
+.transaction-button {
+    display: inline-block;
+    padding: 12px 20px;
+    color: var(--white);
+    background: var(--burgundy);
+    border: 1px solid var(--burgundy);
+    border-radius: 6px;
+    text-align: center;
+    transition: .2s;
+}
+
+.transaction-button:hover {
+    color: var(--white);
+    background: #60082e;
+}
+
+.transaction-form .transaction-button {
+    width: 100%;
+}
+
+/* ===== SHIPPING & PAYMENT FORMS ===== */
+
+.transaction-form {
+    display: grid;
+    gap: 18px;
+}
+
+.transaction-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.transaction-form-field label {
+    font-weight: 600;
+}
+
+.transaction-form-field input,
+.transaction-form-field select,
+.transaction-form-field textarea {
+    width: 100%;
+    padding: 12px;
+    color: var(--text);
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+}
+
+.transaction-form-field input:focus,
+.transaction-form-field select:focus,
+.transaction-form-field textarea:focus {
+    border-color: var(--olive);
+}
+
+.transaction-field-errors {
+    margin: 0;
+    color: #b42338;
+    font-size: 12px;
+}
+
+.transaction-form-card > .transaction-total {
+    margin-bottom: 20px;
+}
+
+/* ===== ORDER CONFIRMATION ===== */
+
+.success-card {
+    text-align: center;
+}
+
+.success-icon {
+    display: grid;
+    place-items: center;
+    width: 55px;
+    height: 55px;
+    margin: 0 auto 15px;
+    color: var(--olive);
+    background: #f0f1df;
+    border-radius: 50%;
+    font-size: 28px;
+}
+
+.success-description {
+    color: var(--muted);
+}
+
+.confirmation-card .detail-row:last-child {
+    border-bottom: 0;
+}
+
+.address-details {
+    overflow-wrap: anywhere;
+}
+
+.address-details p {
+    margin: 5px 0;
+}
+
+/* ===== PLACE ORDER MODAL ===== */
+
+.order-modal {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.order-modal.is-open {
+    display: flex;
+}
+
+.order-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .5);
+}
+
+.order-modal-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 440px);
+    padding: 30px;
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, .15);
+}
+
+.order-modal-eyebrow {
+    margin-top: 0;
+}
+
+.order-modal-dialog h2 {
+    margin: 12px 0;
+    font: 400 27px Georgia, serif;
+}
+
+.order-modal-dialog > p:not(.order-modal-eyebrow) {
+    color: var(--muted);
+}
+
+.modal-order-total {
+    margin: 20px 0;
+    border-top: 1px solid var(--border);
+}
+
+.order-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 25px;
+}
+
+.order-modal-actions button {
+    flex: 1;
+    padding: 11px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.order-modal-cancel {
+    color: var(--text);
+    background: var(--white);
+}
+
+.order-modal-confirm {
+    color: var(--white);
+    background: var(--burgundy);
+    border-color: var(--burgundy) !important;
+}
+
+.order-modal-actions button:disabled,
+.transaction-button:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.cancel-checkout-link:hover {
+    color: var(--burgundy);
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 650px) {
+    .transaction-page {
+        width: calc(100% - 28px);
+        padding: 30px 0;
+    }
+
+    .transaction-header h1 {
+        font-size: 30px;
+    }
+
+    .transaction-layout {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .transaction-card {
+        padding: 20px;
+    }
+
+    .transaction-footer-actions {
+        gap: 15px;
+    }
+
+    .order-modal-dialog {
+        padding: 23px;
+    }
+
+    .order-modal-actions {
+        flex-direction: column;
+    }
+}

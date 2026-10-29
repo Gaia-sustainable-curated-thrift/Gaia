@@ -21,6 +21,8 @@ urlpatterns = [
     # URL django-allauth (Google login: /accounts/google/login/)
     path("accounts/", include("allauth.urls")),
 
+     path("products/", include("products.urls")),
+     path("transaction/", include("transaction.urls")),
     path("products/", include("products.urls")),
 
     path("chat/", include("chat.urls")),
