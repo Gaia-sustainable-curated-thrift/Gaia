@@ -9,23 +9,65 @@
     <link rel="stylesheet" href="{% static 'css/transaction.css' %}">
 </head>
 <body>
+
 <main class="transaction-page">
+
     <header class="transaction-header">
         <p class="transaction-eyebrow">GAIA · YOUR ORDER</p>
-        <h1>{% if completed %}Order Confirmed!{% else %}Review Your Order{% endif %}</h1>
+
+        <h1>
+            {% if completed %}
+                Order Confirmed!
+            {% else %}
+                Review Your Order
+            {% endif %}
+        </h1>
+
         <p class="transaction-description">
-            {% if completed %}Your order has been saved successfully.{% else %}Check your details before placing your order.{% endif %}
+            {% if completed %}
+                Your order has been saved successfully.
+            {% else %}
+                Review your order details before placing your order.
+            {% endif %}
         </p>
     </header>
 
     {% if completed %}
+
+        <!-- ORDER SUCCESS -->
+        <section class="transaction-card success-card">
+            <div class="success-icon">✓</div>
+
+            <h2>Thank You for Your Order!</h2>
+
+            <p class="success-description">
+                Your order has been submitted successfully.
+            </p>
+        </section>
+
         {% for order in orders %}
             <section class="transaction-card confirmation-card">
                 <h2>{{ order.title }}</h2>
-                <p>Order number: {{ order.number }}</p>
-                <p>Subtotal: {{ order.subtotal }}</p>
-                <p>Payment: {{ order.payment_method }}</p>
-                <p>Status: {{ order.get_status_display }}</p>
+
+                <div class="detail-row">
+                    <span>Order Number</span>
+                    <strong>{{ order.number }}</strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Subtotal</span>
+                    <strong>{{ order.subtotal }}</strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Payment Method</span>
+                    <strong>{{ order.payment_method }}</strong>
+                </div>
+
+                <div class="detail-row">
+                    <span>Order Status</span>
+                    <strong>{{ order.get_status_display }}</strong>
+                </div>
             </section>
         {% empty %}
             <section class="transaction-card">
@@ -34,46 +76,224 @@
         {% endfor %}
 
         <div class="transaction-footer-actions">
-            <a class="transaction-button" href="{% url 'orders' %}">View My Orders</a>
-            <a class="transaction-back-link" href="{% url 'products:home' %}">Continue Shopping →</a>
+            <a class="transaction-button"
+               href="{% url 'orders' %}">
+                View My Orders →
+            </a>
+
+            <a class="transaction-back-link"
+               href="{% url 'products:home' %}">
+                Continue Shopping
+            </a>
         </div>
+
     {% else %}
+
+        <!-- ORDER REVIEW -->
         <div class="transaction-layout">
+
             <section class="transaction-card">
                 <h2>Order Summary</h2>
+
                 {% for item in cart_items %}
                     <div class="transaction-item">
-                        <span>{{ item.product.title }} × {{ item.quantity }}</span>
+                        <span>
+                            {{ item.product.title }} × {{ item.quantity }}
+                        </span>
+
                         <strong>{{ item.line_total }}</strong>
                     </div>
+                {% empty %}
+                    <p>Your bag is empty.</p>
                 {% endfor %}
+
                 <div class="transaction-total">
-                    <span>Subtotal</span><strong>{{ subtotal }}</strong>
+                    <span>Subtotal</span>
+                    <strong>{{ subtotal }}</strong>
                 </div>
             </section>
 
             <section class="transaction-card">
                 <h2>Shipping Address</h2>
-                <p>{{ address.recipient }}</p>
-                <p>{{ address.phone }}</p>
-                <p>{{ address.address }}, {{ address.city }}, {{ address.postal_code }}, {{ address.country }}</p>
-                <a href="{% url 'transaction:shipping' %}">Edit Address</a>
 
-                <h2 class="transaction-subheading">Payment Method</h2>
+                <div class="address-details">
+                    <p><strong>{{ address.recipient }}</strong></p>
+                    <p>{{ address.phone }}</p>
+                    <p>
+                        {{ address.address }},
+                        {{ address.city }},
+                        {{ address.postal_code }},
+                        {{ address.country }}
+                    </p>
+                </div>
+
+                <a class="transaction-inline-link"
+                   href="{% url 'transaction:shipping' %}">
+                    Edit Address →
+                </a>
+
+                <h2 class="transaction-subheading">
+                    Payment Method
+                </h2>
+
                 <p>{{ payment_method }}</p>
-                <a href="{% url 'transaction:payment' %}">Change Payment</a>
+
+                <a class="transaction-inline-link"
+                   href="{% url 'transaction:payment' %}">
+                    Change Payment →
+                </a>
             </section>
+
         </div>
 
-        <form method="post" class="transaction-form transaction-confirm-form">
+        <!-- PLACE ORDER FORM -->
+        <form method="post"
+              class="transaction-form transaction-confirm-form"
+              id="place-order-form">
+
             {% csrf_token %}
-            <button class="transaction-button" type="submit">Place Order →</button>
+
+            <button class="transaction-button"
+                    type="submit"
+                    id="place-order-button">
+                Place Order →
+            </button>
         </form>
 
         <div class="transaction-footer-actions">
-            <a class="transaction-back-link" href="{% url 'transaction:payment' %}">← Back to Payment</a>
+            <a class="transaction-back-link"
+               href="{% url 'transaction:payment' %}">
+                ← Back to Payment
+            </a>
+
+            <a class="transaction-back-link cancel-checkout-link"
+               href="{% url 'products:home' %}">
+                Cancel Checkout
+            </a>
         </div>
+
+        <!-- CONFIRMATION MODAL -->
+        <div class="order-modal"
+             id="order-modal"
+             aria-hidden="true">
+
+            <div class="order-modal-backdrop"
+                 data-close-modal></div>
+
+            <section class="order-modal-dialog"
+                     role="dialog"
+                     aria-modal="true"
+                     aria-labelledby="order-modal-title"
+                     aria-describedby="order-modal-description">
+
+                <p class="order-modal-eyebrow">
+                    GAIA · FINAL CHECK
+                </p>
+
+                <h2 id="order-modal-title">
+                    Place Your Order?
+                </h2>
+
+                <p id="order-modal-description">
+                    Please make sure your shipping details and
+                    payment method are correct. Once confirmed,
+                    your order will be submitted for processing.
+                </p>
+
+                <div class="modal-order-total">
+                    <span>Order Subtotal</span>
+                    <strong>{{ subtotal }}</strong>
+                </div>
+
+                <div class="order-modal-actions">
+                    <button type="button"
+                            class="order-modal-cancel"
+                            id="cancel-order">
+                        Go Back
+                    </button>
+
+                    <button type="button"
+                            class="order-modal-confirm"
+                            id="confirm-order">
+                        Yes, Place Order
+                    </button>
+                </div>
+
+            </section>
+        </div>
+
+        <!-- JAVASCRIPT -->
+        <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.getElementById("place-order-form");
+            const modal = document.getElementById("order-modal");
+
+            if (!form || !modal) return;
+
+            const placeButton = document.getElementById("place-order-button");
+            const cancelButton = document.getElementById("cancel-order");
+            const confirmButton = document.getElementById("confirm-order");
+            const backdrop = modal.querySelector("[data-close-modal]");
+
+            let confirmed = false;
+            let submitting = false;
+
+            function openModal() {
+                modal.classList.add("is-open");
+                modal.setAttribute("aria-hidden", "false");
+                document.body.style.overflow = "hidden";
+                cancelButton.focus();
+            }
+
+            function closeModal() {
+                modal.classList.remove("is-open");
+                modal.setAttribute("aria-hidden", "true");
+                document.body.style.overflow = "";
+                placeButton.focus();
+            }
+
+                        
+            form.addEventListener("submit", function (event) {
+                if (confirmed) {
+                    return; // Izinkan form dikirim ke Django.
+                }
+
+                event.preventDefault();
+                openModal();
+            });
+
+
+            cancelButton.addEventListener("click", closeModal);
+            backdrop.addEventListener("click", closeModal);
+
+            document.addEventListener("keydown", function (event) {
+                if (
+                    event.key === "Escape" &&
+                    modal.classList.contains("is-open")
+                ) {
+                    closeModal();
+                }
+            });
+
+            confirmButton.addEventListener("click", function () {
+                if (submitting) return;
+
+                confirmed = true;
+                submitting = true;
+
+                confirmButton.disabled = true;
+                confirmButton.textContent = "Processing...";
+                placeButton.disabled = true;
+
+                // Submit the existing POST form with its CSRF token.
+                form.requestSubmit(placeButton);
+            });
+        });
+        </script>
+
     {% endif %}
+
 </main>
+
 </body>
 </html>

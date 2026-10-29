@@ -4,7 +4,7 @@ import uuid
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction as db_transaction
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -259,3 +259,5 @@ def confirmation(request):
 def place_order(request):
     # Form konfirmasi dikirim ke view confirmation.
     return redirect("transaction:confirmation")
+
+
