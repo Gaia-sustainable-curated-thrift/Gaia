@@ -85,3 +85,10 @@ Gunakan ID seller yang sudah memiliki produk:
 
 Data diberi label [Demo] dan tidak digandakan saat perintah dijalankan ulang.
 Menambahkan 50 review tidak otomatis menambahkan 50 produk.
+## Tombol pada halaman seller
+
+Rate Seller hanya ditawarkan kepada buyer yang masih memiliki pesanan selesai
+yang belum direview. Jika semua sudah diulas, tombol menjadi Edit My Review.
+Buyer tanpa pesanan yang memenuhi syarat diarahkan ke View My Orders.
+Pengunjung tetap masuk melalui login. Aturan ini berlaku pada halaman penuh
+dan respons filter AJAX; pemeriksaan backend tetap berlaku pada setiap POST.

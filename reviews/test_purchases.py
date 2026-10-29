@@ -175,3 +175,54 @@ class VerifiedPurchaseTests(TestCase):
         review.refresh_from_db()
         self.assertIsNone(review.order_id)
         self.assertFalse(review.is_verified_purchase)
+
+    def seller_page(self, **query):
+        return self.client.get(reverse('reviews:seller_reviews', args=[self.seller.pk]), query)
+
+    def test_available_purchase_offers_rate_seller(self):
+        self.order()
+        self.client.force_login(self.buyer)
+        self.assertContains(self.seller_page(), 'Rate Seller')
+
+    def test_all_purchases_reviewed_offers_edit_instead_of_rate(self):
+        order = self.order()
+        self.submit(order)
+        review = Review.objects.get(order=order)
+        response = self.seller_page()
+        self.assertContains(response, 'Edit My Review')
+        self.assertNotContains(response, 'Rate Seller')
+        self.assertNotContains(response, 'Write a Seller Review')
+        self.assertContains(response, reverse('reviews:edit_review', args=[review.pk]))
+
+    def test_unqualified_buyer_is_guided_to_orders(self):
+        self.order(status=AccountOrder.Status.AWAITING_PAYMENT)
+        self.client.force_login(self.buyer)
+        response = self.seller_page()
+        self.assertContains(response, 'View My Orders')
+        self.assertNotContains(response, 'Rate Seller')
+        self.assertNotContains(response, 'Write a Seller Review')
+
+    def test_second_unreviewed_purchase_still_offers_rate_seller(self):
+        self.submit(self.order())
+        self.order()
+        response = self.seller_page()
+        self.assertContains(response, 'Rate Seller')
+        self.assertNotContains(response, 'Edit My Review')
+
+    def test_guest_still_has_login_entry_to_rate_seller(self):
+        self.assertContains(self.seller_page(), 'Rate Seller')
+
+    def test_deleted_review_makes_its_purchase_available_again(self):
+        order = self.order()
+        self.submit(order)
+        review = Review.objects.get(order=order)
+        self.client.post(reverse('reviews:delete_review', args=[review.pk]))
+        self.assertContains(self.seller_page(), 'Rate Seller')
+
+    def test_ajax_filter_preserves_reviewed_purchase_action(self):
+        self.submit(self.order())
+        response = self.client.get(reverse('reviews:seller_reviews', args=[self.seller.pk]),
+                                   {'rating': '1'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        html = response.json()['html']
+        self.assertIn('Edit My Review', html)
+        self.assertNotIn('Rate Seller', html)

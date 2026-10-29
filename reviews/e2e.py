@@ -110,6 +110,8 @@ class ReviewBrowserTests(StaticLiveServerTestCase):
         card = page.locator(".seller-review").filter(has_text="Browser-created review")
         expect(card).to_be_visible()
         expect(card.locator(".review-verified")).to_have_text("\u2713 Verified buyer")
+        expect(page.get_by_role('link', name='Rate Seller', exact=True)).to_have_count(0)
+        expect(page.locator('.seller-context').get_by_role('link', name='Edit My Review', exact=True)).to_be_visible()
         self.screenshot(page, "verified-review-desktop.png")
         card.get_by_role("link", name="Edit Review").click()
         expect(page.get_by_label("Experience summary")).to_have_value("Browser-created review")

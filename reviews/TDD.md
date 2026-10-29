@@ -74,6 +74,19 @@ Fixture tes CRUD lama diperbarui dengan pesanan selesai; tes lama tidak
 mengabaikan atau melemahkan aturan pembelian. Data demo lama tetap tanpa
 badge, bukan disamarkan sebagai pembelian sungguhan.
 
+## 7. Tombol sesuai kelayakan review
+
+**Red:** tujuh tes perilaku tombol ditambahkan; tiga gagal pada versi lama.
+Tombol masih menawarkan review baru setelah semua pesanan diulas,
+kepada buyer yang belum memenuhi syarat, dan pada respons filter AJAX.
+
+**Green:** tombol ditentukan dari pesanan selesai yang belum direview.
+Jika masih ada, tampilkan Rate Seller. Jika tidak ada tetapi buyer sudah
+menulis review, tampilkan Edit My Review. Buyer tanpa pesanan yang memenuhi
+syarat diarahkan ke View My Orders. Pengunjung tetap diarahkan melalui login.
+Menghapus review membuat pesanan tersebut tersedia kembali untuk diulas.
+Seluruh 72 tes review lulus dan tes browser memeriksa tombol setelah submit.
+
 ## Regresi yang diuji
 
 - Create, edit, delete, input tidak valid, dan metode request.
@@ -90,12 +103,12 @@ badge, bukan disamarkan sebagai pembelian sungguhan.
 
 ## Hasil pengujian
 
-- Tes modul review: 42 tes lulus.
+- Tes modul review: 72 tes lulus.
 - Tes browser review: 4 tes lulus.
-- Tes seluruh proyek setelah sinkronisasi main: 170 tes lulus.
+- Tes seluruh proyek: 200 tes lulus.
 - Django system check: tidak ditemukan masalah.
-- Coverage Python modul review dengan pengukuran cabang: 97,91%.
-- Coverage `reviews/views.py`: 98,21%.
+- Coverage Python modul review dengan pengukuran cabang: 98,01%.
+- Coverage `reviews/views.py`: 98,36%.
 
 Coverage dihitung dari kode Python produksi pada app `reviews`.
 Template, CSS, JavaScript, migrasi, dan kode tes tidak dihitung

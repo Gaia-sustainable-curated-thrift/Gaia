@@ -33,6 +33,21 @@ def _get_seller(seller_id):
     return seller
 
 
+def _review_action(user, seller):
+    create_url = reverse('reviews:create_review', args=[seller.pk])
+    if not user.is_authenticated:
+        return {'label': 'Rate Seller', 'bottom_label': 'Write a Seller Review', 'url': create_url}
+    if user.pk == seller.pk:
+        return None
+    if eligible_orders(user, seller).exists():
+        return {'label': 'Rate Seller', 'bottom_label': 'Write a Seller Review', 'url': create_url}
+    existing = Review.objects.filter(reviewer=user, seller=seller).order_by('-created_at', '-pk').first()
+    if existing:
+        return {'label': 'Edit My Review', 'bottom_label': 'Edit My Review',
+                'url': reverse('reviews:edit_review', args=[existing.pk])}
+    return {'label': 'View My Orders', 'bottom_label': 'View My Orders', 'url': reverse('orders')}
+
+
 def _review_context(request, seller):
     all_reviews = Review.objects.filter(seller=seller)
     summary = all_reviews.aggregate(average_rating=Avg("rating"), total_reviews=Count("pk"))
@@ -79,6 +94,7 @@ def _review_context(request, seller):
         "selected_rating": selected_rating, "selected_sort": sort,
         "filtered_count": page.paginator.count, "page_query": urlencode(params),
         "reply_form": SellerReplyForm(), "report_form": ReviewReportForm(),
+        "review_action": _review_action(request.user, seller),
     }
 
 

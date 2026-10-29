@@ -9,7 +9,7 @@
     {% if user.pk != seller.pk %}
         <div class="seller-context-action">
             <span>Seller experience</span>
-            <a class="review-button" href="{% url 'reviews:create_review' seller.pk %}">Rate Seller</a>
+            <a class="review-button" href="{{ review_action.url }}">{{ review_action.label }}</a>
         </div>
     {% else %}
         <a class="review-text-link" href="{% url 'reviews:seller_reviews' seller.pk %}">View public reviews</a>
@@ -187,6 +187,6 @@
 {% endif %}
 {% if user.pk != seller.pk %}
     <div class="reviews-bottom-actions">
-        <a class="review-button review-button-burgundy" href="{% url 'reviews:create_review' seller.pk %}">Write a Seller Review</a>
+        <a class="review-button review-button-burgundy" href="{{ review_action.url }}">{{ review_action.bottom_label }}</a>
     </div>
 {% endif %}
