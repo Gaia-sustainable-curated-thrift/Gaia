@@ -47,6 +47,16 @@ tidak terpilih karena urutan radio dalam DOM terbalik.
 highlight bintang tanpa membalik urutan DOM. Rating dapat dipilih
 melalui klik maupun keyboard.
 
+## 5. Integrasi navigasi review seller
+
+**Red:** dari tiga tes menu akun, dua gagal karena menu Seller Reviews
+belum dipasang. Tes tautan review seller pada halaman produk juga gagal.
+
+**Green:** template akun memanggil `seller_reviews_nav`, sedangkan
+template produk memanggil `seller_rating`. Keempat tes integrasi lulus.
+Menu hanya muncul untuk seller dan aktif pada halaman review miliknya.
+Rating produk menjadi tautan ke review akun seller.
+
 ## Regresi yang diuji
 
 - Create, edit, delete, input tidak valid, dan metode request.
@@ -56,7 +66,7 @@ melalui klik maupun keyboard.
 - Rata-rata global saat filter, distribusi rating, sorting, dan pagination.
 - Helpful, balasan seller, laporan privat, dan akses halaman review seller.
 - Komponen menu seller dan rating database secara terpisah.
-  Integrasi ke halaman akun dan produk ditunda.
+  Integrasi template akun dan produk diuji melalui empat tes tambahan.Integrasi template akun dan produk diuji melalui empat tes tambahan.
 - Browser: CRUD AJAX, filter tanpa reload, Helpful, laporan, balasan,
   tampilan desktop/ponsel, keyboard, kegagalan jaringan,
   dan fallback tanpa JavaScript.

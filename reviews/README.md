@@ -17,8 +17,13 @@ Penanggung jawab: Keisha Janice Maulina Napitupulu.
 Halaman review tersedia di `/reviews/seller/<seller_id>/`.
 Halaman review seller yang login tersedia di `/reviews/account/`.
 
-Integrasi menu sidebar akun dan rating pada detail produk ditunda.
-Template kedua modul tersebut tetap mengikuti versi kelompok dari main.
+Menu Seller Reviews tersedia pada My Account khusus seller.
+Rating pada bagian seller di halaman produk menggunakan data review
+dan dapat diklik untuk membuka halaman review seller.
+
+Review ditujukan langsung ke akun seller, bukan per produk.
+Integrasi hanya menambahkan pemanggilan komponen review pada template
+akun dan produk; logika akun, produk, dan transaksi tidak diubah.
 
 Verifikasi transaksi selesai belum diterapkan pada modul review,
 sehingga tidak ada badge Verified buyer.

@@ -380,3 +380,79 @@ class ReviewSeedTDDTests(TestCase):
         with self.assertRaisesMessage(CommandError, "already belongs"):
             call_command("seed_reviews", seller=self.seller.pk, count=1, verbosity=0)
         self.assertEqual(Review.objects.count(), 1)
+
+class ReviewAccountNavigationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+
+        cls.seller = User.objects.create_user(username="nav_seller")
+        cls.buyer = User.objects.create_user(username="nav_buyer")
+
+        Product.objects.create(
+            seller=cls.seller,
+            title="Navigation test product",
+            slug="navigation-test-product",
+            price=100000,
+        )
+
+    def test_seller_sees_reviews_menu_in_account(self):
+        self.client.force_login(self.seller)
+
+        response = self.client.get(reverse("profile"))
+
+        self.assertContains(
+            response,
+            f'href="{reverse("reviews:account_reviews")}"',
+        )
+
+    def test_buyer_does_not_see_seller_reviews_menu(self):
+        self.client.force_login(self.buyer)
+
+        response = self.client.get(reverse("profile"))
+
+        self.assertNotContains(
+            response,
+            f'href="{reverse("reviews:account_reviews")}"',
+        )
+
+    def test_reviews_menu_is_active_on_seller_reviews_page(self):
+        self.client.force_login(self.seller)
+
+        response = self.client.get(reverse("reviews:account_reviews"))
+
+        self.assertContains(
+            response,
+            f'href="{reverse("reviews:account_reviews")}" '
+            'class="active" aria-current="page"',
+        )
+
+class ReviewSellerLinkTests(TestCase):
+    def test_product_page_links_to_seller_reviews(self):
+        User = get_user_model()
+        seller = User.objects.create_user(username="link_seller")
+        buyer = User.objects.create_user(username="link_buyer")
+
+        product = Product.objects.create(
+            seller=seller,
+            title="Seller link test",
+            slug="seller-link-test",
+            price=100000,
+        )
+
+        Review.objects.create(
+            reviewer=buyer,
+            seller=seller,
+            rating=4,
+            title="Seller ramah",
+            comment="Komunikasinya baik.",
+        )
+
+        response = self.client.get(
+            reverse("products:detail", args=[product.slug])
+        )
+
+        self.assertContains(
+            response,
+            f'href="{reverse("reviews:seller_reviews", args=[seller.pk])}"',
+        )
