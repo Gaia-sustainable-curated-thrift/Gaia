@@ -4,6 +4,10 @@ from django.db import models
 
 
 class Review(models.Model):
+    order = models.OneToOneField(
+        'accounts.AccountOrder', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='seller_review',
+    )
     reviewer = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="written_reviews",
     )
@@ -42,6 +46,14 @@ class Review(models.Model):
 
     def __str__(self):
         return f"Review #{self.pk} - {self.rating}/5"
+
+    @property
+    def is_verified_purchase(self):
+        return bool(
+            self.order_id and self.order.status == 'completed'
+            and self.order.user_id == self.reviewer_id
+            and self.order.seller_id == self.seller_id
+        )
 
 
 class ReviewReport(models.Model):

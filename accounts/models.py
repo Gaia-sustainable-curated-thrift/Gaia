@@ -34,6 +34,9 @@ class AccountOrder(models.Model):
         AWAITING_PAYMENT = 'awaiting_payment', 'Awaiting payment'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='account_orders')
+    # Nullable for historical snapshots; new checkout records both links.
+    product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
+    seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
     number = models.CharField(max_length=40, unique=True)
     date = models.DateField()
     status = models.CharField(max_length=30, choices=Status.choices)

@@ -96,6 +96,9 @@
                     {% for star in "12345" %}<span aria-hidden="true">{% if forloop.counter <= review.rating %}&#9733;{% else %}&#9734;{% endif %}</span>{% endfor %}
                 </div>
                 <h3>{{ review.title }}</h3>
+                {% if review.is_verified_purchase %}
+                    <p class="review-verified">✓ Verified buyer</p>
+                {% endif %}
                 <p>{{ review.comment|linebreaksbr }}</p>
                 {% if review.is_friendly or review.is_responsive or review.is_trustworthy %}
                     <div class="review-aspects" aria-label="Seller qualities">

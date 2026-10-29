@@ -25,8 +25,28 @@ Review ditujukan langsung ke akun seller, bukan per produk.
 Integrasi hanya menambahkan pemanggilan komponen review pada template
 akun dan produk; logika akun, produk, dan transaksi tidak diubah.
 
-Verifikasi transaksi selesai belum diterapkan pada modul review,
-sehingga tidak ada badge Verified buyer.
+## Verifikasi pembelian
+
+Review tetap menilai akun seller. Review baru membutuhkan pesanan milik buyer
+untuk seller tersebut, berstatus `completed`, dan belum memiliki review.
+Satu pesanan hanya dapat memiliki satu review. Buyer dapat mengedit atau
+menghapus review miliknya; seller hanya membalas review yang diterima.
+
+Checkout menyimpan relasi produk dan seller pada `AccountOrder`.
+Status setelah checkout tetap `awaiting_payment`: berhasil membuat pesanan
+bukan bukti bahwa pembayaran atau pengiriman sudah selesai. Status pesanan
+mengikuti proses transaksi kelompok. Untuk demo, staf dapat mengubah status
+pesanan uji melalui admin Django yang sudah tersedia, tanpa mengubah akun
+buyer/seller menjadi staf dan tanpa melewati validasi review.
+
+Badge Verified buyer memeriksa status, pemilik, dan seller pada pesanan.
+Ini verifikasi catatan pesanan aplikasi, bukan integrasi payment gateway.
+Review lama/data demo yang tidak terhubung pesanan tetap disimpan tanpa badge.
+Pesanan lama tidak dicocokkan otomatis berdasarkan judul barang.
+
+Halaman detail pesanan menampilkan Review Seller setelah pesanan selesai,
+atau Edit Seller Review jika sudah diulas. Form menampilkan pilihan pesanan
+selesai sehingga buyer tidak perlu mengisi ID secara manual.
 
 ## Menjalankan
 

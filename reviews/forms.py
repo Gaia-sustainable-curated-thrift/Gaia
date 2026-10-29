@@ -3,6 +3,18 @@ from .models import Review, ReviewReport
 
 
 class ReviewForm(forms.ModelForm):
+    def __init__(self, *args, orders=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if orders is not None:
+            self.fields['order'] = forms.ModelChoiceField(
+                queryset=orders, label='Completed purchase',
+                help_text='Choose the completed order for this seller.',
+            )
+            self.fields['order'].label_from_instance = lambda order: f'{order.number} — {order.title}'
+            first = orders.first()
+            if first:
+                self.initial['order'] = first.pk
+
     class Meta:
         model = Review
         fields = [

@@ -57,6 +57,23 @@ template produk memanggil `seller_rating`. Keempat tes integrasi lulus.
 Menu hanya muncul untuk seller dan aktif pada halaman review miliknya.
 Rating produk menjadi tautan ke review akun seller.
 
+## 6. Review berdasarkan pembelian selesai
+
+**Red:** 19 tes tambahan dijalankan pada kode lama: satu gagal dan 18 error.
+Pesanan belum mempunyai relasi produk/seller, review belum mempunyai relasi
+pesanan, dan pengguna tanpa pembelian masih dapat membuka form.
+
+**Green:** relasi nullable ditambahkan untuk mempertahankan data lama.
+Checkout mengisi produk dan seller; form hanya menerima pesanan selesai milik
+buyer untuk seller yang dituju. Pemeriksaan diulang dalam transaksi dengan
+penguncian pesanan. OneToOneField membatasi satu review per pesanan.
+Ke-19 tes tambahan kemudian lulus. Tes browser CRUD juga memastikan
+review yang baru dibuat mempunyai badge Verified buyer.
+
+Fixture tes CRUD lama diperbarui dengan pesanan selesai; tes lama tidak
+mengabaikan atau melemahkan aturan pembelian. Data demo lama tetap tanpa
+badge, bukan disamarkan sebagai pembelian sungguhan.
+
 ## Regresi yang diuji
 
 - Create, edit, delete, input tidak valid, dan metode request.
@@ -77,8 +94,8 @@ Rating produk menjadi tautan ke review akun seller.
 - Tes browser review: 4 tes lulus.
 - Tes seluruh proyek setelah sinkronisasi main: 170 tes lulus.
 - Django system check: tidak ditemukan masalah.
-- Coverage Python modul review dengan pengukuran cabang: 99,07%.
-- Coverage `reviews/views.py`: 100%.
+- Coverage Python modul review dengan pengukuran cabang: 97,91%.
+- Coverage `reviews/views.py`: 98,21%.
 
 Coverage dihitung dari kode Python produksi pada app `reviews`.
 Template, CSS, JavaScript, migrasi, dan kode tes tidak dihitung

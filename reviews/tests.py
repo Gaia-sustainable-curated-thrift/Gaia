@@ -6,6 +6,8 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from products.models import Product
 from django.template import Context, Template
+from accounts.models import AccountOrder
+from datetime import date
 
 from .forms import ReviewForm
 from .models import Review, ReviewReport
@@ -21,6 +23,17 @@ class ReviewTests(TestCase):
         cls.empty_seller = User.objects.create_user(username="empty_seller")
         for seller in [cls.seller, cls.empty_seller]:
             Product.objects.create(seller=seller, title="Vintage coat", slug=f"coat-{seller.pk}", price=100000)
+        # Completed purchases make write-route regression fixtures eligible.
+        for number, buyer, seller in [
+            ('R-1', cls.buyer, cls.seller),
+            ('R-2', cls.other, cls.seller),
+            ('R-3', cls.buyer, cls.empty_seller),
+        ]:
+            AccountOrder.objects.create(
+                user=buyer, seller=seller, product=seller.products.first(),
+                number=number, date=date.today(), status=AccountOrder.Status.COMPLETED,
+                title='Vintage coat', subtotal=100000, recipient='Buyer', address='Depok',
+            )
         cls.review = Review.objects.create(
             reviewer=cls.buyer, seller=cls.seller, rating=4,
             title="Seller ramah", comment="Barang sesuai deskripsi.",

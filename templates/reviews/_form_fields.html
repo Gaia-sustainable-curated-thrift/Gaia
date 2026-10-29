@@ -1,5 +1,11 @@
 {% csrf_token %}
 {{ form.non_field_errors }}
+{% if form.order %}
+<div class="review-field">
+    {{ form.order.label_tag }}{{ form.order }}{{ form.order.errors }}
+    <span class="review-hint">{{ form.order.help_text }}</span>
+</div>
+{% endif %}
 <fieldset class="review-rating-field">
     <legend>{{ form.rating.label }}</legend>
     <div class="review-rating-line">

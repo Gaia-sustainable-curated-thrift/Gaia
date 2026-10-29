@@ -1,5 +1,5 @@
 body:has(.reviews-page) { background: #fbf9f2; }
-/* GAIA review module. Bootstrap grid handles the responsive columns. */
+/* GAIA review module. Bootstrap grid  */
 .reviews-page {
     --review-canvas: #fbf9f2;
     box-sizing: border-box;
@@ -161,7 +161,7 @@ body:has(.reviews-page) { background: #fbf9f2; }
     .reviews-page * { transition: none !important; scroll-behavior: auto; }
 }
 
-/* Keep the original Figma outline asset; a filled glyph shows selected values. */
+/* Keep the original Figma outline asset */
 .reviews-page .review-star-input > label {
     width: 44px; height: 44px; padding: 0;
     background: url("../images/reviews/rating-star.svg") center / 40px 40px no-repeat;
@@ -187,3 +187,50 @@ body:has(.reviews-page) { background: #fbf9f2; }
 .reviews-page .review-anonymous input:checked { background: var(--olive); }
 .reviews-page .review-anonymous input:checked::before { transform: translateX(16px); }
 .reviews-account.reviews-page { padding-bottom: 32px; }
+
+/* Detail */
+
+.reviews-page .reviews-heading > p,
+.reviews-page .seller-identity p,
+.reviews-page .reviewer-name,
+.reviews-page .review-content > p {
+    font-size: 16px;
+}
+
+.reviews-page .review-button {
+    font-size: 16px;
+    min-height: 48px;
+}
+
+.reviews-page .review-actions {
+    justify-content: flex-end;
+}
+
+.reviews-page .seller-reply {
+    max-width: 400px;
+    margin: 16px 0 0 auto;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+@media (min-width: 992px) {
+    .reviews-page:not(.reviews-account) .seller-review {
+        grid-template-columns: 294px minmax(0, 1fr);
+        min-height: 184px;
+        padding: 18px;
+    }
+
+    .reviews-page .seller-avatar {
+        width: 86px;
+        height: 86px;
+        border-radius: 32px;
+    }
+}
+
+/* Only reviews backed by a matching completed order display this badge. */
+.reviews-page .review-content > .review-verified {
+    margin: 0 0 12px;
+    color: var(--olive, #6b6f2d);
+    font-size: 12px;
+    font-weight: 600;
+}

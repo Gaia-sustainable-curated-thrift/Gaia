@@ -15,6 +15,8 @@ from django.test import Client, override_settings
 from django.urls import reverse
 from products.models import Product
 from .models import Review, ReviewReport
+from accounts.models import AccountOrder
+from datetime import date
 
 try:
     from playwright.sync_api import sync_playwright, expect
@@ -51,6 +53,12 @@ class ReviewBrowserTests(StaticLiveServerTestCase):
         self.author = User.objects.create_user(username="browser_author", first_name="Keisha")
         self.reader = User.objects.create_user(username="browser_reader", first_name="Salma")
         self.product = Product.objects.create(seller=self.seller, title="Vintage coat", slug="browser-coat", price=100000)
+        AccountOrder.objects.create(
+            user=self.author, seller=self.seller, product=self.product,
+            number='BROWSER-VERIFIED', date=date.today(),
+            status=AccountOrder.Status.COMPLETED, title=self.product.title,
+            subtotal=100000, recipient='Keisha', address='Depok',
+        )
         for index, rating in enumerate([4, 4, 3, 5, 5, 4, 3]):
             Review.objects.create(
                 reviewer=self.author, seller=self.seller, rating=rating,
@@ -101,6 +109,8 @@ class ReviewBrowserTests(StaticLiveServerTestCase):
         expect(page).to_have_url(self.list_url)
         card = page.locator(".seller-review").filter(has_text="Browser-created review")
         expect(card).to_be_visible()
+        expect(card.locator(".review-verified")).to_have_text("\u2713 Verified buyer")
+        self.screenshot(page, "verified-review-desktop.png")
         card.get_by_role("link", name="Edit Review").click()
         expect(page.get_by_label("Experience summary")).to_have_value("Browser-created review")
         page.get_by_label("Experience summary").fill("Browser-updated review")

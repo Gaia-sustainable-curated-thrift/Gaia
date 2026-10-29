@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Avg, Count, Exists, OuterRef
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -15,6 +16,8 @@ from django.views.decorators.http import require_http_methods, require_POST
 
 from .forms import ReviewForm, ReviewReportForm, SellerReplyForm
 from .models import Review, ReviewReport
+from .purchases import eligible_orders
+from accounts.models import AccountOrder
 
 
 def _is_ajax(request):
@@ -25,7 +28,7 @@ def _get_seller(seller_id):
     seller = get_object_or_404(get_user_model(), pk=seller_id, is_active=True)
     # No separate seller role exists yet. Listings or historical reviews
     # identify a seller without changing the accounts module.
-    if not seller.products.exists() and not seller.received_reviews.exists():
+    if not seller.products.exists() and not seller.received_reviews.exists() and not seller.sales_orders.exists():
         raise Http404("Seller not found.")
     return seller
 
@@ -42,7 +45,7 @@ def _review_context(request, seller):
     ]
 
     selected_rating = request.GET.get("rating", "")
-    reviews = all_reviews.select_related("reviewer", "seller").annotate(
+    reviews = all_reviews.select_related("reviewer", "seller", "order").annotate(
         helpful_count=Count("helpful_by", distinct=True)
     )
     if selected_rating in ["1", "2", "3", "4", "5"]:
@@ -127,18 +130,46 @@ def _render_form(request, template, context):
 
 @login_required(login_url="login")
 @require_http_methods(["GET", "POST"])
-def create_review(request, seller_id):
+def create_review(request, seller_id, order_id=None):
     seller = _get_seller(seller_id)
     if seller == request.user:
         raise PermissionDenied("Kamu tidak bisa mereview diri sendiri.")
-    form = ReviewForm(request.POST if request.method == "POST" else None)
+    orders = eligible_orders(request.user, seller)
+    if order_id is not None:
+        orders = orders.filter(pk=order_id)
+    if not orders.exists():
+        return render(request, 'reviews/purchase_required.html', {'seller': seller}, status=403)
+    data = request.POST.copy() if request.method == 'POST' else None
+    if data is not None and 'order' not in data and orders.count() == 1:
+        data['order'] = orders.first().pk
+    form = ReviewForm(data, orders=orders)
     if request.method == "POST" and form.is_valid():
-        review = form.save(commit=False)
-        review.reviewer = request.user
-        review.seller = seller
-        review.save()
-        return _saved(request, seller.pk, "Your seller review has been published.")
+        with transaction.atomic():
+            order = AccountOrder.objects.select_for_update().get(pk=form.cleaned_data['order'].pk)
+            if (order.user_id != request.user.pk or order.seller_id != seller.pk
+                    or order.status != AccountOrder.Status.COMPLETED
+                    or Review.objects.filter(order=order).exists()):
+                form.add_error('order', 'This order is no longer eligible for a review.')
+            else:
+                review = form.save(commit=False)
+                review.order = order
+                review.reviewer = request.user
+                review.seller = seller
+                review.save()
+                return _saved(request, seller.pk, "Your seller review has been published.")
     return _render_form(request, "reviews/review_form.html", {"form": form, "seller": seller})
+
+
+@login_required(login_url='login')
+@require_http_methods(['GET', 'POST'])
+def create_order_review(request, order_id):
+    order = get_object_or_404(AccountOrder, pk=order_id, user=request.user)
+    if order.seller_id is None:
+        return render(request, 'reviews/purchase_required.html', {}, status=403)
+    existing = Review.objects.filter(order=order, reviewer=request.user).first()
+    if existing:
+        return redirect('reviews:edit_review', review_id=existing.pk)
+    return create_review(request, order.seller_id, order_id=order.pk)
 
 
 @login_required(login_url="login")
