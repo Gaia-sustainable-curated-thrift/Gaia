@@ -1,0 +1,43 @@
+{% extends 'accounts/layout.html' %}
+{% block extra_css %}{% load static %}<link rel="stylesheet" href="{% static 'css/account-delete.css' %}">{% endblock %}
+{% block account_content %}
+<section class="card deletion-card" aria-labelledby="delete-title">
+    <span class="deletion-eyebrow">ACCOUNT REMOVAL</span>
+    <h2 id="delete-title">Before you say goodbye</h2>
+    <p class="muted">You are deleting <strong>{{ user.email|default:user.username }}</strong>. This is permanent. You will lose access to your account and cannot undo this action.</p>
+    <div class="deletion-summary">
+        <h3>What will be removed</h3>
+        <ul>
+            <li>Your profile, contact details, and linked Google account connection to GAIA.</li>
+            <li><strong>{{ saved_count }}</strong> saved wishlist item{{ saved_count|pluralize }}.</li>
+            <li><strong>{{ listing_count }}</strong> product listing{{ listing_count|pluralize }} and associated listing records.</li>
+            <li><strong>{{ completed_count }}</strong> order record{{ completed_count|pluralize }} stored in your account.</li>
+        </ul>
+        <p class="small muted">Your Google account itself will not be deleted.</p>
+    </div>
+    {% if deletion_blocked %}
+        <div class="deletion-alert" role="alert"><strong>You still have pending orders</strong><p>Complete your awaiting-payment or in-transit orders before deleting your account.</p></div>
+        <div class="actions"><a class="button" href="{% url 'orders' %}">View Orders</a><a class="text-button" href="{% url 'account_settings' %}">Keep My Account</a></div>
+    {% elif has_password or delete_link_valid %}
+        {% if not has_password %}<p class="deletion-verified">Email confirmation received. Complete the final step below.</p>{% endif %}
+        <form method="post" class="deletion-form">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                {% if field.name == 'acknowledge' %}
+                    <div class="deletion-check">{{ field }}<label for="{{ field.id_for_label }}">{{ field.label }}</label></div>{{ field.errors }}
+                {% else %}
+                    <div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-errors" id="{{ field.auto_id }}_errors">{{ field.errors }}</div>{% endif %}</div>
+                {% endif %}
+            {% endfor %}
+            <div class="actions"><a class="button deletion-keep" href="{% url 'account_settings' %}">Keep My Account</a><button class="button" type="submit">Permanently Delete Account</button></div>
+        </form>
+    {% else %}
+        {% if delete_link_invalid %}<div class="deletion-alert" role="alert">This confirmation link is invalid or expired. Request a new link in the browser where you started.</div>{% endif %}
+        {% if delete_email_sent %}<p class="deletion-verified">Check your inbox. The latest confirmation link is valid for 15 minutes and must be opened in this browser.</p>{% endif %}
+        <h3>Confirm through your email</h3>
+        <p class="muted">Your account uses Google sign-in without a local password. We will send a confirmation link to your verified email before you can delete it.</p>
+        <form method="post" action="{% url 'send_delete_confirmation' %}">{% csrf_token %}<div class="actions"><a class="button deletion-keep" href="{% url 'account_settings' %}">Keep My Account</a><button class="button" type="submit">{% if delete_email_sent %}Resend Confirmation Email{% else %}Send Confirmation Email{% endif %}</button></div></form>
+    {% endif %}
+</section>
+{% endblock %}

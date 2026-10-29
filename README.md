@@ -27,7 +27,7 @@ Pembagian tanggung jawab MVP adalah **Danar: User, Kayla: Product, Deva: Chat, S
 
 | No. | Penanggung jawab | Modul | Target pengembangan MVP |
 | --: | ---------------- | ----- | ----------------------- |
-| 1 | **Danar** | **User / Authentication** | Registrasi, login/logout, login Google, pengelolaan profil, verifikasi email, ganti/reset password, serta penyimpanan produk favorit melalui WishlistItem. |
+| 1 | **Danar** | **User / Authentication** | Registrasi, login/logout, login Google, pengelolaan profil, hapus akun, verifikasi email, ganti/reset password, serta penyimpanan produk favorit melalui WishlistItem. |
 | 2 | **Kayla** | **Product / Listing** | Pengelolaan listing, foto produk, kategori, harga, kondisi, status ketersediaan, detail produk, serta pencarian/filter dasar untuk menemukan produk. |
 | 3 | **Deva** | **Chat / Messaging** | Percakapan dan pesan antara buyer dan seller untuk membahas produk serta transaksi. |
 | 4 | **Salma** | **Transaksi** | Keranjang, checkout, pembuatan pesanan, alur pembayaran, serta pelacakan status transaksi. |
@@ -44,7 +44,7 @@ Modul User pada app `accounts` mengelola identitas pengguna, autentikasi, profil
 - **Profil:** model `Profile` terhubung satu-ke-satu (`OneToOneField`) dengan User bawaan Django. User menyimpan username, email, nama, dan password hash; Profile menyimpan `phone`, `city`, `country`, serta `email_verified`. Pengguna dapat melihat dan mengubah profilnya sendiri. Email tidak dapat diubah melalui form edit profil. Modul juga menyediakan verifikasi email bertoken yang berlaku 24 jam, ganti password, dan reset password. Verifikasi email belum menjadi syarat untuk login.
 - **WishlistItem:** model ini menyimpan produk favorit dan terhubung banyak-ke-satu (`ForeignKey`) ke User. Field-nya meliputi `product_key`, `title`, `condition`, `price`, `image`, dan `removed`. Pasangan `user` dan `product_key` diberi constraint unik agar satu produk tidak tersimpan ganda untuk pengguna yang sama. Aksi simpan dari modul Product membuat atau memperbarui snapshot produk pada wishlist pengguna. Pengguna hanya dapat melihat dan menghapus item miliknya sendiri. Penghapusan memakai soft delete (`removed=True`), sedangkan ID item terakhir disimpan dalam session agar bisa dikembalikan melalui Undo.
 
-`WishlistItem` menyimpan snapshot informasi produk berdasarkan slug pada `product_key`, bukan ForeignKey langsung ke Product. Perubahan produk tidak otomatis memperbarui seluruh snapshot wishlist. Fitur hapus akun belum tersedia; penghapusan item wishlist tidak sama dengan penghapusan User.
+`WishlistItem` menyimpan snapshot informasi produk berdasarkan slug pada `product_key`, bukan ForeignKey langsung ke Product. Perubahan produk tidak otomatis memperbarui seluruh snapshot wishlist. Pengguna dapat menghapus akun melalui Account Settings setelah konfirmasi identitas; penghapusan item wishlist tetap merupakan operasi terpisah dari penghapusan User.
 
 ## User Roles dalam MVP
 
@@ -60,7 +60,7 @@ Status berikut berdasarkan source code pada checkout lokal saat README ini diper
 
 | Modul | Yang sudah tersedia | Yang masih perlu dikembangkan/diselesaikan |
 | ----- | ------------------- | ----------------------------------------- |
-| **User** | Registrasi, login/logout, profil/edit profil, verifikasi email bertoken, ganti/reset password, Google OAuth melalui `django-allauth`, serta tambah/lihat/hapus/undo wishlist melalui `WishlistItem`. | Pengiriman email ke inbox memerlukan SMTP; Google login memerlukan kredensial dan callback yang sesuai. Belum ada fitur hapus akun oleh pengguna. |
+| **User** | Registrasi, login/logout, profil/edit profil, verifikasi email bertoken, ganti/reset password, Google OAuth melalui `django-allauth`, serta tambah/lihat/hapus/undo wishlist melalui `WishlistItem`. | Pengiriman email ke inbox memerlukan SMTP; Google login memerlukan kredensial dan callback yang sesuai. Penghapusan akun tersedia dengan konfirmasi password atau link email untuk akun tanpa password lokal, dan diblokir jika masih ada pesanan aktif. |
 | **Product** | Katalog, detail, kategori, search/filter, pembuatan listing dan upload multi-foto lokal, serta status produk pada model. | Melengkapi alur edit/hapus listing pada UI dan integrasi antarmodul. |
 | **Chat** | Belum ditemukan modul percakapan/pesan di checkout ini. | Model, endpoint, UI percakapan, otorisasi peserta, dan mekanisme pengiriman pesan. |
 | **Transaksi** | Keranjang berbasis session serta tampilan daftar/detail snapshot pesanan (`AccountOrder`) pada halaman akun. | Checkout masih placeholder untuk pengguna yang login; pembuatan pesanan dari checkout, pembayaran, dan pembaruan status transaksi belum terintegrasi. |
@@ -123,6 +123,7 @@ Halaman yang tersedia:
 - `/accounts/settings/` dan `/accounts/password/change/`: keamanan akun dan penggantian password tanpa mengakhiri sesi.
 - `/accounts/password/reset/`: email reset, link bertoken, penggantian password, dan konfirmasi selesai.
 - Logout menggunakan dialog konfirmasi dan POST dengan CSRF.
+- `/accounts/delete/`: konfirmasi penghapusan akun permanen. Akun dengan password harus memasukkan password saat ini, mengetik `DELETE`, dan menyetujui dampak penghapusan. Akun Google tanpa password lokal meminta link melalui `/accounts/delete/email/`; link berlaku 15 menit, hanya untuk akun dan sesi browser yang memintanya, dan tetap membutuhkan konfirmasi POST. Resend dibatasi minimal satu menit. Penghapusan diblokir jika masih ada order selain completed. User, Profile, wishlist, listing beserta record terkait, snapshot order, dan koneksi sosial akun dihapus sesuai relasi CASCADE; pengguna kemudian logout. SMTP diperlukan untuk link email di luar pengembangan lokal.
 
 Registrasi mengirim link verifikasi email yang berlaku 24 jam. Status email hanya berubah setelah link valid dibuka; akun Google mengikuti status email terverifikasi dari allauth. Pengguna bisa melengkapi profil sambil menunggu verifikasi.
 
@@ -163,6 +164,6 @@ $env:PRODUCTION='False'
 
 Konfigurasi `.coveragerc` mengukur line dan branch coverage seluruh package `accounts`, termasuk form, view, model, context processor, template filter, dan command demo. File tes dan migration dikecualikan dari pengukuran. `coverage report` gagal jika coverage gabungan kurang dari 91%. Laporan HTML tersedia di `htmlcov/index.html`. Semua tes modul User dijalankan bersama melalui `python manage.py test accounts`.
 
-Hasil pengukuran 29 Oktober 2026 di `C:\Coding\gaia` menggunakan `accounts.tests`: **60 tes lulus, line coverage 100% (269 statement) dan branch coverage 100% (26 cabang)**. Cakupan ini mengukur kode Python milik app `accounts`, bukan kode internal Django/allauth, HTML/CSS, atau keberhasilan integrasi Google/SMTP di server.
+Hasil pengukuran 29 Oktober 2026 di `C:\Coding\gaia` menggunakan `accounts.tests`: **76 tes lulus, line coverage 100% (356 statement) dan branch coverage 100% (52 cabang)**. Cakupan ini mengukur kode Python milik app `accounts`, bukan kode internal Django/allauth, HTML/CSS, atau keberhasilan integrasi Google/SMTP di server.
 
 Tes mencakup akses halaman, login email, registrasi, verifikasi, simpan profil, pembatasan data antar pengguna, wishlist remove/undo, ganti/reset password, token sekali pakai, serta logout POST/CSRF. Layout memakai breakpoint desktop/tablet/mobile dan aset logo dari referensi. Font lokal tersedia pada aset statis, dengan fallback Georgia/Arial sesuai stylesheet.

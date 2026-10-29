@@ -1334,3 +1334,9 @@ dialog::backdrop {
 .footer-emblem {
     filter:none;
 }
+
+.account-danger-zone { border: 1px solid #d7b7c4; }
+.account-danger-zone .security-row { border-top: 0; padding-top: 0; }
+.account-danger-zone h2 { color: var(--wine); margin-bottom: 8px; font-size: 26px; }
+.delete-outline { background: transparent; color: var(--wine); border: 1px solid var(--wine); }
+.delete-outline:hover { background: #f5e9ee; }

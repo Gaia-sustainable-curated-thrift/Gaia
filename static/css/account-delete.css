@@ -1,0 +1,20 @@
+.deletion-card { max-width: 800px; }
+.deletion-eyebrow { display: block; color: var(--wine); font-size: 12px; font-weight: 600; letter-spacing: .08em; margin-bottom: 12px; }
+.deletion-summary { background: var(--canvas); border-radius: 16px; padding: 24px; margin: 24px 0; }
+.deletion-summary ul { padding-left: 20px; margin: 16px 0; }
+.deletion-summary li { margin-bottom: 12px; }
+.deletion-summary p:last-child { margin-bottom: 0; }
+.deletion-alert { color: var(--wine); background: #f5e9ee; border: 1px solid #d7b7c4; border-radius: 12px; padding: 16px 20px; margin: 24px 0; }
+.deletion-alert p { margin: 8px 0 0; }
+.deletion-verified { color: var(--olive-dark); background: var(--canvas); padding: 16px; border-radius: 12px; }
+.deletion-form .field { margin: 24px 0; }
+.deletion-check { display: flex; align-items: flex-start; gap: 12px; margin-top: 24px; font-size: 14px; }
+.deletion-check input { width: 20px; height: 20px; flex-shrink: 0; margin: 2px 0 0; accent-color: var(--wine); }
+.deletion-check label { cursor: pointer; }
+.deletion-keep { background: var(--olive); }
+.deletion-keep:hover { background: var(--olive-dark); }
+@media (max-width: 700px) {
+    .deletion-summary { padding: 20px; }
+    .deletion-form .actions, .deletion-card form .actions { flex-direction: column; align-items: stretch; }
+    .deletion-card .actions .button { width: 100%; }
+}

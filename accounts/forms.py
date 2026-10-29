@@ -80,3 +80,31 @@ class ProfileForm(forms.ModelForm):
                 setattr(profile, field, self.cleaned_data[field])
             profile.save()
         return user
+
+
+class DeleteAccountForm(forms.Form):
+    password = forms.CharField(
+        label='Current password', strip=False,
+        widget=forms.PasswordInput(attrs={'autocomplete': 'current-password'}),
+    )
+    confirmation = forms.CharField(label='Type DELETE to confirm', max_length=6)
+    acknowledge = forms.BooleanField(
+        label='I understand that my account and the data listed above will be permanently deleted.'
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        if not user.has_usable_password():
+            self.fields.pop('password')
+
+    def clean_password(self):
+        password = self.cleaned_data['password']
+        if not self.user.check_password(password):
+            raise forms.ValidationError('Your password is incorrect. Please try again.')
+        return password
+
+    def clean_confirmation(self):
+        if self.cleaned_data['confirmation'] != 'DELETE':
+            raise forms.ValidationError('Type DELETE exactly to confirm account deletion.')
+        return 'DELETE'

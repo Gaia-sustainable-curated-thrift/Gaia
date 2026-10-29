@@ -1,17 +1,21 @@
 from smtplib import SMTPException
+import hashlib
+import secrets
+import time
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
 from django.core import signing
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models.deletion import ProtectedError, RestrictedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from allauth.account.models import EmailAddress
-from .forms import ProfileForm, RegisterForm
+from .forms import DeleteAccountForm, ProfileForm, RegisterForm
 from .models import AccountOrder, Profile, WishlistItem
 
 
@@ -129,3 +133,105 @@ class ChangePasswordView(PasswordChangeView):
     def form_valid(self, form):
         messages.success(self.request, 'Password updated successfully. Your account is secure.')
         return super().form_valid(form)
+
+
+DELETE_SESSION_KEY = 'account_delete_confirmation'
+DELETE_LINK_SECONDS = 900
+
+
+def _deletion_blocked(user):
+    return user.account_orders.exclude(status=AccountOrder.Status.COMPLETED).exists()
+
+
+def _deletion_link_valid(request, token):
+    pending = request.session.get(DELETE_SESSION_KEY)
+    return bool(
+        token and pending
+        and pending['user'] == request.user.pk
+        and pending['email'] == request.user.email
+        and 0 <= time.time() - pending['sent_at'] <= DELETE_LINK_SECONDS
+        and secrets.compare_digest(pending['digest'], hashlib.sha256(token.encode()).hexdigest())
+    )
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def delete_account(request, token=None):
+    user = request.user
+    has_password = user.has_usable_password()
+    link_valid = _deletion_link_valid(request, token) if not has_password else False
+    blocked = _deletion_blocked(user)
+    form = DeleteAccountForm(request.POST if request.method == 'POST' else None, user=user)
+    if request.method == 'POST' and form.is_valid():
+        if blocked:
+            form.add_error(None, 'Finish your pending orders before deleting your account.')
+        elif not has_password and not link_valid:
+            form.add_error(None, 'Request a new confirmation email and open its link in this browser.')
+        else:
+            try:
+                with transaction.atomic():
+                    locked_user = get_user_model().objects.select_for_update().get(pk=user.pk)
+                    if _deletion_blocked(locked_user):
+                        form.add_error(None, 'Finish your pending orders before deleting your account.')
+                    else:
+                        locked_user.delete()
+            except (ProtectedError, RestrictedError):
+                form.add_error(None, 'Your account has records that must be retained. Please contact support.')
+            else:
+                if not form.errors:
+                    logout(request)
+                    messages.success(request, 'Your account has been permanently deleted. You are now logged out.')
+                    return redirect('login')
+    context = account_context(
+        request, 'Delete Account', 'Review what will be removed before you continue.', 'settings',
+        form=form, has_password=has_password, delete_link_valid=link_valid,
+        delete_link_invalid=bool(token and not link_valid and not has_password),
+        deletion_blocked=blocked, listing_count=user.products.count(),
+        saved_count=user.wishlist_items.count(), completed_count=user.account_orders.count(),
+        delete_email_sent=bool(request.session.get(DELETE_SESSION_KEY)),
+    )
+    response = render(request, 'accounts/delete_account.html', context)
+    response['Cache-Control'] = 'no-store'
+    response['Referrer-Policy'] = 'no-referrer'
+    return response
+
+
+@login_required
+@require_POST
+def send_delete_confirmation(request):
+    context = account_context(request, 'Delete Account', '', 'settings')
+    if request.user.has_usable_password():
+        return redirect('delete_account')
+    if _deletion_blocked(request.user):
+        messages.error(request, 'Finish your pending orders before deleting your account.')
+    elif not request.user.email or not context['email_verified']:
+        messages.error(request, 'A verified email is required. Verify your email before deleting your account.')
+    else:
+        pending = request.session.get(DELETE_SESSION_KEY)
+        if pending and 0 <= time.time() - pending['sent_at'] < 60:
+            messages.error(request, 'Please wait one minute before requesting another confirmation email.')
+            return redirect('delete_account')
+        token = secrets.token_urlsafe(32)
+        pending = {
+            'user': request.user.pk, 'email': request.user.email,
+            'digest': hashlib.sha256(token.encode()).hexdigest(), 'sent_at': time.time(),
+        }
+        protocol = settings.ACCOUNT_DEFAULT_HTTP_PROTOCOL
+        path = reverse('delete_account_confirm', args=[token])
+        link = f'{protocol}://{request.get_host()}{path}'
+        try:
+            sent = send_mail(
+                'Confirm deletion of your GAIA account',
+                'You requested to delete your GAIA account. Open this link in the same browser where you are logged in. '
+                'The link expires in 15 minutes. Opening it does not delete your account; you must confirm on the page.\n\n'
+                + link + '\n\nIf you did not request this, ignore this email.',
+                settings.DEFAULT_FROM_EMAIL, [request.user.email],
+            )
+            if not sent:
+                raise OSError('Email delivery not accepted')
+        except (SMTPException, OSError):
+            messages.error(request, 'We could not send your confirmation email. Your account has not been deleted. Please try again.')
+        else:
+            request.session[DELETE_SESSION_KEY] = pending
+            messages.success(request, 'Confirmation email sent. Open the link in this browser within 15 minutes to continue.')
+    return redirect('delete_account')

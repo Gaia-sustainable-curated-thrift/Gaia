@@ -669,3 +669,197 @@ class ModelAndDemoTests(TestCase):
         self.assertEqual(self.user.account_orders.first().recipient, 'demo')
         with self.assertRaises(CommandError):
             call_command('seed_account_demo', username='missing', stdout=StringIO())
+
+
+@override_settings(
+    PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    SOCIALACCOUNT_PROVIDERS=TEST_GOOGLE,
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL='https',
+)
+class DeleteAccountTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('delete-owner', 'delete@example.com', PASSWORD)
+        cls.other = User.objects.create_user('keep-other', 'keep@example.com', PASSWORD)
+        Profile.objects.create(user=cls.user)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def data(self, **changes):
+        data = {'password': PASSWORD, 'confirmation': 'DELETE', 'acknowledge': 'on'}
+        data.update(changes)
+        return data
+
+    def google_user(self, verified=True):
+        self.user.set_unusable_password()
+        self.user.save()
+        if verified:
+            EmailAddress.objects.create(user=self.user, email=self.user.email, verified=True)
+        self.client.force_login(self.user)
+
+    def email_link(self):
+        self.client.post(reverse('send_delete_confirmation'))
+        return re.search(r'https://testserver(\S+)', mail.outbox[-1].body).group(1)
+
+    def test_settings_links_to_confirmation_and_get_never_deletes(self):
+        self.assertContains(self.client.get(reverse('account_settings')), reverse('delete_account'))
+        response = self.client.get(reverse('delete_account'))
+        self.assertContains(response, 'Before you say goodbye')
+        self.assertContains(response, 'Current password')
+        self.assertContains(response, 'Keep My Account')
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        self.assertEqual(response['Referrer-Policy'], 'no-referrer')
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_guest_and_unsupported_methods(self):
+        self.assertEqual(self.client.put(reverse('delete_account')).status_code, 405)
+        self.assertEqual(self.client.get(reverse('send_delete_confirmation')).status_code, 405)
+        self.client.logout()
+        for url in [reverse('delete_account'), reverse('send_delete_confirmation'), reverse('delete_account_confirm', args=['token'])]:
+            self.assertEqual(self.client.post(url).status_code, 302)
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_invalid_password_phrase_checkbox_and_empty_post(self):
+        for data, field in [(self.data(password='wrong'), 'password'),
+                            (self.data(confirmation='delete'), 'confirmation'),
+                            (self.data(acknowledge=''), 'acknowledge'), ({}, 'password')]:
+            with self.subTest(field=field):
+                response = self.client.post(reverse('delete_account'), data)
+                self.assertIn(field, response.context['form'].errors)
+                self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_delete_cascades_own_records_logs_out_and_keeps_other_user(self):
+        from products.models import Product
+        # All fixtures are created in Django's isolated test database.
+        WishlistItem.objects.create(user=self.user, product_key='delete', title='Coat', price=10)
+        Product.objects.create(seller=self.user, title='Delete listing', price=10)
+        AccountOrder.objects.create(user=self.user, number='DELETE-COMPLETED', date=date(2026, 10, 1), status='completed', title='Coat', subtotal=10, recipient='Owner', address='Jakarta')
+        second = Client()
+        second.force_login(self.user)
+        response = self.client.post(reverse('delete_account'), self.data(user_id=self.other.pk))
+        self.assertRedirects(response, reverse('login'))
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(Profile.objects.filter(user_id=self.user.pk).exists())
+        self.assertFalse(Product.objects.filter(seller_id=self.user.pk).exists())
+        self.assertFalse(WishlistItem.objects.filter(user_id=self.user.pk).exists())
+        self.assertFalse(AccountOrder.objects.filter(user_id=self.user.pk).exists())
+        self.assertTrue(User.objects.filter(pk=self.other.pk).exists())
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertEqual(second.get(reverse('profile')).status_code, 302)
+
+    def test_csrf_required_for_local_delete_email_and_email_confirm(self):
+        strict = Client(enforce_csrf_checks=True)
+        strict.force_login(self.user)
+        for url in [reverse('delete_account'), reverse('send_delete_confirmation'), reverse('delete_account_confirm', args=['token'])]:
+            self.assertEqual(strict.post(url, self.data()).status_code, 403)
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_pending_order_blocks_get_and_post(self):
+        for status in ['awaiting_payment', 'in_transit']:
+            with self.subTest(status=status):
+                order = AccountOrder.objects.create(user=self.user, number='BLOCK-' + status, date=date(2026, 10, 1), status=status, title='Coat', subtotal=10, recipient='Owner', address='Jakarta')
+                self.assertContains(self.client.get(reverse('delete_account')), 'You still have pending orders')
+                response = self.client.post(reverse('delete_account'), self.data())
+                self.assertTrue(response.context['form'].non_field_errors())
+                self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+                order.delete()
+
+    def test_order_rechecked_inside_transaction(self):
+        with patch('accounts.views._deletion_blocked', side_effect=[False, True]):
+            response = self.client.post(reverse('delete_account'), self.data())
+        self.assertTrue(response.context['form'].non_field_errors())
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_protected_records_show_error_without_logging_out(self):
+        from django.db.models.deletion import ProtectedError
+        with patch.object(User, 'delete', side_effect=ProtectedError('Retained record', [])):
+            response = self.client.post(reverse('delete_account'), self.data())
+        self.assertContains(response, 'records that must be retained')
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+        self.assertIn('_auth_user_id', self.client.session)
+
+    def test_password_account_does_not_send_confirmation_email(self):
+        self.assertRedirects(self.client.post(reverse('send_delete_confirmation')), reverse('delete_account'))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_google_direct_delete_is_rejected(self):
+        self.google_user()
+        self.assertContains(self.client.get(reverse('delete_account')), 'Send Confirmation Email')
+        response = self.client.post(reverse('delete_account'), self.data())
+        self.assertTrue(response.context['form'].non_field_errors())
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_google_email_link_requires_final_post_and_is_one_time(self):
+        self.google_user()
+        link = self.email_link()
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertContains(self.client.get(link), 'Email confirmation received')
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+        response = self.client.post(link, {'confirmation': 'DELETE', 'acknowledge': 'on'})
+        self.assertRedirects(response, reverse('login'))
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertEqual(self.client.post(link, self.data()).status_code, 302)
+
+    def test_google_link_rejects_tampering_expiry_and_different_session(self):
+        self.google_user()
+        link = self.email_link()
+        self.assertContains(self.client.get(link.rstrip('/') + 'invalid/'), 'invalid or expired')
+        second = Client()
+        second.force_login(self.user)
+        response = second.post(link, self.data())
+        self.assertTrue(response.context['form'].non_field_errors())
+        with patch('accounts.views.time.time', return_value=9999999999):
+            response = self.client.post(link, self.data())
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_google_link_rejects_other_account_and_changed_email(self):
+        self.google_user()
+        link = self.email_link()
+        self.other.set_unusable_password()
+        self.other.save()
+        second = Client()
+        second.force_login(self.other)
+        session = second.session
+        session['account_delete_confirmation'] = self.client.session['account_delete_confirmation']
+        session.save()
+        self.assertTrue(second.post(link, self.data()).context['form'].non_field_errors())
+        self.user.email = 'changed@example.com'
+        self.user.save()
+        self.assertTrue(self.client.post(link, self.data()).context['form'].non_field_errors())
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_email_resend_cooldown_and_new_link_invalidates_previous(self):
+        self.google_user()
+        old_link = self.email_link()
+        self.client.post(reverse('send_delete_confirmation'))
+        self.assertEqual(len(mail.outbox), 1)
+        session = self.client.session
+        pending = session['account_delete_confirmation']
+        pending['sent_at'] -= 61
+        session['account_delete_confirmation'] = pending
+        session.save()
+        new_link = self.email_link()
+        self.assertNotEqual(old_link, new_link)
+        self.assertContains(self.client.get(old_link), 'invalid or expired')
+        self.assertContains(self.client.get(new_link), 'Email confirmation received')
+
+    def test_google_email_requires_verified_address_and_no_pending_order(self):
+        self.google_user(verified=False)
+        self.client.post(reverse('send_delete_confirmation'))
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertContains(self.client.get(reverse('delete_account')), 'A verified email is required')
+        AccountOrder.objects.create(user=self.user, number='BLOCK-EMAIL', date=date(2026, 10, 1), status='in_transit', title='Coat', subtotal=10, recipient='Owner', address='Jakarta')
+        self.client.post(reverse('send_delete_confirmation'))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_google_email_failure_does_not_authorize_deletion(self):
+        self.google_user()
+        for result in [SMTPException('Unavailable'), 0]:
+            with self.subTest(result=result):
+                kwargs = {'side_effect': result} if isinstance(result, Exception) else {'return_value': result}
+                with patch('accounts.views.send_mail', **kwargs):
+                    self.client.post(reverse('send_delete_confirmation'))
+                self.assertNotIn('account_delete_confirmation', self.client.session)
+                self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
