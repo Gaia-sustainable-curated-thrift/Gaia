@@ -208,6 +208,8 @@ def confirmation(request):
 
                 order = AccountOrder.objects.create(
                     user=request.user,
+                    product=product,
+                    seller=product.seller,
                     number=f"G-{batch}-{index:02d}",
                     date=timezone.localdate(),
                     status=AccountOrder.Status.AWAITING_PAYMENT,

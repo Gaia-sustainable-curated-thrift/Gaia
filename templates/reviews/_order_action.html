@@ -1,0 +1,7 @@
+{% if eligible %}
+    {% if existing_review %}
+        <a class="button secondary" href="{% url 'reviews:edit_review' existing_review.pk %}">Edit Seller Review</a>
+    {% else %}
+        <a class="button secondary" href="{% url 'reviews:create_order_review' order.pk %}">Review Seller</a>
+    {% endif %}
+{% endif %}

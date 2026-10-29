@@ -1,0 +1,19 @@
+{% extends "accounts/base.html" %}
+{% block title %}Review & Rating{% endblock %}
+{% block extra_css %}{% include "reviews/_assets.html" %}{% endblock %}
+{% block main %}
+<main class="reviews-page reviews-overview" data-review-page>
+    <header class="reviews-heading">
+        <nav class="reviews-breadcrumb" aria-label="Breadcrumb">
+            <a href="{% url 'products:home' %}">Home</a><span>/</span>
+            <span>{{ seller.get_full_name|default:seller.username }}</span><span>/</span>
+            <span aria-current="page">Reviews &amp; Ratings</span>
+        </nav>
+        <h1>Review &amp; Rating</h1>
+        <p>Buyer experiences with this seller across different pre-loved purchases.</p>
+    </header>
+    {% include "includes/messages.html" %}
+    <p class="review-status" data-review-status role="status" tabindex="-1" hidden></p>
+    <div data-review-panel>{% include "reviews/_review_panel.html" %}</div>
+</main>
+{% endblock %}

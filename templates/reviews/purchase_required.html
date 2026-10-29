@@ -1,0 +1,14 @@
+{% extends "accounts/base.html" %}
+{% block title %}Completed purchase required{% endblock %}
+{% block extra_css %}{% include "reviews/_assets.html" %}{% endblock %}
+{% block main %}
+<main class="reviews-page">
+    <section class="review-form-card">
+        <h1>Completed purchase required</h1>
+        <p>You can review a seller after your order is marked Completed. Each order can have one review.</p>
+        <p>If you already submitted a review, open the order to edit it. Older orders without a seller link cannot be verified automatically.</p>
+        <a class="review-button" href="{% url 'orders' %}">View My Orders</a>
+        {% if seller %}<a href="{% url 'reviews:seller_reviews' seller.pk %}">Back to seller reviews</a>{% endif %}
+    </section>
+</main>
+{% endblock %}
