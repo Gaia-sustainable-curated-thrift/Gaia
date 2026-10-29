@@ -1,6 +1,6 @@
 """Optional browser tests: manage.py test reviews.e2e --noinput.
 
-Install requirements-dev.txt first. Chromium is used, or GAIA_TEST_BROWSER can
+Install reviews/requirements-dev.txt first. Chromium is used, or GAIA_TEST_BROWSER can
 point to a locally installed Chrome/Edge executable. No real database is used.
 """
 import os
@@ -147,7 +147,13 @@ class ReviewBrowserTests(StaticLiveServerTestCase):
         first.get_by_role("button", name="Save reply").click()
         expect(first.locator(".seller-reply")).to_contain_text("Thank you for your trust.")
         seller_page.goto(self.live_server_url + reverse("reviews:account_reviews"))
-        expect(seller_page.locator('.sidebar a[aria-current="page"]')).to_have_text("Seller Reviews")
+        expect(
+            seller_page.get_by_role(
+                "heading",
+                name="Seller Reviews",
+                exact=True,
+            )
+        ).to_be_visible()
         self.screenshot(seller_page, "seller-account-reviews.png")
 
     def test_mobile_guest_and_no_javascript_fallback(self):

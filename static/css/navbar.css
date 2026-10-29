@@ -91,7 +91,8 @@
 .gaia-navbar .mobile-search-toggle { display: none; }
 
 /* Bag count is shared by every page and updated by the bag fetch response. */
-.gaia-navbar .nav-bag { position: relative; }
+.gaia-navbar .nav-bag,
+.gaia-navbar .nav-chat { position: relative; }
 .gaia-navbar .nav-bag__count {
     position: absolute;
     top: -2px;
@@ -142,3 +143,5 @@
     .gaia-navbar .brand { gap: 6px; }
     .gaia-navbar .nav-actions { gap: 3px; }
 }
+
+.nav-avatar img, .site-drawer-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }

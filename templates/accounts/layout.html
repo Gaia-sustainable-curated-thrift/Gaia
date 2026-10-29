@@ -1,5 +1,4 @@
 {% extends 'accounts/base.html' %}
-{% load review_tags %}
 {% block main %}
 <main class="account-main">
 <div class="page-heading">
@@ -12,7 +11,7 @@
 </div>
 <div class="account-layout">
 <aside class="sidebar">
-<nav aria-label="My account"><a href="{% url 'profile' %}" class="{% if active == 'profile' %}active{% endif %}" {% if active == 'profile' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='profile' %}Profile</a><a href="{% url 'orders' %}" class="{% if active == 'orders' %}active{% endif %}" {% if active == 'orders' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='orders' %}Orders</a><a href="{% url 'wishlist' %}" class="{% if active == 'wishlist' %}active{% endif %}" {% if active == 'wishlist' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='heart' %}Wishlist</a><a href="{% url 'account_settings' %}" class="{% if active == 'settings' %}active{% endif %}" {% if active == 'settings' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='lock' %}Account Settings</a>{% seller_reviews_nav user active %}<button type="button" class="logout-link" data-logout>{% include 'includes/icon.html' with name='logout' %}Log Out</button>
+<nav aria-label="My account"><a href="{% url 'profile' %}" class="{% if active == 'profile' %}active{% endif %}" {% if active == 'profile' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='profile' %}Profile</a><a href="{% url 'orders' %}" class="{% if active == 'orders' %}active{% endif %}" {% if active == 'orders' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='orders' %}Orders</a><a href="{% url 'wishlist' %}" class="{% if active == 'wishlist' %}active{% endif %}" {% if active == 'wishlist' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='heart' %}Wishlist</a><a href="{% url 'chat:inbox' %}">{% include 'includes/icon.html' with name='chat' %}Messages</a><a href="{% url 'account_settings' %}" class="{% if active == 'settings' %}active{% endif %}" {% if active == 'settings' %}aria-current="page"{% endif %}>{% include 'includes/icon.html' with name='lock' %}Account Settings</a><button type="button" class="logout-link" data-logout>{% include 'includes/icon.html' with name='logout' %}Log Out</button>
 </nav>
 <p>Thank you for choosing more sustainably.
 </p>

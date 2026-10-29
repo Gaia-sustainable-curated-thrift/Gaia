@@ -1,0 +1,11 @@
+.avatar-editor { display: flex; align-items: center; gap: 24px; padding: 24px; margin: 24px 0; border-radius: 16px; background: var(--canvas); }
+.avatar-preview { flex-shrink: 0; width: 96px; height: 96px; border-radius: 50%; background: var(--selected); display: grid; place-items: center; color: var(--olive); font: 36px Georgia, serif; overflow: hidden; }
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-preview [hidden] { display: none; }
+.avatar-controls { min-width: 0; }
+.avatar-controls label { display: block; font-weight: 600; margin-bottom: 12px; }
+.avatar-controls input { max-width: 100%; font-size: 13px; }
+.avatar-controls input::file-selector-button { border: 1px solid var(--wine); border-radius: 8px; padding: 10px 14px; margin-right: 12px; background: #fff; color: var(--wine); cursor: pointer; }
+.avatar-controls #avatar-help { margin: 12px 0 0; }
+.avatar-feedback { color: var(--wine); margin: 8px 0 0; }
+@media (max-width: 700px) { .avatar-editor { align-items: flex-start; flex-direction: column; padding: 20px; gap: 16px; } }

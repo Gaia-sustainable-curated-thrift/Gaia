@@ -5,3 +5,10 @@ __pycache__/
 .env.prod
 .DS_Store
 media/
+.coverage
+.coverage.*
+htmlcov/
+coverage.json
+env/
+*.py[cod]
+.venv/

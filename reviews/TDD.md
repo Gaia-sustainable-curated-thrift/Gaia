@@ -49,8 +49,8 @@ tanpa membalik urutan DOM. Klik dan navigasi keyboard sama-sama bekerja.
 - Validasi rating/panjang teks dan constraint database.
 - Anonimitas, informasi berbasis login, escaping HTML, serta CSRF pada AJAX.
 - Rata-rata global tetap sama saat filter, distribusi, sorting, pagination.
-- Helpful, balasan seller, laporan privat, dan akses sidebar seller.
-- Integrasi rating produk dengan database review.
+- Helpful, balasan seller, laporan privat, dan akses halaman review seller.
+- Komponen menu seller dan rating database diuji secara terpisah; integrasi ke halaman akun dan produk ditunda.
 - Browser: CRUD AJAX, filter tanpa reload, Helpful/Report/balasan, desktop/ponsel,
   keyboard, error jaringan, dan fallback tanpa JavaScript.
 

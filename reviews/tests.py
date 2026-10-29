@@ -5,6 +5,7 @@ from django.db import IntegrityError, transaction
 from django.test import Client, TestCase
 from django.urls import reverse
 from products.models import Product
+from django.template import Context, Template
 
 from .forms import ReviewForm
 from .models import Review, ReviewReport
@@ -301,18 +302,30 @@ class ReviewTests(TestCase):
         self.assertEqual(response.context["seller"], self.seller)
         self.assertIn("html", self.client.get(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest").json())
 
-    def test_seller_nav_only_for_seller(self):
-        self.login()
-        self.assertNotContains(self.client.get(reverse("profile")), reverse("reviews:account_reviews"))
-        self.login(self.seller)
-        self.assertContains(self.client.get(reverse("profile")), reverse("reviews:account_reviews"))
+    def test_seller_nav_component_only_for_seller(self):
+        template = Template(
+            "{% load review_tags %}{% seller_reviews_nav user %}"
+        )
 
-    def test_product_uses_real_rating(self):
-        product = self.seller.products.first()
-        response = self.client.get(reverse("products:detail", args=[product.slug]))
-        self.assertContains(response, self.url("seller_reviews"))
-        self.assertContains(response, "4.0")
-        self.assertNotContains(response, "(120)")
+        buyer_html = template.render(Context({"user": self.buyer}))
+        seller_html = template.render(Context({"user": self.seller}))
+
+        account_url = reverse("reviews:account_reviews")
+
+        self.assertNotIn(account_url, buyer_html)
+        self.assertIn(account_url, seller_html)
+
+    def test_seller_rating_component_uses_real_data(self):
+        template = Template(
+            "{% load review_tags %}{% seller_rating seller %}"
+        )
+
+        html = template.render(Context({"seller": self.seller}))
+
+        self.assertIn(self.url("seller_reviews"), html)
+        self.assertIn("4.0", html)
+        self.assertIn("(1)", html)
+        self.assertNotIn("(120)", html)
 
     def test_database_rejects_invalid_rating_and_self_review(self):
         for kwargs in [{"rating": 6}, {"reviewer": self.seller}]:

@@ -1,0 +1,53 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment | Gaia</title>
+    <link rel="stylesheet" href="{% static 'css/transaction.css' %}">
+</head>
+<body>
+<main class="transaction-page">
+    <header class="transaction-header">
+        <p class="transaction-eyebrow">GAIA · YOUR ORDER</p>
+        <h1>Payment Method</h1>
+        <p class="transaction-description">Choose your preferred payment method.</p>
+    </header>
+
+    <section class="transaction-card transaction-form-card">
+        <div class="transaction-total">
+            <span>Order Subtotal</span>
+            <strong>{{ subtotal }}</strong>
+        </div>
+
+        <form method="post" class="transaction-form">
+            {% csrf_token %}
+
+            {% if payment_form.non_field_errors %}
+                {{ payment_form.non_field_errors }}
+            {% endif %}
+
+            {% for field in payment_form %}
+                <div class="transaction-form-field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                        <p class="transaction-field-errors">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+            <button class="transaction-button" type="submit">
+                Continue to Confirmation →
+            </button>
+        </form>
+    </section>
+
+    <div class="transaction-footer-actions">
+        <a class="transaction-back-link" href="{% url 'transaction:shipping' %}">← Back to Shipping</a>
+    </div>
+</main>
+</body>
+</html>

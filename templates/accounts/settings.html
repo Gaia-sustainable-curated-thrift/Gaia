@@ -24,4 +24,14 @@
 </div><button class="button" data-logout type="button">Log Out</button>
 </div>
 </section>
+<section class="card account-danger-zone" aria-labelledby="delete-account-heading">
+    <div class="security-row">
+        {% include 'includes/icon.html' with name='profile' %}
+        <div>
+            <h2 id="delete-account-heading">Delete Account</h2>
+            <p class="small muted">Permanently remove your account and its associated data. This cannot be undone.</p>
+        </div>
+        <a class="button delete-outline" href="{% url 'delete_account' %}">Delete Account</a>
+    </div>
+</section>
 {% endblock %}
