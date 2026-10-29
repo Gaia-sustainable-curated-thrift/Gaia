@@ -18,7 +18,6 @@ CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
 GENDER_ORDER = ['women', 'men']
 CONDITION_LABELS = {'signs_of_wear': 'Signs of Wear'}
 
-SAVED_COUNT = 100
 SELLER_RATING = '5.0'
 SELLER_REVIEWS = 120
 
@@ -228,11 +227,13 @@ def detail(request, slug):
             related = same_category
     related = related.order_by('-created_at')[:5]
 
+    saved_items = WishlistItem.objects.filter(product_key=product.slug, removed=False)
     return render(request, 'products/detail.html', {
         'product': product,
         'images': images,
         'related': related,
-        'saved_count': SAVED_COUNT,
+        'saved_count': saved_items.count(),
+        'wishlist_saved': request.user.is_authenticated and saved_items.filter(user=request.user).exists(),
         'seller_rating': SELLER_RATING,
         'seller_reviews': SELLER_REVIEWS,
     })
@@ -439,7 +440,10 @@ def bag_undo(request):
 def wish_add(request, slug):
     product = get_object_or_404(Product, slug=slug)
     if not request.user.is_authenticated:
-        return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+        login_response = redirect_to_login(_product_url(product), settings.LOGIN_URL)
+        if _is_ajax(request):
+            return JsonResponse({'ok': False, 'login_url': login_response.url}, status=401)
+        return login_response
 
     image = product.primary_image
     WishlistItem.objects.update_or_create(
@@ -453,8 +457,16 @@ def wish_add(request, slug):
             'removed': False,
         },
     )
-    request.session['bag_toast'] = {
+    toast = {
         'kind': 'added',
         'text': f'Saved \u201c{product.title}\u201d to wishlist',
+        'icon': 'heart',
     }
+    if _is_ajax(request):
+        return JsonResponse({
+            'ok': True,
+            'toast': toast,
+            'saved_count': WishlistItem.objects.filter(product_key=product.slug, removed=False).count(),
+        })
+    request.session['bag_toast'] = toast
     return _redirect_back(request, _product_url(product))

@@ -53,15 +53,15 @@
                             {% include 'includes/icon.html' with name='bag' %}<span>Add to bag</span>
                         </button>
                     </form>
-                    <form class="pdp-action-form" method="post" action="{% url 'products:wish_add' product.slug %}">
+                    <form class="pdp-action-form" method="post" action="{% url 'products:wish_add' product.slug %}" data-wishlist-form>
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button class="button olive-button pdp-wish" type="submit">
-                            {% include 'includes/icon.html' with name='heart' %}<span>Save to wishlist</span>
+                        <button class="button olive-button pdp-wish{% if wishlist_saved %} is-saved{% endif %}" type="submit">
+                            {% include 'includes/icon.html' with name='heart' %}<span data-wishlist-label>{% if wishlist_saved %}Saved to wishlist{% else %}Save to wishlist{% endif %}</span>
                         </button>
                     </form>
                 </div>
-                <p class="pdp-saved">{{ saved_count }} people have saved this</p>
+                <p class="pdp-saved" data-wishlist-count>{{ saved_count }} {% if saved_count == 1 %}person has{% else %}people have{% endif %} saved this</p>
             </div>
 
             <div class="pdp-seller">

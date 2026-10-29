@@ -177,7 +177,7 @@
         });
     }
 
-    function showBagToast(toast) {
+    function showToast(toast) {
         document.querySelectorAll('.toast[data-toast]').forEach(function (existing) { existing.remove(); });
         if (!toast || (toast.kind !== 'added' && toast.kind !== 'error')) return;
         var el = document.createElement('div');
@@ -194,7 +194,8 @@
         if (toast.icon) {
             var icon = document.createElement('span');
             icon.className = 'toast__icon';
-            icon.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-bag"></use></svg>';
+            var iconName = toast.icon === 'heart' ? 'heart' : 'bag';
+            icon.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-' + iconName + '"></use></svg>';
             el.appendChild(icon);
         }
 
@@ -239,14 +240,76 @@
                     toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' items');
                 });
                 if (data.open && drawer && !drawer.open) drawer.showModal();
-                showBagToast(data.toast);
+                showToast(data.toast);
             }).catch(function () {
                 // A failed response may follow a successful POST; do not replay it.
-                showBagToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
+                showToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
             }).finally(function () {
                 requestPending = false;
                 form.removeAttribute('aria-busy');
                 if (button) button.disabled = false;
+            });
+        });
+    }
+
+    function initWishlistForms() {
+        document.querySelectorAll('[data-wishlist-form]').forEach(function (form) {
+            var button = form.querySelector('button[type="submit"]');
+            var label = button.querySelector('[data-wishlist-label]');
+            var saved = button.classList.contains('is-saved');
+            var pending = false;
+            var navigating = false;
+
+            form.addEventListener('submit', function (event) {
+                if (typeof window.fetch !== 'function') return;
+                event.preventDefault();
+                if (pending) return;
+                pending = true;
+                button.disabled = true;
+                label.textContent = 'Menyimpan…';
+                form.setAttribute('aria-busy', 'true');
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (response.status === 403 || response.status === 404) {
+                        showToast({ kind: 'error', text: response.status === 403
+                            ? 'Your session is no longer valid. Reload this page before trying again.'
+                            : 'This listing could not be found.' });
+                        return null;
+                    }
+                    return response.json();
+                }).then(function (data) {
+                    if (!data) return;
+                    if (typeof data.login_url === 'string') {
+                        var target = new URL(data.login_url, window.location.href);
+                        if (target.origin !== window.location.origin) throw new Error('Unexpected login redirect');
+                        navigating = true;
+                        window.location.assign(target.href);
+                    } else if (data.ok === true && data.toast && typeof data.saved_count === 'number') {
+                        saved = true;
+                        button.classList.add('is-saved');
+                        document.querySelectorAll('[data-wishlist-count]').forEach(function (count) {
+                            count.textContent = data.saved_count + (data.saved_count === 1
+                                ? ' person has saved this' : ' people have saved this');
+                        });
+                        showToast(data.toast);
+                    } else {
+                        throw new Error('Invalid wishlist response');
+                    }
+                }).catch(function () {
+                    showToast({ kind: 'error', text: 'Could not confirm whether this item was saved. Please try again.' });
+                }).finally(function () {
+                    if (!navigating) {
+                        pending = false;
+                        button.disabled = false;
+                        label.textContent = saved ? 'Saved to wishlist' : 'Save to wishlist';
+                        form.removeAttribute('aria-busy');
+                    }
+                });
             });
         });
     }
@@ -492,6 +555,7 @@
         initGallery();
         initBagDrawer();
         initBagForms();
+        initWishlistForms();
         initSellForm();
         initListingSubmit();
         initListingDelete();
