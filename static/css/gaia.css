@@ -1372,6 +1372,16 @@
     object-fit: cover;
 }
 
+.bag-stepper__remove {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--wine);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
 .bag-item__body {
     display: flex;
     flex-direction: column;
@@ -1554,6 +1564,8 @@
 }
 
 .toast__icon { display: inline-flex; }
+.toast--error { width: min(560px, calc(100vw - 32px)); gap: 16px; background: var(--wine-light); color: var(--wine-dark); }
+.toast--error .toast__text { font-size: 16px; font-weight: 600; line-height: 1.5; }
 .toast__icon .icon { width: 32px; height: 32px; color: var(--ink); }
 
 /* ---------- Shopping bag responsive ---------- */

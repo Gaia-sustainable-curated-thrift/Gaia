@@ -34,8 +34,8 @@
                 <section class="sell-field">
                     <h2 class="sell-label">Select category</h2>
                     <div class="sell-dropdown" data-sell-dropdown>
-                        <button class="sell-select" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false">
-                            <span data-sell-display>Choose a category</span>
+                        <button class="sell-select{% if selected_category %} is-set{% endif %}" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false">
+                            <span data-sell-display>{% if selected_category %}{{ selected_category.parent.name }}'s {{ selected_category.name|lower }}{% else %}Choose a category{% endif %}</span>
                             {% include 'includes/icon.html' with name='caret-down' %}
                         </button>
                         <div class="sell-menu" data-sell-menu hidden>
@@ -53,7 +53,7 @@
                             {% endfor %}
                         </div>
                         <input type="hidden" name="parent" value="{{ selected_parent }}" data-sell-parent>
-                        <input type="hidden" name="category" value="{{ form.category|default:'' }}" data-sell-value>
+                        <input type="hidden" name="category" value="{{ form.category.value|default_if_none:'' }}" data-sell-value>
                     </div>
                 </section>
             </div>
@@ -63,7 +63,7 @@
                     <h2 class="sell-label">Listing title</h2>
                     <input class="sell-input" type="text" name="title" maxlength="200"
                            placeholder="Subdued Angel Wings Hoodie"
-                           value="{{ form.title|default:'' }}">
+                           value="{{ form.title.value|default_if_none:'' }}">
                 </section>
             </div>
         </div>
@@ -76,7 +76,7 @@
                         {% for condition in conditions %}
                         <label class="sell-chip">
                             <input type="radio" name="condition" value="{{ condition.value }}"
-                                   {% if form.condition == condition.value or not form and condition.value == 'good' %}checked{% endif %}>
+                                   {% if form.condition.value == condition.value %}checked{% endif %}>
                             <span>{{ condition.label }}</span>
                         </label>
                         {% endfor %}
@@ -88,7 +88,7 @@
                 <section class="sell-field">
                     <h2 class="sell-label">Price</h2>
                     <input class="sell-input sell-price__input" type="text" name="price" inputmode="numeric"
-                           placeholder="2.000.000" data-price-input value="{{ form.price|default:'' }}">
+                           placeholder="2.000.000" data-price-input value="{{ form.price.value|default_if_none:'' }}">
                 </section>
             </div>
         </div>

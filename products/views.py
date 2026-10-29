@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -10,6 +11,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from accounts.models import WishlistItem
 from . import cart
+from .forms import ProductListingForm
 from .models import Category, Product, ProductImage
 
 CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
@@ -237,75 +239,32 @@ def detail(request, slug):
 
 
 def _seller_parents():
-    return list(Category.objects.filter(parent__isnull=True).order_by('name'))
+    return list(Category.objects.filter(parent__isnull=True).prefetch_related('children').order_by('name'))
 
 
 @login_required
 def sell(request):
-    parents = _seller_parents()
-    conditions = [{'value': value, 'label': label} for value, label in Product.Condition.choices]
-
-    if request.method == 'POST':
-        errors = []
-        title = request.POST.get('title', '').strip()
-        category_id = request.POST.get('category')
-        price_raw = request.POST.get('price', '').strip()
-        condition = request.POST.get('condition', Product.Condition.GOOD)
-        photos = request.FILES.getlist('photos')
-
-        if not title:
-            errors.append('Listing title is required.')
-        if not category_id:
-            errors.append('Choose a category.')
-
-        price = None
-        digits = ''.join(ch for ch in price_raw if ch.isdigit())
-        if not digits:
-            errors.append('Enter a price.')
-        else:
-            price = int(digits)
-
-        category = None
-        if category_id:
-            category = Category.objects.filter(pk=category_id, parent__isnull=False).first()
-            if category is None:
-                errors.append('Choose a valid category.')
-
-        if condition not in dict(Product.Condition.choices):
-            condition = Product.Condition.GOOD
-
-        if len(photos) > 5:
-            errors.append('Select maximum 5 photos.')
-
-        if not errors:
-            product = Product.objects.create(
-                seller=request.user,
-                title=title,
-                price=price,
-                category=category,
-                condition=condition,
-            )
-            for index, photo in enumerate(photos):
+    form = ProductListingForm(
+        request.POST if request.method == 'POST' else None,
+        request.FILES if request.method == 'POST' else None,
+    )
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            product = form.save(commit=False)
+            product.seller = request.user
+            product.save()
+            for index, photo in enumerate(form.cleaned_data['photos']):
                 ProductImage.objects.create(product=product, image=photo, is_primary=index == 0, order=index)
-            return redirect('products:detail', slug=product.slug)
+        return redirect('products:detail', slug=product.slug)
 
-        return render(request, 'products/sell.html', {
-            'parents': parents,
-            'conditions': conditions,
-            'errors': errors,
-            'selected_parent': request.POST.get('parent', ''),
-            'form': {
-                'title': title,
-                'category': category_id or '',
-                'price': price_raw,
-                'condition': condition,
-            },
-        })
-
+    selected_category = getattr(form, 'cleaned_data', {}).get('category')
     return render(request, 'products/sell.html', {
-        'parents': parents,
-        'conditions': conditions,
-        'selected_parent': parents[0].slug if parents else '',
+        'parents': _seller_parents(),
+        'conditions': [{'value': value, 'label': label} for value, label in Product.Condition.choices],
+        'form': form,
+        'errors': [message for messages in form.errors.values() for message in messages],
+        'selected_category': selected_category,
+        'selected_parent': selected_category.parent.slug if selected_category else '',
     })
 
 
@@ -324,7 +283,7 @@ def _is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
-def _bag_json(request, *, toast=None, open_drawer=False):
+def _bag_json(request, *, toast=None, open_drawer=False, status=200):
     items = cart.items(request.session)
     context = {
         'bag_items': items,
@@ -334,17 +293,28 @@ def _bag_json(request, *, toast=None, open_drawer=False):
         'bag_open': open_drawer,
     }
     return JsonResponse({
-        'ok': True,
+        'ok': status < 400,
         'bag_count': context['bag_count'],
         'drawer': render_to_string('includes/bag_drawer_body.html', context, request=request),
-        'toast': toast if toast and toast.get('kind') == 'added' else None,
+        'toast': toast if toast and toast.get('kind') in ('added', 'error') else None,
         'open': open_drawer,
-    })
+    }, status=status)
+
+
+def _bag_error(request, text, fallback, *, open_drawer=False, status=409):
+    toast = {'kind': 'error', 'text': text}
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast, open_drawer=open_drawer, status=status)
+    request.session['bag_toast'] = toast
+    request.session['bag_open'] = open_drawer
+    return _redirect_back(request, fallback)
 
 
 @require_POST
 def bag_add(request, slug):
     product = get_object_or_404(Product, slug=slug)
+    if not product.is_purchasable:
+        return _bag_error(request, 'This item is no longer available.', _product_url(product))
     cart.add(request.session, product.pk)
     toast = {
         'kind': 'added',
@@ -361,9 +331,18 @@ def bag_add(request, slug):
 def bag_set(request, slug):
     product = get_object_or_404(Product, slug=slug)
     try:
-        quantity = int(request.POST.get('quantity', 1))
+        quantity = int(request.POST.get('quantity', ''))
     except (TypeError, ValueError):
-        quantity = 1
+        return _bag_error(
+            request, 'Enter a valid whole-number quantity.', _product_url(product),
+            open_drawer=True, status=400,
+        )
+
+    if quantity > 0 and not product.is_purchasable:
+        return _bag_error(
+            request, 'This item is no longer available. Please remove it from your bag.',
+            _product_url(product), open_drawer=True,
+        )
 
     toast = None
     if quantity <= 0:
@@ -387,7 +366,13 @@ def bag_undo(request):
     entry = request.session.pop('bag_undo', None)
     toast = None
     if entry:
-        cart.set_quantity(request.session, entry['product_id'], entry.get('quantity', 1))
+        product = Product.objects.filter(pk=entry['product_id']).first()
+        if product is None or not product.is_purchasable:
+            return _bag_error(
+                request, 'This item is no longer available and could not be restored.',
+                reverse('products:home'), open_drawer=True,
+            )
+        cart.set_quantity(request.session, product.pk, entry.get('quantity', 1))
         toast = {'kind': 'added', 'text': 'Item added back to bag', 'icon': True}
     if _is_ajax(request):
         return _bag_json(request, toast=toast, open_drawer=True)
