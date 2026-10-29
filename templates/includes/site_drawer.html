@@ -28,7 +28,7 @@
         </div>
         <div class="site-drawer-account-bar">
             <a class="site-drawer-account" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'login' %}{% endif %}">
-                <span class="site-drawer-avatar" aria-hidden="true"></span>
+                <span class="site-drawer-avatar" aria-hidden="true">{% if user.is_authenticated and user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="" width="36" height="36">{% endif %}</span>
                 <span class="site-drawer-name">{% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}{% else %}Log In{% endif %}</span>
             </a>
             <a class="site-drawer-account-icon" href="{% url 'orders' %}" aria-label="My orders">{% include 'includes/icon.html' with name='bag' %}</a>

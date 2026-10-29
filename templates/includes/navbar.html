@@ -20,7 +20,7 @@
         {% if user.is_authenticated %}
         <a class="icon-button nav-wishlist" href="{% url 'wishlist' %}" aria-label="Wishlist">{% include 'includes/icon.html' with name='heart' %}</a>
         <a class="account-link nav-profile" href="{% url 'profile' %}" aria-label="My profile" title="{{ user.get_full_name|default:user.username }}">
-            <span class="nav-avatar" aria-hidden="true"></span>
+            <span class="nav-avatar" aria-hidden="true">{% if user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="" width="40" height="40">{% endif %}</span>
             <span class="nav-account-label">Hi, {{ user.first_name|default:user.username|truncatechars:14 }}</span>
         </a>
         {% else %}

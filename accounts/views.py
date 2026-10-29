@@ -72,7 +72,7 @@ def profile(request):
 def edit_profile(request):
     context = account_context(request, 'Edit Profile', 'Update your details for a more personal GAIA experience.')
     details = context['profile']
-    form = ProfileForm(request.POST or None, instance=request.user, initial={'full_name': request.user.get_full_name(), 'phone': details.phone, 'city': details.city, 'country': details.country})
+    form = ProfileForm(request.POST if request.method == 'POST' else None, request.FILES if request.method == 'POST' else None, instance=request.user, initial={'full_name': request.user.get_full_name(), 'phone': details.phone, 'city': details.city, 'country': details.country})
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             form.save()

@@ -41,7 +41,7 @@ Modul User pada app `accounts` mengelola identitas pengguna, autentikasi, profil
 
 - **Registrasi:** pengguna mengisi nama lengkap, email, password, dan konfirmasi password. `RegisterForm` memvalidasi input serta menolak email yang sudah digunakan tanpa membedakan huruf besar/kecil. Username dibuat otomatis dari nama dengan akhiran angka jika sudah terpakai. User dan Profile dibuat dalam satu transaksi database, password disimpan sebagai hash melalui mekanisme Django, lalu aplikasi membuat sesi login dan mencoba mengirim email verifikasi.
 - **Login dan logout:** login menerima email atau username menggunakan autentikasi bawaan Django. Login Google menggunakan `django-allauth` jika kredensial tersedia. Session mengenali pengguna pada request berikutnya; logout melalui POST mengakhiri sesi tanpa menghapus akun. Halaman pribadi dilindungi dengan `login_required`.
-- **Profil:** model `Profile` terhubung satu-ke-satu (`OneToOneField`) dengan User bawaan Django. User menyimpan username, email, nama, dan password hash; Profile menyimpan `phone`, `city`, `country`, serta `email_verified`. Pengguna dapat melihat dan mengubah profilnya sendiri. Email tidak dapat diubah melalui form edit profil. Modul juga menyediakan verifikasi email bertoken yang berlaku 24 jam, ganti password, dan reset password. Verifikasi email belum menjadi syarat untuk login.
+- **Profil:** model `Profile` terhubung satu-ke-satu (`OneToOneField`) dengan User bawaan Django. User menyimpan username, email, nama, dan password hash; Profile menyimpan `avatar`, `phone`, `city`, `country`, serta `email_verified`. Pengguna dapat melihat dan mengubah profilnya sendiri. Email tidak dapat diubah melalui form edit profil. Modul juga menyediakan verifikasi email bertoken yang berlaku 24 jam, ganti password, dan reset password. Verifikasi email belum menjadi syarat untuk login.
 - **WishlistItem:** model ini menyimpan produk favorit dan terhubung banyak-ke-satu (`ForeignKey`) ke User. Field-nya meliputi `product_key`, `title`, `condition`, `price`, `image`, dan `removed`. Pasangan `user` dan `product_key` diberi constraint unik agar satu produk tidak tersimpan ganda untuk pengguna yang sama. Aksi simpan dari modul Product membuat atau memperbarui snapshot produk pada wishlist pengguna. Pengguna hanya dapat melihat dan menghapus item miliknya sendiri. Penghapusan memakai soft delete (`removed=True`), sedangkan ID item terakhir disimpan dalam session agar bisa dikembalikan melalui Undo.
 
 `WishlistItem` menyimpan snapshot informasi produk berdasarkan slug pada `product_key`, bukan ForeignKey langsung ke Product. Perubahan produk tidak otomatis memperbarui seluruh snapshot wishlist. Pengguna dapat menghapus akun melalui Account Settings setelah konfirmasi identitas; penghapusan item wishlist tetap merupakan operasi terpisah dari penghapusan User.
@@ -131,6 +131,14 @@ Untuk pengembangan, email verifikasi/reset dicetak di terminal runserver, bukan 
 
 Google OAuth di PWS memakai callback `https://danar-iqbal-gaia.pws.cs.ui.ac.id/accounts/google/login/callback/`. Daftarkan URL ini persis, termasuk HTTPS dan slash terakhir, pada **Authorized redirect URIs** client OAuth di Google Cloud. `ACCOUNT_DEFAULT_HTTP_PROTOCOL` default-nya `https` agar callback tetap benar di belakang proxy PWS. Untuk runserver lokal, isi `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http` di `.env` dan daftarkan callback localhost yang dipakai. Kredensial Google perlu tersedia di environment PWS; `.env` lokal tidak ikut deploy.
 
+### Foto profil
+
+Pengguna dapat mengunggah atau mengganti foto melalui **Profile > Edit Profile > Change profile photo**, melihat preview, lalu memilih **Save Changes**. Tanpa foto, avatar menampilkan inisial. Foto tersimpan ditampilkan pada profil, navbar, dan sidebar. Menyimpan perubahan teks tanpa file baru mempertahankan foto sebelumnya.
+
+Server memvalidasi isi gambar dengan Pillow: JPG, PNG atau WebP, maksimal 2 MB dan 4096 piksel per sisi. Foto dikoreksi orientasinya, dipotong persegi 512 x 512, dan disimpan ulang sebagai JPEG tanpa metadata asli. File menggunakan nama acak dalam `media/avatars/`. Foto lama dijadwalkan untuk dihapus setelah transaksi penyimpanan berhasil; foto profil juga dibersihkan setelah penghapusan akun berhasil. Kegagalan cleanup storage dicatat pada log.
+
+Jalankan `python manage.py migrate` untuk menambahkan kolom `Profile.avatar`. Penyimpanan menggunakan media storage Django yang dikonfigurasi di server; PWS perlu direktori/volume media persisten dan konfigurasi penyajian media. Foto upload menggunakan URL media, bukan URL static. Menjalankan deploy ulang saja tidak menjamin persistensi file upload.
+
 ### Data demo dan integrasi modul
 
 Akun baru tidak otomatis memiliki order atau wishlist. Untuk melihat state berisi data sesuai referensi, buat akun lokal khusus demo lalu jalankan:
@@ -164,6 +172,6 @@ $env:PRODUCTION='False'
 
 Konfigurasi `.coveragerc` mengukur line dan branch coverage seluruh package `accounts`, termasuk form, view, model, context processor, template filter, dan command demo. File tes dan migration dikecualikan dari pengukuran. `coverage report` gagal jika coverage gabungan kurang dari 91%. Laporan HTML tersedia di `htmlcov/index.html`. Semua tes modul User dijalankan bersama melalui `python manage.py test accounts`.
 
-Hasil pengukuran 29 Oktober 2026 di `C:\Coding\gaia` menggunakan `accounts.tests`: **76 tes lulus, line coverage 100% (356 statement) dan branch coverage 100% (52 cabang)**. Cakupan ini mengukur kode Python milik app `accounts`, bukan kode internal Django/allauth, HTML/CSS, atau keberhasilan integrasi Google/SMTP di server.
+Hasil pengukuran 29 Oktober 2026 di `C:\Coding\gaia` menggunakan `accounts.tests`: **89 tes lulus, line coverage 100% (417 statement) dan branch coverage 100% (66 cabang)**. Cakupan ini mengukur kode Python milik app `accounts`, bukan kode internal Django/allauth, HTML/CSS, atau keberhasilan integrasi Google/SMTP di server.
 
 Tes mencakup akses halaman, login email, registrasi, verifikasi, simpan profil, pembatasan data antar pengguna, wishlist remove/undo, ganti/reset password, token sekali pakai, serta logout POST/CSRF. Layout memakai breakpoint desktop/tablet/mobile dan aset logo dari referensi. Font lokal tersedia pada aset statis, dengan fallback Georgia/Arial sesuai stylesheet.

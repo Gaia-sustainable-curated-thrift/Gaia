@@ -1340,3 +1340,5 @@ dialog::backdrop {
 .account-danger-zone h2 { color: var(--wine); margin-bottom: 8px; font-size: 26px; }
 .delete-outline { background: transparent; color: var(--wine); border: 1px solid var(--wine); }
 .delete-outline:hover { background: #f5e9ee; }
+
+.profile-avatar img, .nav-avatar img, .site-drawer-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }

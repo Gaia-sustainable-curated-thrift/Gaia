@@ -6,6 +6,7 @@ Uses an isolated test database and in-memory emails; no live OAuth or SMTP.
 import re
 from datetime import date
 from io import StringIO
+from pathlib import Path
 from smtplib import SMTPException
 from unittest.mock import patch
 
@@ -863,3 +864,159 @@ class DeleteAccountTests(TestCase):
                     self.client.post(reverse('send_delete_confirmation'))
                 self.assertNotIn('account_delete_confirmation', self.client.session)
                 self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+
+
+@override_settings(
+    PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+    SOCIALACCOUNT_PROVIDERS=TEST_GOOGLE,
+)
+class AvatarTests(TestCase):
+    def setUp(self):
+        import tempfile
+        self.media = tempfile.TemporaryDirectory(prefix='gaia-avatar-tests-')
+        self.addCleanup(self.media.cleanup)
+        self.settings_override = override_settings(MEDIA_ROOT=self.media.name)
+        self.settings_override.enable()
+        self.addCleanup(self.settings_override.disable)
+        self.user = User.objects.create_user('avatar-owner', 'avatar@example.com', PASSWORD, first_name='Avatar')
+        Profile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+        self.data = {'full_name': 'Avatar Owner', 'username': 'avatar-owner', 'phone': '', 'city': 'Jakarta', 'country': 'Indonesia'}
+
+    def image(self, filename='photo.png', format='PNG', size=(100, 80)):
+        from PIL import Image
+        from io import BytesIO
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        output = BytesIO()
+        Image.new('RGB', size, 'green').save(output, format=format)
+        return SimpleUploadedFile(filename, output.getvalue(), content_type='image/' + format.lower())
+
+    def upload(self, photo=None):
+        return self.client.post(reverse('edit_profile'), {**self.data, 'avatar': photo or self.image()})
+
+    def test_upload_normalizes_image_and_renders_media_url(self):
+        from PIL import Image
+        self.assertRedirects(self.upload(), reverse('profile'))
+        self.user.profile.refresh_from_db()
+        avatar = self.user.profile.avatar
+        self.assertTrue(avatar.name.startswith('avatars/'))
+        self.assertTrue(avatar.name.endswith('.jpg'))
+        with avatar.open('rb') as file:
+            with Image.open(file) as image:
+                self.assertEqual(image.size, (512, 512))
+                self.assertEqual(image.format, 'JPEG')
+                self.assertNotIn('exif', image.info)
+        response = self.client.get(reverse('profile'))
+        self.assertContains(response, avatar.url)
+        self.assertNotContains(response, '/static/media/avatars/')
+        self.assertContains(self.client.get(reverse('edit_profile')), 'multipart/form-data')
+
+    def test_jpeg_and_webp_uploads_are_supported(self):
+        for format, name in [('JPEG', 'photo.jpg'), ('WEBP', 'photo.webp')]:
+            with self.subTest(format=format), self.captureOnCommitCallbacks(execute=True):
+                self.assertEqual(self.upload(self.image(name, format)).status_code, 302)
+
+    def test_replace_photo_removes_old_file_after_commit(self):
+        self.upload()
+        self.user.profile.refresh_from_db()
+        old_name = self.user.profile.avatar.name
+        storage = self.user.profile.avatar.storage
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.upload().status_code, 302)
+            self.assertTrue(storage.exists(old_name))
+        self.user.profile.refresh_from_db()
+        self.assertNotEqual(self.user.profile.avatar.name, old_name)
+        self.assertFalse(storage.exists(old_name))
+        self.assertTrue(storage.exists(self.user.profile.avatar.name))
+
+    def test_edit_without_file_keeps_existing_photo(self):
+        self.upload()
+        self.user.profile.refresh_from_db()
+        name = self.user.profile.avatar.name
+        response = self.client.post(reverse('edit_profile'), {**self.data, 'city': 'Bandung'})
+        self.assertRedirects(response, reverse('profile'))
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.avatar.name, name)
+        self.assertEqual(self.user.profile.city, 'Bandung')
+
+    def test_rejects_non_image_and_gif(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        for file in [SimpleUploadedFile('fake.jpg', b'not an image', content_type='image/jpeg'), self.image('animated.gif', 'GIF')]:
+            with self.subTest(name=file.name):
+                response = self.upload(file)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('avatar', response.context['form'].errors)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.avatar)
+
+    def test_rejects_files_above_two_megabytes_and_excessive_dimensions(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        large = SimpleUploadedFile('large.png', self.image().read() + b'x' * (2 * 1024 * 1024), content_type='image/png')
+        for file in [large, self.image(size=(4097, 1))]:
+            with self.subTest(name=file.name):
+                response = self.upload(file)
+                self.assertIn('avatar', response.context['form'].errors)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.avatar)
+
+    def test_processing_failure_returns_validation_error(self):
+        with patch('accounts.forms.ImageOps.exif_transpose', side_effect=OSError('invalid image')):
+            response = self.upload()
+        self.assertIn('avatar', response.context['form'].errors)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.avatar)
+
+    def test_invalid_form_does_not_replace_photo(self):
+        self.upload()
+        self.user.profile.refresh_from_db()
+        name = self.user.profile.avatar.name
+        response = self.client.post(reverse('edit_profile'), {**self.data, 'username': '', 'avatar': self.image()})
+        self.assertIn('username', response.context['form'].errors)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.avatar.name, name)
+
+    def test_upload_changes_only_current_users_photo(self):
+        other = User.objects.create_user('other-avatar')
+        Profile.objects.create(user=other)
+        self.client.post(reverse('edit_profile'), {**self.data, 'user_id': other.pk, 'avatar': self.image()})
+        self.user.profile.refresh_from_db()
+        other.profile.refresh_from_db()
+        self.assertTrue(self.user.profile.avatar)
+        self.assertFalse(other.profile.avatar)
+
+    def test_guest_cannot_upload(self):
+        self.client.logout()
+        response = self.upload()
+        self.assertEqual(response.status_code, 302)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.avatar)
+
+    def test_commit_false_does_not_write_avatar(self):
+        form = ProfileForm(self.data, {'avatar': self.image()}, instance=self.user)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save(commit=False)
+        self.user.profile.refresh_from_db()
+        self.assertFalse(self.user.profile.avatar)
+        self.assertEqual(list(Path(self.media.name).rglob('*')), [])
+
+    def test_deleting_account_removes_photo_after_commit(self):
+        self.upload()
+        self.user.profile.refresh_from_db()
+        avatar = self.user.profile.avatar
+        name, storage = avatar.name, avatar.storage
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse('delete_account'), {'password': PASSWORD, 'confirmation': 'DELETE', 'acknowledge': 'on'})
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(storage.exists(name))
+        self.assertFalse(storage.exists(name))
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+
+    def test_storage_cleanup_failure_is_logged_without_undoing_save(self):
+        self.upload()
+        self.user.profile.refresh_from_db()
+        storage = self.user.profile.avatar.storage
+        with patch.object(storage, 'delete', side_effect=OSError('storage unavailable')):
+            with self.assertLogs('accounts.avatars', level='WARNING'), self.captureOnCommitCallbacks(execute=True):
+                self.assertEqual(self.upload().status_code, 302)
+        self.user.profile.refresh_from_db()
+        self.assertTrue(self.user.profile.avatar)
