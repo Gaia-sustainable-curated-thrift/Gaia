@@ -1,0 +1,189 @@
+<section class="seller-context" aria-label="Seller">
+    <div class="seller-identity">
+        <div class="seller-avatar" aria-hidden="true">{{ seller.username|first|upper }}</div>
+        <div>
+            <h2>{{ seller.get_full_name|default:seller.username }}</h2>
+            <p>Seller &middot; Pre-loved fashion</p>
+        </div>
+    </div>
+    {% if user.pk != seller.pk %}
+        <div class="seller-context-action">
+            <span>Seller experience</span>
+            <a class="review-button" href="{% url 'reviews:create_review' seller.pk %}">Rate Seller</a>
+        </div>
+    {% else %}
+        <a class="review-text-link" href="{% url 'reviews:seller_reviews' seller.pk %}">View public reviews</a>
+    {% endif %}
+</section>
+
+<section class="rating-summary row" aria-label="Seller rating summary">
+    <div class="rating-score col-12 col-lg-3">
+        <p class="summary-label">OVERALL RATING</p>
+        <div class="rating-value">
+            <strong>{% if total_reviews %}{{ average_rating|floatformat:1 }}{% else %}&mdash;{% endif %}</strong>
+            <span>/ 5.0</span>
+        </div>
+        <div class="review-stars" role="img" aria-label="{% if total_reviews %}{{ average_rating|floatformat:1 }} out of 5 stars{% else %}No ratings yet{% endif %}">
+            {% for star in "12345" %}
+                <span aria-hidden="true">{% if average_rating >= forloop.counter %}&#9733;{% else %}&#9734;{% endif %}</span>
+            {% endfor %}
+        </div>
+        <p>{{ total_reviews }} seller review{{ total_reviews|pluralize }}</p>
+    </div>
+    <div class="rating-breakdown col-12 col-lg-5">
+        <h2 class="summary-label">SELLER RATING BREAKDOWN</h2>
+        {% for item in rating_breakdown %}
+            <div class="rating-bar-row">
+                <span>{{ item.rating }} star{{ item.rating|pluralize }}</span>
+                <progress value="{{ item.count }}" max="{% if total_reviews %}{{ total_reviews }}{% else %}1{% endif %}"
+                          aria-label="{{ item.rating }} stars: {{ item.count }} reviews">{{ item.percent }}%</progress>
+                <span>{{ item.count }}</span>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="rating-criteria col-12 col-lg-4">
+        <h2 class="summary-label">RATING CRITERIA</h2>
+        <ul><li>Friendly &amp; polite</li><li>Responsive &amp; helpful</li><li>Honest &amp; trustworthy</li></ul>
+        <h2 class="summary-label">SORT REVIEWS</h2>
+        <nav class="review-sort" aria-label="Sort reviews">
+            <a data-review-filter href="?sort=newest{% if selected_rating %}&amp;rating={{ selected_rating }}{% endif %}"
+               class="rating-filter{% if selected_sort == 'newest' %} is-active{% endif %}"
+               {% if selected_sort == 'newest' %}aria-current="true"{% endif %}>Newest</a>
+            <a data-review-filter href="?sort=helpful{% if selected_rating %}&amp;rating={{ selected_rating }}{% endif %}"
+               class="rating-filter{% if selected_sort == 'helpful' %} is-active{% endif %}"
+               {% if selected_sort == 'helpful' %}aria-current="true"{% endif %}>Helpful</a>
+            <a data-review-filter href="?sort=rating{% if selected_rating %}&amp;rating={{ selected_rating }}{% endif %}"
+               class="rating-filter{% if selected_sort == 'rating' %} is-active{% endif %}"
+               {% if selected_sort == 'rating' %}aria-current="true"{% endif %}>Rating</a>
+        </nav>
+    </div>
+</section>
+
+<nav class="review-filters" aria-label="Filter reviews by rating">
+    <span class="filter-label">FILTER BY STARS</span>
+    {% for star in "54321" %}
+        <a data-review-filter href="?rating={{ star }}&amp;sort={{ selected_sort }}"
+           class="rating-filter{% if selected_rating == star %} is-active{% endif %}"
+           {% if selected_rating == star %}aria-current="true"{% endif %}>{{ star }} &#9733;</a>
+    {% endfor %}
+    <a data-review-filter href="?sort={{ selected_sort }}"
+       class="rating-filter{% if not selected_rating %} is-active{% endif %}"
+       {% if not selected_rating %}aria-current="true"{% endif %}>All</a>
+</nav>
+
+<header class="reviews-list-heading" id="review-list-heading">
+    <h2>SELLER REVIEWS</h2>
+    <p>{{ filtered_count }} review{{ filtered_count|pluralize }}{% if selected_rating %} with {{ selected_rating }} star{{ selected_rating|pluralize }}{% endif %}</p>
+</header>
+<section class="reviews-list" aria-labelledby="review-list-heading">
+    {% for review in reviews %}
+        <article class="review-card seller-review" id="review-{{ review.pk }}">
+            <div class="review-author">
+                <div class="reviewer-avatar" aria-hidden="true">
+                    {% if review.is_anonymous %}A{% elif user.is_authenticated %}{{ review.reviewer.username|first|upper }}{% else %}M{% endif %}
+                </div>
+                <div>
+                    <p class="reviewer-name">
+                        {% if review.is_anonymous %}Anonymous
+                        {% elif user.is_authenticated %}{{ review.reviewer.get_full_name|default:review.reviewer.username }}
+                        {% else %}GAIA member{% endif %}
+                    </p>
+                    <time datetime="{{ review.created_at|date:'c' }}">{{ review.created_at|date:"d M Y" }}</time>
+                </div>
+            </div>
+            <div class="review-content">
+                <div class="review-stars" role="img" aria-label="{{ review.rating }} out of 5 stars">
+                    {% for star in "12345" %}<span aria-hidden="true">{% if forloop.counter <= review.rating %}&#9733;{% else %}&#9734;{% endif %}</span>{% endfor %}
+                </div>
+                <h3>{{ review.title }}</h3>
+                <p>{{ review.comment|linebreaksbr }}</p>
+                {% if review.is_friendly or review.is_responsive or review.is_trustworthy %}
+                    <div class="review-aspects" aria-label="Seller qualities">
+                        {% if review.is_friendly %}<span>Friendly &amp; polite</span>{% endif %}
+                        {% if review.is_responsive %}<span>Helpful &amp; responsive</span>{% endif %}
+                        {% if review.is_trustworthy %}<span>Honest &amp; trustworthy</span>{% endif %}
+                    </div>
+                {% endif %}
+                {% if review.seller_reply %}
+                    <blockquote class="seller-reply"><strong>Seller reply</strong><p>{{ review.seller_reply|linebreaksbr }}</p></blockquote>
+                {% endif %}
+                <div class="review-actions">
+                    {% if user.is_authenticated and user.pk == review.reviewer_id %}
+                        <a href="{% url 'reviews:edit_review' review.pk %}">Edit Review</a>
+                        <a href="{% url 'reviews:delete_review' review.pk %}">Delete Review</a>
+                    {% elif user.is_authenticated %}
+                        {% if user.pk != seller.pk %}
+                            <form method="post" action="{% url 'reviews:toggle_helpful' review.pk %}" data-review-action>
+                                {% csrf_token %}
+                                <button class="review-text-link" type="submit" aria-pressed="{{ review.has_voted|yesno:'true,false' }}">
+                                    Helpful ({{ review.helpful_count }})
+                                </button>
+                            </form>
+                        {% endif %}
+                        {% if review.has_reported %}
+                            <span>Reported</span>
+                        {% else %}
+                            <details class="review-inline-action">
+                                <summary>Report</summary>
+                                <form method="post" action="{% url 'reviews:report_review' review.pk %}" data-review-action>
+                                    {% csrf_token %}
+                                    <label for="report-reason-{{ review.pk }}">Reason</label>
+                                    <select id="report-reason-{{ review.pk }}" name="reason" required>
+                                        {% for value, label in report_form.fields.reason.choices %}
+                                            <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <label for="report-details-{{ review.pk }}">Details (optional)</label>
+                                    <textarea id="report-details-{{ review.pk }}" name="details" rows="3" maxlength="1000"></textarea>
+                                    <button class="review-button" type="submit">Send report</button>
+                                    <p data-action-error role="alert" hidden></p>
+                                </form>
+                            </details>
+                        {% endif %}
+                    {% else %}
+                        <a href="{% url 'login' %}?next={{ request.path|urlencode }}">Sign in to see reviewers or mark helpful</a>
+                    {% endif %}
+                </div>
+                {% if user.is_authenticated and user.pk == seller.pk %}
+                    <details class="review-inline-action seller-reply-editor">
+                        <summary>{% if review.seller_reply %}Edit seller reply{% else %}Reply to review{% endif %}</summary>
+                        <form method="post" action="{% url 'reviews:seller_reply' review.pk %}" data-review-action>
+                            {% csrf_token %}
+                            <label for="reply-{{ review.pk }}">Your reply</label>
+                            <textarea id="reply-{{ review.pk }}" name="reply" rows="3" maxlength="1000" required>{{ review.seller_reply }}</textarea>
+                            <button class="review-button" type="submit">Save reply</button>
+                            <p data-action-error role="alert" hidden></p>
+                        </form>
+                        {% if review.seller_reply %}
+                            <form method="post" action="{% url 'reviews:delete_reply' review.pk %}" data-review-action>
+                                {% csrf_token %}
+                                <button class="review-text-link" type="submit">Remove reply</button>
+                            </form>
+                        {% endif %}
+                    </details>
+                {% endif %}
+            </div>
+        </article>
+    {% empty %}
+        <div class="reviews-empty">
+            <span class="empty-stars" aria-hidden="true">&#9734;&#9734;&#9734;&#9734;&#9734;</span>
+            {% if selected_rating %}
+                <h3>No matching reviews</h3><p>No reviews with {{ selected_rating }} stars yet. Try another filter.</p>
+            {% else %}
+                <h3>No reviews yet</h3><p>Every experience matters. Be the first to share yours.</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+</section>
+{% if page_obj.has_other_pages %}
+    <nav class="review-pagination" aria-label="Review pages">
+        {% if page_obj.has_previous %}<a data-review-filter class="rating-filter" href="?{{ page_query }}&amp;page={{ page_obj.previous_page_number }}">Previous</a>{% endif %}
+        <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a data-review-filter class="rating-filter" href="?{{ page_query }}&amp;page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+    </nav>
+{% endif %}
+{% if user.pk != seller.pk %}
+    <div class="reviews-bottom-actions">
+        <a class="review-button review-button-burgundy" href="{% url 'reviews:create_review' seller.pk %}">Write a Seller Review</a>
+    </div>
+{% endif %}

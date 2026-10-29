@@ -1,171 +1,19 @@
 {% extends "accounts/base.html" %}
-{% load static %}
-
 {% block title %}Review & Rating{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/reviews.css' %}">
-{% endblock %}
-
+{% block extra_css %}{% include "reviews/_assets.html" %}{% endblock %}
 {% block main %}
-<main class="reviews-page reviews-overview">
+<main class="reviews-page reviews-overview" data-review-page>
     <header class="reviews-heading">
         <nav class="reviews-breadcrumb" aria-label="Breadcrumb">
-            <a href="{% url 'products:home' %}">Home</a>
-            <span aria-hidden="true">/</span>
-            <span>Reviews &amp; Ratings</span>
+            <a href="{% url 'products:home' %}">Home</a><span>/</span>
+            <span>{{ seller.get_full_name|default:seller.username }}</span><span>/</span>
+            <span aria-current="page">Reviews &amp; Ratings</span>
         </nav>
-
         <h1>Review &amp; Rating</h1>
-        <p>Buyer experiences with this seller.</p>
+        <p>Buyer experiences with this seller across different pre-loved purchases.</p>
     </header>
-
-    <section class="seller-context" aria-label="Seller">
-        <div class="seller-identity">
-            <div class="seller-avatar" aria-hidden="true">
-                {{ seller.username|first|upper }}
-            </div>
-
-            <div>
-                <h2>{{ seller.get_full_name|default:seller.username }}</h2>
-                <p>Seller · Pre-loved fashion</p>
-            </div>
-        </div>
-
-        {% if user.pk != seller.pk %}
-            <a class="review-button"
-               href="{% url 'reviews:create_review' seller.pk %}">
-                Rate Seller
-            </a>
-        {% endif %}
-    </section>
-
-    <section class="rating-summary" aria-label="Seller rating summary">
-        <div class="rating-score">
-            <p class="summary-label">OVERALL RATING</p>
-
-            <div class="rating-value">
-                <strong>
-                    {% if total_reviews %}
-                        {{ average_rating|floatformat:1 }}
-                    {% else %}
-                        &mdash;
-                    {% endif %}
-                </strong>
-                <span>/ 5.0</span>
-            </div>
-
-            <p>{{ total_reviews }} seller review{{ total_reviews|pluralize }}</p>
-        </div>
-
-        <div class="rating-description">
-            <h2>Every experience matters</h2>
-            <p>
-                Share your experience to help others get to know
-                this seller before their next pre-loved purchase.
-            </p>
-        </div>
-    </section>
-
-    <nav class="review-filters" aria-label="Filter reviews by rating">
-        <span class="filter-label">FILTER BY STARS</span>
-
-        <a href="{% url 'reviews:seller_reviews' seller.pk %}"
-           class="rating-filter{% if not selected_rating %} is-active{% endif %}">
-            All
-        </a>
-
-        {% for star in "54321" %}
-            <a href="?rating={{ star }}"
-               class="rating-filter{% if selected_rating == star %} is-active{% endif %}">
-                {{ star }} ★
-            </a>
-        {% endfor %}
-    </nav>
-
-    <header class="reviews-list-heading">
-        <h2>SELLER REVIEWS</h2>
-        <p>
-            {{ filtered_count }} review{{ filtered_count|pluralize }}
-            {% if selected_rating %}
-                with {{ selected_rating }} star{{ selected_rating|pluralize }}
-            {% endif %}
-        </p>
-    </header>
-
-    <section class="reviews-list" aria-label="Seller reviews">
-        {% for review in reviews %}
-            <article class="review-card seller-review">
-                <div class="review-author">
-                    <div class="reviewer-avatar" aria-hidden="true">
-                        {% if review.is_anonymous %}
-                            A
-                        {% else %}
-                            {{ review.reviewer.username|first|upper }}
-                        {% endif %}
-                    </div>
-
-                    <div>
-                        <p class="reviewer-name">
-                            {% if review.is_anonymous %}
-                                Anonymous
-                            {% else %}
-                                {{ review.reviewer.get_full_name|default:review.reviewer.username }}
-                            {% endif %}
-                        </p>
-
-                        <time datetime="{{ review.created_at|date:'c' }}">
-                            {{ review.created_at|date:"d M Y" }}
-                        </time>
-                    </div>
-                </div>
-
-                <div class="review-content">
-                    <div class="review-stars"
-                         role="img"
-                         aria-label="{{ review.rating }} out of 5 stars">
-                        {% for star in "12345" %}
-                            <span aria-hidden="true">{% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}</span>
-                        {% endfor %}
-                    </div>
-
-                    <h3>{{ review.title }}</h3>
-                    <p>{{ review.comment|linebreaksbr }}</p>
-
-                    {% if user.is_authenticated and user.pk == review.reviewer_id %}
-                        <div class="review-actions">
-                            <a href="{% url 'reviews:edit_review' review.pk %}">
-                                Edit Review
-                            </a>
-                            <a href="{% url 'reviews:delete_review' review.pk %}">
-                                Delete Review
-                            </a>
-                        </div>
-                    {% endif %}
-                </div>
-            </article>
-        {% empty %}
-            <div class="reviews-empty">
-                <span class="empty-stars" aria-hidden="true">☆☆☆☆☆</span>
-
-                {% if selected_rating %}
-                    <h3>No matching reviews</h3>
-                    <p>No reviews with {{ selected_rating }} stars yet.</p>
-                {% else %}
-                    <h3>No reviews yet</h3>
-                    <p>Be the first to share your experience with this seller.</p>
-                {% endif %}
-            </div>
-        {% endfor %}
-    </section>
-
-    {% if user.pk != seller.pk %}
-        <div class="reviews-bottom-actions">
-            <a class="review-button review-button-burgundy"
-               href="{% url 'reviews:create_review' seller.pk %}">
-                Write a Seller Review
-            </a>
-        </div>
-    {% endif %}
+    {% include "includes/messages.html" %}
+    <p class="review-status" data-review-status role="status" tabindex="-1" hidden></p>
+    <div data-review-panel>{% include "reviews/_review_panel.html" %}</div>
 </main>
 {% endblock %}

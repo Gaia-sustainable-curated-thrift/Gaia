@@ -1,0 +1,40 @@
+{% csrf_token %}
+{{ form.non_field_errors }}
+<fieldset class="review-rating-field">
+    <legend>{{ form.rating.label }}</legend>
+    <div class="review-rating-line">
+        <div class="review-star-input">
+            {% for radio in form.rating %}
+                {{ radio.tag }}
+                <label for="{{ radio.id_for_label }}"><span class="review-star-symbol" aria-hidden="true">&#9733;</span><span class="review-sr-only">{{ radio.choice_label }}</span></label>
+            {% endfor %}
+        </div>
+        <span class="review-hint">1 = poor &middot; 5 = excellent</span>
+    </div>
+    {{ form.rating.errors }}
+</fieldset>
+<fieldset class="review-aspect-field">
+    <legend>What best describes this seller? <span class="review-hint">(optional)</span></legend>
+    <div class="review-aspect-options">
+        <label class="review-aspect-option">{{ form.is_friendly }}<span>{{ form.is_friendly.label }}</span></label>
+        <label class="review-aspect-option">{{ form.is_responsive }}<span>{{ form.is_responsive.label }}</span></label>
+        <label class="review-aspect-option">{{ form.is_trustworthy }}<span>{{ form.is_trustworthy.label }}</span></label>
+    </div>
+</fieldset>
+<div class="review-field">
+    {{ form.title.label_tag }}{{ form.title }}{{ form.title.errors }}
+    <span class="review-hint">Maximum 100 characters.</span>
+</div>
+<div class="review-field">
+    {{ form.comment.label_tag }}{{ form.comment }}{{ form.comment.errors }}
+    <span class="review-hint">Maximum 2,000 characters.</span>
+</div>
+<label class="review-anonymous">
+    {{ form.is_anonymous }}<span>{{ form.is_anonymous.label }}</span>
+</label>
+{{ form.is_anonymous.errors }}
+<p class="review-status" data-form-status role="alert" tabindex="-1" hidden></p>
+<div class="review-form-actions">
+    <button class="review-button review-button-burgundy" type="submit">{% if is_edit %}Save Changes{% else %}Submit Seller Review{% endif %}</button>
+    <a class="review-button" href="{% url 'reviews:seller_reviews' seller.pk %}">Cancel</a>
+</div>

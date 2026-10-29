@@ -1,0 +1,15 @@
+{% extends "accounts/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block extra_css %}{% include "reviews/_assets.html" %}{% endblock %}
+{% block main %}
+<main class="reviews-page reviews-form-page">
+    <h1>{{ title }}</h1>
+    <section class="review-form-card">
+        <h2>{{ review.title }}</h2>
+        <form method="post" action="{{ action_url }}">
+            {% csrf_token %}{{ form.as_p }}
+            <div class="review-form-actions"><button class="review-button" type="submit">Submit</button><a href="{% url 'reviews:seller_reviews' seller.pk %}">Cancel</a></div>
+        </form>
+    </section>
+</main>
+{% endblock %}
