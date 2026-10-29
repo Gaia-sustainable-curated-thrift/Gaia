@@ -21,7 +21,9 @@ urlpatterns = [
     # URL django-allauth (Google login: /accounts/google/login/)
     path("accounts/", include("allauth.urls")),
 
-     path("products/", include("products.urls")),
+    path("products/", include("products.urls")),
+
+    path("chat/", include("chat.urls")),
 
     # Pratinjau halaman 404 (produksi otomatis pakai templates/404.html)
     path("404/", not_found, name="preview-404"),

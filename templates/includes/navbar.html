@@ -18,6 +18,10 @@
             <span class="nav-bag__count" data-bag-count aria-hidden="true" {% if not bag_count %}hidden{% endif %}>{{ bag_count }}</span>
         </button>
         {% if user.is_authenticated %}
+        <a class="icon-button nav-chat" href="{% url 'chat:inbox' %}" aria-label="Chats, {{ unread_chat_count }} unread">
+            {% include 'includes/icon.html' with name='chat' %}
+            <span class="nav-bag__count" aria-hidden="true" {% if not unread_chat_count %}hidden{% endif %}>{{ unread_chat_count }}</span>
+        </a>
         <a class="icon-button nav-wishlist" href="{% url 'wishlist' %}" aria-label="Wishlist">{% include 'includes/icon.html' with name='heart' %}</a>
         <a class="account-link nav-profile" href="{% url 'profile' %}" aria-label="My profile" title="{{ user.get_full_name|default:user.username }}">
             <span class="nav-avatar" aria-hidden="true">{% if user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="" width="40" height="40">{% endif %}</span>

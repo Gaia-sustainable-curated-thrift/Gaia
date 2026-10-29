@@ -1,0 +1,66 @@
+{% extends 'accounts/base.html' %}
+{% load static %}
+{% block title %}Chats{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/chat.css' %}"><script src="{% static 'js/chat.js' %}" defer></script>{% endblock %}
+{% block main %}
+<main class="chat-main">
+    <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><span aria-current="page">Chat</span></nav>
+    {% include 'includes/messages.html' %}
+
+    {% if has_any %}
+    <h1 class="chat-title">Chats</h1>
+    <section class="chat-card chat-inbox" data-chat-inbox data-api="{% url 'chat:api_conversations' %}" aria-labelledby="inbox-title">
+        <h2 class="chat-inbox__heading" id="inbox-title">KOTAK MASUK</h2>
+        <form class="chat-toolbar" method="get" role="search" data-chat-filters>
+            <label class="chat-search">
+                {% include 'includes/icon.html' with name='search' %}
+                <span class="visually-hidden">Search chats</span>
+                <input type="search" name="q" value="{{ q }}" placeholder="Search" autocomplete="off" data-chat-search>
+            </label>
+            <div class="chat-pills" role="group" aria-label="Filter chats">
+                <button class="chat-pill {% if filter != 'unread' %}is-active{% endif %}" type="submit" name="filter" value="all" aria-pressed="{% if filter != 'unread' %}true{% else %}false{% endif %}">All</button>
+                <button class="chat-pill {% if filter == 'unread' %}is-active{% endif %}" type="submit" name="filter" value="unread" aria-pressed="{% if filter == 'unread' %}true{% else %}false{% endif %}">Belum dibaca</button>
+            </div>
+        </form>
+
+        <ul class="chat-list" data-chat-list aria-live="polite">
+            {% for row in rows %}
+            <li>
+                <a class="chat-row {% if row.unread %}is-unread{% endif %}" href="{% url 'chat:room' row.id %}">
+                    <span class="chat-avatar chat-avatar--{{ row.kind }}" aria-hidden="true">{{ row.initials }}</span>
+                    <span class="chat-row__body">
+                        <span class="chat-row__title">{{ row.title }}</span>
+                        <span class="chat-row__preview">{{ row.preview|default:"Belum ada pesan" }}</span>
+                    </span>
+                    <span class="chat-row__meta">
+                        <time datetime="{{ row.last_at }}" data-chat-time="inbox">{{ row.last_at|slice:":10" }}</time>
+                        {% if row.unread %}<span class="chat-badge" aria-label="{{ row.unread }} belum dibaca">{{ row.unread }}</span>{% endif %}
+                    </span>
+                </a>
+            </li>
+            {% empty %}
+            <li class="chat-list__empty">Tidak ada percakapan yang cocok.</li>
+            {% endfor %}
+        </ul>
+
+        <template data-chat-skeleton>
+            <li class="chat-row chat-row--skeleton" aria-hidden="true">
+                <span class="chat-avatar"></span>
+                <span class="chat-row__body"><span class="skeleton-line"></span><span class="skeleton-line skeleton-line--long"></span></span>
+                <span class="skeleton-line skeleton-line--short"></span>
+            </li>
+        </template>
+    </section>
+
+    {% else %}
+    <h1 class="chat-title">Belum ada percakapan</h1>
+    <p class="chat-subtitle">Saat kamu menghubungi toko atau Gaia Care, percakapanmu akan muncul di sini.</p>
+    <section class="chat-card chat-empty">
+        <svg class="chat-empty__icon" viewBox="0 0 64 48" aria-hidden="true"><rect x="2" y="2" width="60" height="44" rx="4"/><path d="m4 5 28 22L60 5"/></svg>
+        <h2>Kotak masuk masih kosong</h2>
+        <p>Butuh bantuan? Mulai percakapan dengan Gaia Care.</p>
+        <form method="post" action="{% url 'chat:support' %}">{% csrf_token %}<button class="chat-button" type="submit">Start Chat</button></form>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}

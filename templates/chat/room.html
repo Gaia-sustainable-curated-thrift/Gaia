@@ -1,0 +1,79 @@
+{% extends 'accounts/base.html' %}
+{% load static account_tags %}
+{% block title %}{{ title }} · Chats{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/chat.css' %}"><script src="{% static 'js/chat.js' %}" defer></script>{% endblock %}
+{% block main %}
+<main class="chat-main">
+    <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="{% url 'chat:inbox' %}">Chat</a><span>/</span><span aria-current="page">{{ title }}</span></nav>
+    <h1 class="chat-title">Chats</h1>
+
+    <section class="chat-card chat-room" data-chat-room
+             data-messages-url="{% url 'chat:api_messages' conversation.pk %}"
+             data-offer-url="{% url 'chat:api_offer' conversation.pk 0 %}"
+             data-can-answer-offer="{% if request.user.pk == conversation.seller_id %}true{% else %}false{% endif %}"
+             aria-label="Chat with {{ title }}">
+        <header class="chat-room__header">
+            <a class="chat-back" href="{% url 'chat:inbox' %}" aria-label="Back to chats">{% include 'includes/icon.html' with name='arrow-left' %}</a>
+            <span class="chat-avatar chat-avatar--{{ conversation.kind }}" aria-hidden="true">{{ initials }}</span>
+            <div class="chat-room__who">
+                <strong>{{ title }}</strong>
+                <span class="chat-room__status">{% if conversation.kind == 'product' %}Seller · biasanya membalas dalam beberapa jam{% else %}Gaia Care · biasanya membalas dalam beberapa jam{% endif %}</span>
+            </div>
+        </header>
+
+        {% if product %}
+        <div class="chat-context">
+            <span class="chat-context__thumb">{% if product.image %}<img src="{{ product.image }}" alt="">{% else %}{{ product.title|slice:":1" }}{% endif %}</span>
+            <div class="chat-context__info">
+                <strong>{{ product.title }}</strong>
+                <span>{{ product.price|rupiah }}</span>
+            </div>
+            <a class="chat-button chat-button--outline" href="{{ product.url }}">Details</a>
+        </div>
+        {% elif conversation.order %}
+        <div class="chat-context">
+            <span class="chat-context__thumb">OR</span>
+            <div class="chat-context__info">
+                <strong>Order #{{ conversation.order.number }}</strong>
+                <span>{{ conversation.order.title }} · {{ conversation.order.get_status_display }}</span>
+            </div>
+            {% if request.user.pk == conversation.buyer_id %}<a class="chat-button chat-button--outline" href="{% url 'order_detail' conversation.order.pk %}">Details</a>{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="chat-thread" data-chat-thread role="log" aria-live="polite" aria-label="Messages">
+            <p class="chat-thread__empty" data-chat-empty {% if thread %}hidden{% endif %}>Belum ada pesan. Sapa {{ title }} duluan!</p>
+        </div>
+        {{ thread|json_script:"chat-initial" }}
+
+        <form class="chat-composer" data-chat-composer novalidate>
+            {% csrf_token %}
+            <div class="chat-attach">
+                <button class="chat-attach__toggle" type="button" aria-label="Attach" aria-expanded="false" data-chat-attach-toggle>{% include 'includes/icon.html' with name='plus' %}</button>
+                <div class="chat-attach__menu" data-chat-attach-menu hidden>
+                    <label class="chat-attach__item">Kirim foto<input type="file" name="image" accept="image/*" data-chat-image hidden></label>
+                    {% if can_offer %}<button class="chat-attach__item" type="button" data-chat-offer-open>Buat penawaran</button>{% endif %}
+                </div>
+            </div>
+            <label class="visually-hidden" for="chat-input">Message</label>
+            <input class="chat-composer__input" id="chat-input" name="body" type="text" maxlength="2000" placeholder="Ketik pesan..." autocomplete="off" data-chat-input>
+            <button class="chat-send" type="submit" aria-label="Send">{% include 'includes/icon.html' with name='arrow-right' %}</button>
+        </form>
+        <p class="chat-error" data-chat-error role="alert" hidden></p>
+
+        {% if can_offer %}
+        <dialog class="chat-offer-dialog" data-chat-offer-dialog aria-labelledby="offer-title">
+            <form method="dialog" data-chat-offer-form>
+                <h2 id="offer-title">Buat penawaran</h2>
+                {% if product %}<p>Harga sekarang {{ product.price|rupiah }}</p>{% endif %}
+                <label class="chat-offer-dialog__field">Rp<input type="number" name="offer_price" min="1000" step="1000" required inputmode="numeric"></label>
+                <div class="chat-offer-dialog__actions">
+                    <button class="chat-button chat-button--outline" type="button" data-chat-offer-cancel>Batal</button>
+                    <button class="chat-button" type="submit">Kirim penawaran</button>
+                </div>
+            </form>
+        </dialog>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}
