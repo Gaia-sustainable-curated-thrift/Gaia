@@ -1,59 +1,76 @@
 # Catatan TDD Review & Rating
 
-CRUD awal sudah dikerjakan sebelumnya. Tes regresi melindungi fitur tersebut;
-catatan ini tidak mengklaim seluruh kode awal dibuat dengan TDD.
-Siklus berikut benar-benar menjalankan tes gagal sebelum memperbaiki kode.
+CRUD awal sudah dikerjakan sebelumnya dan dilindungi tes regresi.
+Catatan ini tidak mengklaim seluruh kode awal dibuat dengan TDD.
+Pada siklus berikut, tes gagal dijalankan sebelum kode diperbaiki.
 
 ## 1. Data demo yang dapat diulang
 
-**Red:** test_seed_is_repeatable_and_preserves_existing_review gagal dengan
-Unknown command: seed_reviews.
+**Red:** `test_seed_is_repeatable_and_preserves_existing_review`
+gagal karena command `seed_reviews` belum tersedia.
 
-**Green:** implementasi command seed_reviews menambahkan data berlabel [Demo]
-menggunakan get_or_create dalam transaksi. Tes dijalankan dua kali; pertama
-membuat lima review, kedua nol. Review awal tetap utuh.
+**Green:** command menggunakan `get_or_create` dalam transaksi.
+Pemanggilan pertama membuat lima review, sedangkan pemanggilan
+kedua membuat nol. Review awal tetap utuh.
 
-**Refactor:** validasi seller dan jumlah data, lalu tambah pengujian default 50.
+**Refactor:** menambahkan validasi seller dan jumlah data,
+serta pengujian jumlah default 50 review.
 
 ## 2. Melindungi akun pengguna yang sudah ada
 
-**Red:** test_seed_does_not_impersonate_an_existing_real_account gagal karena
-command semula menggunakan akun yang namanya cocok dengan nama demo.
+**Red:** `test_seed_does_not_impersonate_an_existing_real_account`
+gagal karena command menggunakan akun yang namanya cocok dengan
+nama akun demo.
 
 **Green:** command menolak akun yang sudah mempunyai password.
 
-Tes tambahan untuk akun aktif tanpa password juga ditulis terlebih dahulu.
-Tes itu gagal, lalu aturan diperbaiki: akun demo baru dibuat nonaktif; akun
-aktif atau akun berpassword yang sudah ada ditolak. Transaksi membatalkan
-perubahan jika terjadi benturan.
+Tes tambahan untuk akun aktif tanpa password juga ditulis terlebih
+dahulu dan gagal. Implementasi kemudian diperbaiki: akun demo baru
+dibuat nonaktif, sedangkan akun aktif atau akun berpassword yang
+sudah ada ditolak. Transaksi membatalkan perubahan saat terjadi benturan.
 
 ## 3. Feedback ketika AJAX gagal
 
-**Red:** tes browser memutus request Helpful. Pesan status tetap tersembunyi.
+**Red:** tes browser memutus request Helpful, tetapi pesan status
+tetap tersembunyi.
 
-**Green:** helper status mencari area status pada halaman jika form aksi tidak
-memiliki area pesan sendiri. Pengguna mendapat pesan error dan tombol aktif lagi.
+**Green:** helper mencari area status halaman ketika form aksi
+tidak memiliki area pesan sendiri. Pesan error ditampilkan dan
+tombol kembali aktif.
 
 ## 4. Akses rating lewat keyboard
 
-**Red:** tes browser memilih rating 3 lalu menekan ArrowRight. Rating 4 tidak terpilih
-karena DOM radio diurutkan terbalik demi CSS bintang.
+**Red:** setelah memilih rating 3 dan menekan ArrowRight, rating 4
+tidak terpilih karena urutan radio dalam DOM terbalik.
 
-**Green:** radio dikembalikan ke urutan 1–5. CSS :has() mengatur highlight bintang
-tanpa membalik urutan DOM. Klik dan navigasi keyboard sama-sama bekerja.
+**Green:** radio dikembalikan ke urutan 1–5. CSS `:has()` mengatur
+highlight bintang tanpa membalik urutan DOM. Rating dapat dipilih
+melalui klik maupun keyboard.
 
 ## Regresi yang diuji
 
-- Create, edit, delete, data tidak valid, dan request yang tidak diizinkan.
-- Login, kepemilikan, larangan review diri sendiri, dan manipulasi ID melalui POST.
-- Validasi rating/panjang teks dan constraint database.
-- Anonimitas, informasi berbasis login, escaping HTML, serta CSRF pada AJAX.
-- Rata-rata global tetap sama saat filter, distribusi, sorting, pagination.
+- Create, edit, delete, input tidak valid, dan metode request.
+- Login, kepemilikan, larangan review diri sendiri, dan manipulasi ID.
+- Validasi rating, panjang teks, serta constraint database.
+- Anonimitas, informasi berbasis login, escaping HTML, dan CSRF AJAX.
+- Rata-rata global saat filter, distribusi rating, sorting, dan pagination.
 - Helpful, balasan seller, laporan privat, dan akses halaman review seller.
-- Komponen menu seller dan rating database diuji secara terpisah; integrasi ke halaman akun dan produk ditunda.
-- Browser: CRUD AJAX, filter tanpa reload, Helpful/Report/balasan, desktop/ponsel,
-  keyboard, error jaringan, dan fallback tanpa JavaScript.
+- Komponen menu seller dan rating database secara terpisah.
+  Integrasi ke halaman akun dan produk ditunda.
+- Browser: CRUD AJAX, filter tanpa reload, Helpful, laporan, balasan,
+  tampilan desktop/ponsel, keyboard, kegagalan jaringan,
+  dan fallback tanpa JavaScript.
 
-Hasil final dan log red/green disertakan dalam paket pembaruan, folder evidence.
-Coverage hanya menghitung kode Python produksi pada app reviews, termasuk cabang
-kondisi; tidak menghitung template, CSS, JavaScript, migrasi, atau kode tes.
+## Hasil pengujian
+
+- Tes modul review: 42 tes lulus.
+- Tes browser review: 4 tes lulus.
+- Tes seluruh proyek setelah sinkronisasi main: 170 tes lulus.
+- Django system check: tidak ditemukan masalah.
+- Coverage Python modul review dengan pengukuran cabang: 99,07%.
+- Coverage `reviews/views.py`: 100%.
+
+Coverage dihitung dari kode Python produksi pada app `reviews`.
+Template, CSS, JavaScript, migrasi, dan kode tes tidak dihitung
+dalam persentase tersebut. Perilaku browser diperiksa melalui
+tes browser yang dijalankan secara terpisah.
