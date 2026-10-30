@@ -2,12 +2,14 @@ from django.contrib import admin
 from .models import Conversation, Message
 # Register your models here.
 
+# Tampilin pesan di dalam halaman detail chat
 class MessageInline(admin.TabularInline):
     model = Message
     extra = 0
     fk_name = 'conversation'
 
 
+# Pengaturan daftar chat di /admin
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
     list_display = ('kind', 'product', 'order', 'buyer', 'seller', 'updated_at')

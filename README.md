@@ -205,12 +205,81 @@ Semua rute berikut menggunakan awalan `/accounts/`.
 
 ## Modul Chat (Deva)
 
-- Inbox dan ruang percakapan untuk buyer?seller, bantuan Gaia Care, serta pertanyaan terkait pesanan.
-- Pesan teks, gambar, berbagi produk, penawaran harga, status baca, dan penghitung pesan belum dibaca. Penawaran dapat diterima/ditolak oleh seller; harga hasil penawaran belum diterapkan otomatis pada checkout.
-- Akses percakapan dibatasi ke peserta. Akun support harus merupakan akun staff aktif yang dipercaya aplikasi.
-- Pembaruan percakapan menggunakan polling endpoint JSON internal, bukan Django Channels/WebSocket.
+Modul Chat menyediakan percakapan antara buyer dan seller mengenai produk, serta percakapan dengan Gaia Care untuk bantuan umum dan pertanyaan pesanan. Modul ini terhubung dengan Product melalui tombol **Chat** pada detail produk, dengan User melalui area akun, dan dengan Transaksi melalui detail pesanan. Pembaruan pesan menggunakan API JSON internal dengan polling.
 
-Kode utama berada di `chat/models.py`, `chat/services.py`, `chat/views.py`, serta template dan JavaScript chat. Rute utamanya `/chat/`, `/chat/<pk>/`, `/chat/support/`, `/chat/order/<order_id>/`, dan `/chat/api/...`.
+### Fitur
+
+- **Inbox:** daftar percakapan terbaru, pencarian, filter **All** dan **Belum dibaca**, jumlah pesan belum dibaca per percakapan, empty state, serta skeleton saat data dimuat.
+- **Ruang chat:** kartu produk atau pesanan sebagai konteks, pemisah tanggal, balon pesan, waktu kirim, serta status **Sent** dan **Read**.
+- **Jenis percakapan:** chat produk antara buyer dan seller, chat support dengan Gaia Care, dan chat pesanan antara pembeli dan Gaia Care. Percakapan yang sudah ada dipakai kembali sehingga tidak terbentuk duplikat.
+- **Jenis pesan:** teks hingga 2.000 karakter, foto, penawaran harga, kartu produk, dan pesan sistem.
+- **Penawaran harga:** buyer mengajukan harga pada chat produk, lalu seller dapat menerima atau menolak selama produk masih tersedia.
+- **Pintu masuk:** ikon chat dengan jumlah pesan belum dibaca pada navbar, menu navigasi, menu **Messages** di area akun, tombol **Chat** pada detail produk, **Contact** pada footer, dan **Tanya soal pesanan ini** pada detail pesanan.
+- **Pembaruan otomatis:** ruang chat memeriksa pesan baru, status baca, dan status penawaran setiap 3 detik, sedangkan inbox diperbarui setiap 15 detik.
+- **Waktu lokal:** server mengirim waktu berformat ISO, lalu browser menampilkannya sesuai zona waktu pengguna.
+
+### Hak akses dan batas integrasi
+
+| Aksi | Guest | Pengguna login |
+| ---- | ----- | -------------- |
+| Membuka inbox atau ruang chat | diarahkan ke login | hanya percakapan yang diikuti; selain itu menerima 404 |
+| Memulai chat produk | diarahkan ke login | tersedia, kecuali pada produk sendiri |
+| Memulai chat support | diarahkan ke login | satu percakapan untuk setiap pengguna |
+| Memulai chat pesanan | diarahkan ke login | hanya pemilik pesanan |
+| Mengirim pesan | tidak | hanya peserta percakapan |
+| Mengajukan penawaran | tidak | hanya buyer pada chat produk yang listingnya masih tersedia |
+| Menerima atau menolak penawaran | tidak | hanya seller pada percakapan tersebut |
+| Membuka foto chat | tidak | hanya peserta percakapan |
+
+Aturan pengiriman pesan dan penawaran diperiksa pada `chat/services.py`, sehingga aturan yang sama berlaku untuk setiap request. Permintaan yang mengubah data memakai POST dan CSRF, kecuali pembukaan chat support dan chat pesanan yang juga dapat melalui tautan biasa karena hanya membuka percakapan yang sama. Akun Gaia Care harus berupa akun staff aktif. Kartu produk disembunyikan ketika produk sudah tidak dijual, tetapi riwayat pesan tetap tersimpan.
+
+Batas integrasi saat ini:
+
+- Harga dari penawaran yang diterima belum diterapkan otomatis pada checkout modul Transaksi.
+- Pesan sistem sudah tersedia pada service, tetapi belum dipanggil otomatis ketika status pesanan berubah.
+- Pengiriman kartu produk tersedia melalui API, tetapi belum memiliki tombol pada antarmuka.
+- Status online belum tersedia dan jumlah pesan belum dibaca pada navbar diperbarui saat halaman dimuat.
+- Batas ukuran foto saat upload belum diterapkan khusus pada modul Chat.
+
+### Alur penggunaan
+
+1. Pengguna membuka percakapan dari detail produk, footer, detail pesanan, atau inbox.
+2. Sistem mengambil percakapan yang sudah ada atau membuat percakapan baru, lalu membuka ruang chat.
+3. `chat.js` mengirim pesan ke API. Service memvalidasi pesan, menyimpannya, dan menaikkan percakapan ke urutan teratas inbox.
+4. Halaman lawan bicara mengambil pesan yang lebih baru melalui polling, lalu menandainya sudah dibaca.
+5. Polling pada halaman pengirim mengubah status pesan menjadi **Read** dan menampilkan perubahan status penawaran.
+
+Polling dipilih karena tidak memerlukan server ASGI tambahan. Aturan bisnis dipisahkan pada service agar Django Channels dapat ditambahkan kemudian tanpa menulis ulang aturan pesan, setelah dukungan ASGI dan WebSocket pada deployment dipastikan.
+
+### Peta kode
+
+| File | Isi |
+| ---- | --- |
+| `chat/models.py` | model `Conversation` dan `Message`, constraint percakapan unik, serta validasi isi pesan |
+| `chat/services.py` | aturan memulai percakapan, mengirim pesan, penawaran, status baca, dan format data JSON |
+| `chat/views.py`, `chat/urls.py` | halaman inbox dan ruang chat, pembuka percakapan, serta API internal |
+| `chat/context_processors.py` | jumlah pesan belum dibaca untuk navbar |
+| `chat/admin.py` | pemantauan percakapan dan pesan melalui Django Admin |
+| `chat/migrations/` | skema percakapan dan pesan |
+| `templates/chat/` | halaman inbox, empty state, skeleton, dan ruang chat |
+| `static/js/chat.js`, `static/css/chat.css` | polling, pengiriman pesan, interaksi, dan styling |
+| `chat/tests.py` | pengujian aturan chat, halaman, pintu masuk, dan identitas akun support |
+
+### Rute
+
+Semua rute berikut menggunakan awalan `/chat/`.
+
+| URL | Method | Fungsi |
+| --- | ------ | ------ |
+| *(kosong)* | GET | inbox |
+| `<pk>/` | GET | ruang chat |
+| `start/<product_id>/` | POST | membuka chat produk |
+| `support/` | GET, POST | membuka chat Gaia Care |
+| `order/<order_id>/` | GET, POST | membuka chat pesanan |
+| `api/conversations/` | GET | data inbox dengan parameter `q` dan `filter=unread` |
+| `api/<pk>/messages/` | GET | pesan setelah `after`, status baca, dan status penawaran |
+| `api/<pk>/messages/` | POST | mengirim pesan |
+| `api/<pk>/offers/<message_id>/` | POST | menerima atau menolak penawaran |
 
 ## Modul Transaksi (Salma)
 
@@ -237,11 +306,83 @@ Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Re
 
 ## Modul Review & Rating (Keisha)
 
-- Review dan rating seller dikaitkan dengan pesanan yang sudah completed. Aksi memberi review tersedia dari detail My Orders ketika pengguna memenuhi syarat.
-- Pengguna dapat melihat ringkasan rating seller dan menyaring review berdasarkan bintang. Pemilik review dapat mengedit atau menghapus review miliknya.
-- Fitur pendukung meliputi penandaan helpful, balasan seller, dan pelaporan review dengan pemeriksaan akses pada backend.
+Modul ini memungkinkan buyer memberikan penilaian atas pengalaman bertransaksi dengan seller. Review ditujukan kepada akun seller, sehingga ulasan dari pembelian produk thrift yang berbeda terkumpul pada seller yang sama.
 
-Kode utama berada di `reviews/models.py`, `reviews/forms.py`, `reviews/views.py`, dan template tag pada `reviews/templatetags/`. Rute utama meliputi `/reviews/account/`, `/reviews/seller/<seller_id>/`, serta `/reviews/order/<order_id>/create/`.
+### Fitur
+
+- **CRUD review:** membuat, melihat, mengedit, dan menghapus review.
+- **Rating bintang:** memilih rating 1-5 melalui klik atau keyboard.
+- **Form review:** judul, komentar, pilihan anonim, dan aspek layanan seller.
+- **Ringkasan rating:** rata-rata, jumlah review, dan distribusi bintang.
+- **Filter dan sorting:** filter berdasarkan bintang, dengan urutan terbaru, rating tertinggi, atau paling Helpful.
+- **Pagination:** enam review per halaman.
+- **Helpful:** menandai atau membatalkan review yang dianggap membantu.
+- **Balasan seller:** seller dapat menambahkan, memperbarui, dan menghapus balasannya.
+- **Laporan review:** pengguna dapat melaporkan review kepada admin.
+- **AJAX:** pengiriman form, filter, dan aksi pendukung tanpa reload, dengan pesan kesalahan dan fallback tanpa JavaScript.
+- **Tampilan responsif:** mengikuti desain GAIA menggunakan template bersama, Bootstrap grid, dan CSS modul.
+
+### Hak akses dan verifikasi pembelian
+
+| Aksi | Ketentuan |
+| ---- | --------- |
+| Melihat review seller | tersedia bagi guest dan pengguna login |
+| Membuat review | login dan memiliki pesanan `completed` untuk seller tersebut yang belum diulas |
+| Mengedit atau menghapus review | hanya pembuat review |
+| Membalas review | hanya seller yang menerima review |
+| Menandai Helpful | pengguna login selain pembuat review dan seller yang dinilai |
+| Melaporkan review | pengguna login selain pembuat review |
+| Membuka Seller Reviews di My Account | seller yang login, untuk melihat review yang diterimanya |
+
+Satu pesanan hanya dapat memiliki satu review pada satu waktu, dan pengguna tidak dapat mereview dirinya sendiri. Kepemilikan dan kelayakan pesanan diperiksa pada backend; identitas reviewer, seller, dan pesanan tidak dapat diganti melalui form edit.
+
+Badge **Verified buyer** memeriksa kesesuaian buyer, seller, dan status pesanan aplikasi. Review lama atau data demo tanpa relasi pesanan tidak mendapat badge tersebut.
+
+Modul ini menggunakan database Django untuk menyimpan review, melakukan filter, dan memeriksa kelayakan pesanan. Endpoint AJAX merupakan API internal aplikasi; modul ini tidak menggunakan public API eksternal khusus.
+
+### Alur penggunaan
+
+1. Buyer melakukan pembelian melalui modul Transaksi.
+2. Setelah pesanan berstatus `completed`, detail My Orders menampilkan tombol **Review Seller**.
+3. Buyer mengisi rating dan review.
+4. Review tampil pada halaman seller.
+5. Buyer dapat mengedit atau menghapus review miliknya.
+6. Seller membuka **My Account → Seller Reviews** untuk melihat dan membalas review.
+
+Rating seller pada halaman produk menjadi tautan ke halaman review seller. Perubahan status pembayaran dan pengiriman tetap ditangani modul Transaksi.
+
+### Peta kode
+
+| File | Isi |
+| ---- | --- |
+| `reviews/models.py` | model review, laporan, relasi pesanan, dan constraint database |
+| `reviews/forms.py` | form review, pilihan pesanan, balasan, dan laporan |
+| `reviews/purchases.py` | query pesanan yang memenuhi syarat untuk diulas |
+| `reviews/views.py`, `reviews/urls.py` | pemrosesan request dan routing modul |
+| `reviews/templatetags/` | komponen review pada akun, produk, dan pesanan |
+| `reviews/management/commands/` | pembuatan data review demo |
+| `templates/reviews/` | halaman dan partial template review |
+| `static/js/reviews.js`, `static/css/reviews.css` | interaksi AJAX, styling, dan responsivitas |
+| `reviews/tests.py`, `reviews/test_purchases.py` | pengujian backend dan integrasi pembelian |
+| `reviews/e2e.py` | pengujian browser |
+| `reviews/TDD.md` | catatan siklus TDD |
+
+### Rute
+
+Semua rute berikut menggunakan awalan `/reviews/`.
+
+| URL | Fungsi |
+| --- | ------ |
+| `seller/<seller_id>/` | daftar dan ringkasan review seller |
+| `seller/<seller_id>/create/` | membuat review berdasarkan pesanan yang memenuhi syarat |
+| `order/<order_id>/create/` | membuat review dari detail pesanan |
+| `account/` | review yang diterima seller yang login |
+| `<review_id>/edit/` | mengedit review sendiri |
+| `<review_id>/delete/` | konfirmasi dan penghapusan review sendiri |
+| `<review_id>/helpful/` | menambah atau membatalkan Helpful |
+| `<review_id>/reply/` | menyimpan balasan seller |
+| `<review_id>/reply/delete/` | menghapus balasan seller |
+| `<review_id>/report/` | melaporkan review |
 
 ## API dan Integrasi MVP
 
@@ -366,6 +507,29 @@ python manage.py test accounts.e2e products.e2e reviews.e2e --noinput
 
 Kalau Chrome atau Edge sudah terpasang, set `GAIA_TEST_BROWSER` ke lokasi file aplikasinya agar tidak perlu mengunduh Chromium.
 
+### Pengujian modul Chat
+
+```bash
+python manage.py test chat
+python -m coverage run --branch --source=chat --omit='chat/tests.py,chat/migrations/*' manage.py test chat
+python -m coverage report --show-missing
+```
+
+Skenario mencakup percakapan yang dipakai kembali, larangan chat pada produk sendiri, validasi pesan, akses peserta, alur penawaran, produk yang terjual atau terhapus, urutan inbox, pencarian, filter belum dibaca, status baca, halaman inbox dan ruang chat, pintu masuk chat, serta identitas akun Gaia Care. Tes berjalan pada database terpisah dan belum mencakup pengujian browser otomatis untuk polling.
+
+### Pengujian modul Review & Rating
+
+Pengujian mencakup CRUD, validasi input, autentikasi, kepemilikan, verifikasi pembelian, manipulasi ID, CSRF, anonimitas, ringkasan dan filter rating, Helpful, balasan, serta laporan. Tes browser mencakup AJAX, fallback tanpa JavaScript, navigasi keyboard, kegagalan jaringan, dan tampilan responsif.
+
+```bash
+python manage.py test reviews --noinput
+pip install -r reviews/requirements-dev.txt
+python -m playwright install chromium
+python manage.py test reviews.e2e --noinput
+```
+
+CRUD awal dilindungi tes regresi. TDD diterapkan pada pengembangan dan perbaikan berikutnya melalui siklus tes gagal, implementasi atau perbaikan, lalu tes lulus. Tidak seluruh kode awal diklaim dibuat dengan TDD. Catatan lengkap tersedia pada [reviews/TDD.md](reviews/TDD.md).
+
 ## Alur Kerja Git
 
 - **Branch per orang dan per fitur**, misalnya `feat/products` atau `feat/chat`; tidak ada yang commit langsung ke `main`.
@@ -433,6 +597,8 @@ Tim menggunakan AI sebagai asisten pemrograman dan mencatat penggunaannya secara
 | --- | --- | --- |
 | **Claude Code** (asisten pemrograman dari Anthropic, dijalankan dari terminal/aplikasi desktop) | Kayla, modul Product | Menulis dan merapikan kode, menulis test, menambah animasi, menyusun CI, mereview kode, dan menjelaskan kode. |
 | **OpenAI Codex / ChatGPT** | Danar, modul User / Authentication | Membantu memahami Django dan pembagian modul, menganalisis desain, menyusun dan meninjau implementasi akun, pengujian, integrasi, serta dokumentasi. |
+| **Claude Code** (asisten pemrograman dari Anthropic, dijalankan dari ekstensi VS Code) | Deva, modul Chat dan integrasi awal login Google | Membantu merancang dan menyusun kode, membuat template, CSS, JavaScript, dan test, menelusuri bug, menguji di browser, memandu Git, menjelaskan kode, serta menyusun dokumentasi. |
+| **OpenAI ChatGPT / Codex** | Keisha, modul Review & Rating | Membantu memahami Python dan Django, menyusun serta memperbaiki kode, menyesuaikan desain, menyusun pengujian dan dokumentasi, serta memandu Git. |
 
 ### Bantuan AI untuk Product (Kayla)
 
@@ -447,17 +613,46 @@ Catatan penggunaan Claude Code mencakup penulisan dan perapian kode, penulisan t
 
 Rekaman percakapan yang disertakan oleh pengembang: [Percakapan Codex/ChatGPT untuk modul User](https://chatgpt.com/s/cx_6ae4a2e5c8bc81918c1238f575ae4137).
 
+### Bantuan AI untuk Chat (Deva)
+
+- AI membantu memetakan frame chat pada Figma menjadi kebutuhan data, halaman, dan alur antarmuka.
+- AI membantu merancang dan menyusun kode model, service, view, URL, serta API internal chat. Sebagian kode diterapkan oleh pengembang dari contoh yang diberikan, dan sebagian diterapkan langsung oleh AI atas instruksi pengembang.
+- AI membuatkan bagian teknis berupa template inbox dan ruang chat, CSS, JavaScript polling, interaksi penawaran, serta test modul.
+- AI membantu menghubungkan chat dengan detail produk, navbar, area akun, footer, dan detail pesanan.
+- AI membantu menelusuri bug, menguji alur chat di browser pada salinan database, memandu operasi Git, menjelaskan kode, menambahkan komentar singkat untuk pembelajaran, serta menyusun dokumentasi modul.
+
+Pada modul User, AI juga membantu integrasi awal login Google menggunakan `django-allauth`.
+
+### Bantuan AI untuk Review & Rating (Keisha)
+
+- AI membantu memahami Python dan Django, menulis serta memperbaiki kode, menyesuaikan desain, menyusun pengujian dan dokumentasi, serta memberikan panduan Git.
+- AI membantu pengembangan model, form, view, URL, template, CSS, dan JavaScript untuk CRUD review, pilihan bintang, ringkasan dan filter rating, AJAX, Helpful, balasan seller, laporan, serta verifikasi pembelian.
+- AI membantu integrasi dengan akun, produk, dan pesanan, penyesuaian Figma, serta pemeriksaan navbar dan tampilan mobile.
+- AI membantu menyusun tes, menganalisis kegagalan, memperbaiki implementasi, dan menyiapkan paket pembaruan. Sebagian pengujian juga dijalankan AI pada salinan kode. Implementasi mendapat bantuan AI secara langsung dan tidak diklaim seluruhnya ditulis manual.
+
 ### Strategi prompt
 
 Untuk modul User, konteks diberikan berupa file proyek, referensi desain, materi tutorial, dan kebutuhan fitur. Permintaan dilakukan bertahap: membaca dan menganalisis terlebih dahulu, menjelaskan pilihan implementasi, lalu melakukan pekerjaan yang diminta. Audit dipersempit ke modul User saat diperlukan, dan temuan dibedakan antara tanggung jawab akun dengan integrasi Product, Transaksi, Chat, serta Review & Rating.
+
+Untuk modul Chat, konteks yang diberikan berupa repository, desain Figma, hasil terminal, dan keputusan pengembang. Pengerjaan dilakukan bertahap dari model, service, API, tampilan, hingga integrasi, dengan pratinjau kode pada banyak tahap serta penjelasan alur untuk dipelajari.
+
+Untuk modul Review & Rating, konteks yang diberikan berupa ketentuan tugas, repository, desain Figma, potongan kode, dan hasil terminal. Pengerjaan dilakukan bertahap dari fitur sederhana untuk dipelajari, kemudian dilengkapi sesuai kebutuhan modul. Perubahan pada bagian bersama dibahas untuk membatasi dampaknya terhadap modul anggota lain.
 
 ### Keterbatasan AI yang ditemui
 
 Pada modul User, saran awal AI perlu dicocokkan dengan versi kode terbaru dan pembagian tugas tim. Contohnya, audit sempat mencampur kekurangan akun dengan alur transaksi yang merupakan tanggung jawab modul lain. Coverage 100% juga tidak menjamin semua perilaku benar: audit lanjutan menemukan kasus khusus pada registrasi bersamaan, verifikasi email, akun Google, dan penghapusan akun dengan penjualan aktif. Hasil tes lokal tidak menjadi bukti bahwa konfigurasi OAuth/SMTP di PWS atau seluruh tampilan browser telah berfungsi.
 
+Pada modul Chat, hasil awal AI tetap memerlukan pemeriksaan. Test menemukan fungsi pratinjau pesan yang gagal pada pesan teks, urutan inbox sempat hilang ketika query memakai agregasi, dan script debug AI sempat meninggalkan data uji pada database lokal sehingga harus dibersihkan. Hasil test lokal juga tidak menjadi bukti bahwa seluruh alur sudah berjalan pada PWS.
+
+Pada modul Review & Rating, saran AI perlu dicocokkan dengan versi kode, struktur template, dan desain proyek. Pengujian lokal tidak otomatis membuktikan migrasi, data, dan konfigurasi PWS sudah benar. Tes dan coverage tidak menjamin aplikasi bebas seluruh bug atau celah keamanan. Verifikasi review menggunakan catatan pesanan aplikasi, bukan bukti pembayaran dari bank atau payment gateway.
+
 ### Peran pengembang dan pemeriksaan hasil
 
 Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, membahas kelayakan serta pembagian fitur, dan mengoordinasikan integrasi dengan anggota tim. Percakapan juga mencakup peninjauan hasil coverage yang dijalankan pengembang. Bantuan AI mencakup kode dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir terhadap perubahan, kesesuaian dengan tugas, dan perilaku aplikasi tetap menjadi tanggung jawab pengembang modul.
+
+Untuk modul Chat, Deva menentukan cakupan fitur berdasarkan Figma dan kebutuhan tugas, memilih jenis percakapan dan pesan, memutuskan penggunaan polling, meninjau pratinjau kode, menguji alur secara manual menggunakan dua akun, menjalankan perintah Git, serta mengoordinasikan perubahan pada file bersama. Bantuan AI mencakup kode, test, dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir dan tanggung jawab atas perubahan tetap berada pada pengembang modul.
+
+Untuk modul Review & Rating, Keisha menentukan kebutuhan dan batas fitur, memberikan referensi, meminta revisi, menerapkan perubahan, menjalankan perintah Git serta tes, dan mempelajari alur kode melalui penjelasan dan latihan. Pengujian manual lokal mencakup checkout pesanan uji, perubahan status melalui admin, pembuatan, pengeditan, dan penghapusan review, serta pemeriksaan review dan balasan dari akun seller. Data demo diberi label sintetis dan tidak diklaim sebagai transaksi atau ulasan nyata. Tanggung jawab atas perubahan yang dikumpulkan tetap berada pada pengembang modul.
 
 <!-- Anggota lain dapat menambahkan disclosure berdasarkan penggunaan AI yang benar-benar dilakukan pada modul masing-masing. -->
 
