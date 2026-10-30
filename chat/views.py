@@ -9,6 +9,7 @@ from . import services
 from .models import Conversation, Message
 
 
+# Ambil chat, kalau bukan pesertanya kasih 404
 def _get_conversation(request, pk):
     conversation = get_object_or_404(Conversation.objects.select_related('buyer', 'seller', 'product', 'order'), pk=pk)
     if not conversation.has_participant(request.user):
@@ -16,6 +17,7 @@ def _get_conversation(request, pk):
     return conversation
 
 
+# Ambil daftar chat sesuai search (?q=) dan filter (?filter=unread)
 def _inbox_rows(request):
     rows = services.conversations_for(
         request.user,
@@ -27,6 +29,7 @@ def _inbox_rows(request):
 
 # Halaman
 
+# Halaman daftar chat. has_any False berarti tampil Belum ada percakapan
 @login_required
 def inbox(request):
     return render(request, 'chat/inbox.html', {
@@ -37,6 +40,7 @@ def inbox(request):
     })
 
 
+# Halaman ruang chat. Pas dibuka, pesan lawan bicara ditandai sudah dibaca
 @login_required
 def room(request, pk):
     conversation = _get_conversation(request, pk)
@@ -59,6 +63,7 @@ def room(request, pk):
 
 # Tombol buka chat
 
+# Tombol Chat di detail produk, lalu masuk ke ruang chat
 @login_required
 @require_POST
 def start_product_chat(request, product_id):
@@ -71,6 +76,7 @@ def start_product_chat(request, product_id):
     return redirect('chat:room', pk=conversation.pk)
 
 
+# Tombol Start Chat dan footer Contact, lalu masuk ke chat Gaia Care
 @login_required
 @require_http_methods(['GET', 'POST'])
 def start_support_chat(request):
@@ -82,6 +88,7 @@ def start_support_chat(request):
     return redirect('chat:room', pk=conversation.pk)
 
 
+# Tombol di detail pesanan. Cuma pemilik pesanan yang bisa buka
 @login_required
 @require_http_methods(['GET', 'POST'])
 def start_order_chat(request, order_id):
@@ -96,16 +103,19 @@ def start_order_chat(request, order_id):
 
 # API
 
+# API inbox, dipanggil chat.js buat search, filter, dan refresh
 @login_required
 def api_conversations(request):
     return JsonResponse({'conversations': _inbox_rows(request)})
 
 
+# API pesan. GET ambil pesan baru (polling), POST kirim pesan
 @login_required
 @require_http_methods(['GET', 'POST'])
 def api_messages(request, pk):
     conversation = _get_conversation(request, pk)
 
+    # GET: pesan setelah id ?after=, status read, dan status offer
     if request.method == 'GET':
         after = request.GET.get('after', '0')
         new = conversation.messages.filter(pk__gt=int(after) if after.isdigit() else 0).select_related('sender', 'product')
@@ -137,6 +147,7 @@ def api_messages(request, pk):
     return JsonResponse({'message': services.serialize_message(message, request.user)}, status=201)
 
 
+# API seller terima atau tolak penawaran
 @login_required
 @require_POST
 def api_offer(request, pk, message_id):

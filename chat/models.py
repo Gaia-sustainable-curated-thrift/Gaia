@@ -6,7 +6,9 @@ from accounts.models import AccountOrder
 from products.models import Product
 
 
+# Satu ruang chat antara buyer dan lawan bicaranya (seller atau Gaia Care)
 class Conversation(models.Model):
+    # Jenis chat: soal produk, soal pesanan, atau bantuan umum
     class Kind(models.TextChoices):
         PRODUCT = 'product', 'Product'
         ORDER = 'order', 'Order'
@@ -21,6 +23,7 @@ class Conversation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # 1 chat per produk per buyer, 1 per pesanan, 1 support per user. Chat terbaru di atas
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=['product', 'buyer'], condition=Q(kind='product'), name='unique_product_buyer_conversation'),
@@ -29,30 +32,37 @@ class Conversation(models.Model):
         ]
         ordering = ['-updated_at', '-pk']
 
+    # Buyer dan seller harus beda orang, chat order wajib ada pesanannya
     def clean(self):
         if self.buyer_id and self.buyer_id == self.seller_id:
             raise ValidationError('A conversation needs two different people.')
         if self.kind == self.Kind.ORDER and not self.order_id:
             raise ValidationError('Order conversation needs an order.')
 
+    # Cek user ini peserta chat atau bukan, dipakai buat hak akses
     def has_participant(self, user):
         return user.pk in (self.buyer_id, self.seller_id)
 
+    # Ambil lawan bicara dari sudut pandang user ini
     def other_participant(self, user):
         return self.seller if user.pk == self.buyer_id else self.buyer
 
+    # Nama yang tampil di inbox dan header chat
     def title_for(self, user):
         if self.kind == self.Kind.ORDER and self.order:
             return f'Order #{self.order.number}'
         other = self.other_participant(user)
         return other.get_full_name() or other.username
 
+    # Label chat di halaman admin
     def __str__(self):
         subject = self.product or self.order or 'support'
         return f'[{self.kind}] {self.buyer} - {self.seller} · {subject}'
 
 
+# Satu pesan di dalam sebuah Conversation
 class Message(models.Model):
+    # Jenis pesan: teks, foto, penawaran harga, kartu produk, atau pesan sistem
     class Kind(models.TextChoices):
         TEXT = 'text', 'Text'
         IMAGE = 'image', 'Image'
@@ -60,6 +70,7 @@ class Message(models.Model):
         PRODUCT = 'product', 'Product card'
         SYSTEM = 'system', 'System notice'
 
+    # Status penawaran harga
     class OfferStatus(models.TextChoices):
         PENDING = 'pending', 'Pending'
         ACCEPTED = 'accepted', 'Accepted'
@@ -75,11 +86,14 @@ class Message(models.Model):
     offer_price = models.PositiveIntegerField(null=True, blank=True)
     offer_status = models.CharField(max_length=10, choices=OfferStatus.choices, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Kosong berarti belum dibaca
     read_at = models.DateTimeField(null=True, blank=True)
 
+    # Urutan pesan dari yang paling lama
     class Meta:
         ordering = ['created_at', 'pk']
 
+    # Isi pesan harus cocok sama jenisnya
     def clean(self):
         if self.kind == self.Kind.SYSTEM:
             if self.sender_id:
@@ -95,5 +109,6 @@ class Message(models.Model):
         if self.kind == self.Kind.PRODUCT and not self.product_id:
             raise ValidationError('Product card needs a product.')
 
+    # Label pesan di halaman admin
     def __str__(self):
         return f'{self.sender or "system"} [{self.kind}]: {self.body[:40]}'

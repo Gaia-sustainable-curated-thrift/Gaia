@@ -7,10 +7,12 @@ from django.utils import timezone
 from .models import Conversation, Message
 
 
+# Error chat yang pesannya aman ditampilin ke user
 class ChatError(ValueError):
     pass
 
 
+# Ambil akun Gaia Care dari setting, kalau ga diatur pakai username gaiacare. Harus staff dan aktif
 def get_gaia_care_user():
     User = get_user_model()
     support_id = getattr(settings, 'GAIA_CARE_USER_ID', None)
@@ -30,6 +32,7 @@ def get_gaia_care_user():
     return user
 
 
+# Daftar chat milik user + jumlah belum dibaca, termasuk search dan filter inbox
 def conversations_for(user, search='', unread_only=False):
     conversations = (
         Conversation.objects
@@ -53,6 +56,7 @@ def conversations_for(user, search='', unread_only=False):
     return conversations
 
 
+# Total pesan belum dibaca user, buat badge di navbar
 def unread_count_for(user):
     return (
         Message.objects
@@ -62,6 +66,7 @@ def unread_count_for(user):
     )
 
 
+# Tombol Chat di produk: ambil chat yang udah ada atau bikin baru. Ga boleh chat produk sendiri
 def start_conversation(buyer, product):
     if product.seller_id == buyer.pk:
         raise ChatError('You cannot start a chat about your own listing.')
@@ -72,6 +77,7 @@ def start_conversation(buyer, product):
     return conversation
 
 
+# Tombol Start Chat dan Contact: buka chat user dengan Gaia Care
 def start_support_conversation(user):
     gaia_care = get_gaia_care_user()
     if user.pk == gaia_care.pk:
@@ -85,6 +91,7 @@ def start_support_conversation(user):
     return conversation
 
 
+# Buka chat soal satu pesanan, antara pembeli dan Gaia Care
 def start_order_conversation(order):
     gaia_care = get_gaia_care_user()
     conversation, _ = Conversation.objects.get_or_create(
@@ -96,6 +103,7 @@ def start_order_conversation(order):
     return conversation
 
 
+# Validasi lalu simpan pesan, terus naikin chat ke paling atas inbox
 def _save(message):
     try:
         message.full_clean()
@@ -106,6 +114,7 @@ def _save(message):
     return message
 
 
+# Kirim pesan dari user. Dicek dulu peserta chat atau bukan, dan aturan offer
 def send_message(conversation, sender, kind=Message.Kind.TEXT, body='', image=None, offer_price=None, product=None):
     if not conversation.has_participant(sender):
         raise ChatError('You are not part of this conversation.')
@@ -130,10 +139,12 @@ def send_message(conversation, sender, kind=Message.Kind.TEXT, body='', image=No
     ))
 
 
+# Pesan sistem tanpa pengirim, dipanggil dari kode bukan dari user
 def send_system_message(conversation, body):
     return _save(Message(conversation=conversation, kind=Message.Kind.SYSTEM, body=(body or '').strip()))
 
 
+# Seller terima atau tolak penawaran yang masih pending
 def respond_to_offer(message, seller, accept):
     if message.kind != Message.Kind.OFFER or message.offer_status != Message.OfferStatus.PENDING:
         raise ChatError('This offer can no longer be answered.')
@@ -146,6 +157,7 @@ def respond_to_offer(message, seller, accept):
     return message
 
 
+# Tandai pesan dari lawan bicara sudah dibaca, jadi tampil Read
 def mark_read(conversation, reader):
     return (
         conversation.messages
@@ -155,6 +167,7 @@ def mark_read(conversation, reader):
     )
 
 
+# Ubah produk jadi dict JSON. Produk yang udah ga dijual jadi None
 def serialize_product(product):
     if product is None or not product.is_purchasable:
         return None
@@ -168,6 +181,7 @@ def serialize_product(product):
     }
 
 
+# Ubah pesan jadi dict JSON buat dikirim ke browser
 def serialize_message(message, viewer):
     sender = message.sender
     return {
@@ -184,11 +198,13 @@ def serialize_message(message, viewer):
         'read': message.read_at is not None,
     }
 
+# 2 huruf pertama nama, buat avatar
 def initials(name):
     return name.strip()[:2].upper()
 
 
 
+# Potongan pesan terakhir di baris inbox
 def preview_text(message):
     if message is None:
         return ''
@@ -201,6 +217,7 @@ def preview_text(message):
     return message.body
 
 
+# Ubah chat jadi dict JSON, satu baris di inbox
 def serialize_conversation(conversation, viewer):
     title = conversation.title_for(viewer)
     last = conversation.messages.last()

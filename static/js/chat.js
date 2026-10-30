@@ -6,18 +6,22 @@
     var POLL_INBOX_MS = 15000;
 
     // Format waktu & harga
+    // Jam 00:00 dari tanggal itu, buat ngitung selisih hari
     function startOfDay(date) {
         return new Date(date.getFullYear(), date.getMonth(), date.getDate());
     }
 
+    // Selisih hari dari hari ini
     function daysAgo(date) {
         return Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
     }
 
+    // Format jam, contoh 10:42
     function clock(date) {
         return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     }
 
+    // Waktu di baris inbox: 10:42, Yesterday, Mon, atau 12 Oct
     function inboxTime(iso) {
         var date = new Date(iso);
         var days = daysAgo(date);
@@ -27,6 +31,7 @@
         return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     }
 
+    // Pemisah tanggal di chat: Today, Yesterday, atau 12 Oct 2026
     function dayLabel(iso) {
         var date = new Date(iso);
         var days = daysAgo(date);
@@ -35,10 +40,12 @@
         return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    // Format harga, contoh Rp289.000
     function rupiah(value) {
         return 'Rp' + Number(value).toLocaleString('id-ID');
     }
 
+    // Helper bikin elemen HTML. Pakai textContent biar aman dari XSS
     function el(tag, className, text) {
         var node = document.createElement(tag);
         if (className) node.className = className;
@@ -46,6 +53,7 @@
         return node;
     }
 
+    // Ubah waktu UTC dari server jadi jam lokal browser
     function localizeTimes(root) {
         root.querySelectorAll('[data-chat-time="inbox"]').forEach(function (node) {
             node.textContent = inboxTime(node.getAttribute('datetime'));
@@ -53,6 +61,7 @@
     }
 
     // Inbox
+    // Semua logic halaman inbox
     function initInbox(inbox) {
         var form = inbox.querySelector('[data-chat-filters]');
         var search = inbox.querySelector('[data-chat-search]');
@@ -62,6 +71,7 @@
         var filter = new URLSearchParams(window.location.search).get('filter') || 'all';
         var debounce;
 
+        // Susun parameter search dan filter buat URL
         function query() {
             var params = new URLSearchParams();
             if (search.value.trim()) params.set('q', search.value.trim());
@@ -69,6 +79,7 @@
             return params.toString();
         }
 
+        // Bikin satu baris chat dari data API
         function renderRow(row) {
             var item = el('li');
             var link = el('a', 'chat-row' + (row.unread ? ' is-unread' : ''));
@@ -92,6 +103,7 @@
             return item;
         }
 
+        // Ambil daftar chat dari API lalu tampilin. showSkeleton = tampil loading dulu
         function load(showSkeleton) {
             if (showSkeleton) {
                 list.replaceChildren();
@@ -112,6 +124,7 @@
                 });
         }
 
+        // Klik filter All atau Belum dibaca
         form.addEventListener('submit', function (event) {
             event.preventDefault();
             if (event.submitter && event.submitter.name === 'filter') {
@@ -125,18 +138,21 @@
             load(true);
         });
 
+        // Ketik di search, tunggu 300ms baru cari
         search.addEventListener('input', function () {
             clearTimeout(debounce);
             debounce = setTimeout(function () { load(true); }, 300);
         });
 
         localizeTimes(inbox);
+        // Refresh inbox tiap 15 detik
         setInterval(function () {
             if (!document.hidden && document.activeElement !== search) load(false);
         }, POLL_INBOX_MS);
     }
 
     // Room
+    // Semua logic halaman ruang chat
     function initRoom(room) {
         var thread = room.querySelector('[data-chat-thread]');
         var emptyNote = room.querySelector('[data-chat-empty]');
@@ -154,24 +170,29 @@
         var lastId = 0;
         var lastDay = null;
 
+        // Cek posisi scroll lagi dekat bawah atau ga
         function nearBottom() {
             return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
         }
 
+        // Scroll ke pesan terbaru
         function scrollToBottom() {
             thread.scrollTop = thread.scrollHeight;
         }
 
+        // Tampilin pesan error di bawah kolom ketik
         function showError(text) {
             errorBox.textContent = text || '';
             errorBox.hidden = !text;
         }
 
+        // Jam di bawah balon. Pesan sendiri ditambah Sent atau Read
         function statusLabel(message) {
             if (!message.mine) return clock(new Date(message.created_at));
             return clock(new Date(message.created_at)) + (message.read ? ' ✓✓ Read' : ' ✓ Sent');
         }
 
+        // Kartu penawaran harga. Seller dapat tombol Terima dan Tolak
         function offerCard(message) {
             var card = el('div', 'chat-offer');
             card.appendChild(el('span', null, message.mine ? 'Penawaran kamu' : 'Penawaran dari ' + message.sender));
@@ -193,6 +214,7 @@
             return card;
         }
 
+        // Kartu produk di dalam chat
         function productCard(product) {
             var card = el('a', 'chat-product-card');
             card.href = product.url;
@@ -211,6 +233,7 @@
             return card;
         }
 
+        // Bikin tampilan satu pesan sesuai jenisnya
         function buildMessage(message) {
             if (message.kind === 'system') return el('p', 'chat-system', message.body);
 
@@ -234,6 +257,7 @@
             return wrap;
         }
 
+        // Tambah pesan ke chat, sekalian pemisah tanggal kalau ganti hari
         function append(message) {
             if (nodes[message.id]) return;
             var day = dayLabel(message.created_at);
@@ -248,6 +272,7 @@
             emptyNote.hidden = true;
         }
 
+        // Ganti tampilan pesan yang berubah, misalnya status offer
         function replace(message) {
             var entry = nodes[message.id];
             if (!entry) return;
@@ -256,6 +281,7 @@
             nodes[message.id] = { node: node, message: message };
         }
 
+        // Ubah pesan sendiri jadi Read sampai id tertentu
         function markReadUpTo(id) {
             Object.keys(nodes).forEach(function (key) {
                 var entry = nodes[key];
@@ -266,6 +292,7 @@
             });
         }
 
+        // POST ke server dengan CSRF token
         function post(url, data) {
             data.append('csrfmiddlewaretoken', csrf);
             return fetch(url, { method: 'POST', body: data, credentials: 'same-origin' })
@@ -277,6 +304,7 @@
                 });
         }
 
+        // Kirim pesan lalu tampilin di chat
         function send(data) {
             showError('');
             sendButton.disabled = true;
@@ -289,6 +317,7 @@
                 .finally(function () { sendButton.disabled = false; });
         }
 
+        // Polling: ambil pesan baru, status offer, dan status read
         function poll() {
             if (document.hidden) return;
             fetch(room.dataset.messagesUrl + '?after=' + lastId, { credentials: 'same-origin' })
@@ -306,10 +335,12 @@
                 });
         }
 
+        // Tampilin pesan awal dari halaman, lalu mulai polling tiap 3 detik
         JSON.parse(document.getElementById('chat-initial').textContent).forEach(append);
         scrollToBottom();
         setInterval(poll, POLL_ROOM_MS);
 
+        // Kirim pesan teks
         composer.addEventListener('submit', function (event) {
             event.preventDefault();
             var body = input.value.trim();
@@ -323,12 +354,14 @@
             });
         });
 
+        // Buka atau tutup menu tombol +
         attachToggle.addEventListener('click', function () {
             var open = attachMenu.hidden;
             attachMenu.hidden = !open;
             attachToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         });
 
+        // Klik di luar menu berarti tutup menu
         document.addEventListener('click', function (event) {
             if (!attachMenu.hidden && !event.target.closest('.chat-attach')) {
                 attachMenu.hidden = true;
@@ -336,6 +369,7 @@
             }
         });
 
+        // Kirim foto setelah file dipilih
         imageInput.addEventListener('change', function () {
             if (!imageInput.files.length) return;
             var data = new FormData();
@@ -345,6 +379,7 @@
             send(data).then(function () { imageInput.value = ''; });
         });
 
+        // Dialog buat penawaran, cuma ada buat buyer
         if (offerDialog) {
             var offerForm = offerDialog.querySelector('[data-chat-offer-form]');
             room.querySelector('[data-chat-offer-open]').addEventListener('click', function () {
@@ -364,6 +399,7 @@
             });
         }
 
+        // Seller klik Terima atau Tolak
         thread.addEventListener('click', function (event) {
             var button = event.target.closest('[data-offer-action]');
             if (!button) return;
@@ -380,6 +416,7 @@
         });
     }
 
+    // Jalanin sesuai halaman yang lagi dibuka
     document.addEventListener('DOMContentLoaded', function () {
         var inbox = document.querySelector('[data-chat-inbox]');
         var room = document.querySelector('[data-chat-room]');
