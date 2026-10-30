@@ -1,4 +1,5 @@
 (() => {
+const initialize = () => {
     const input = document.querySelector('[data-avatar-input]');
     if (!input) return;
     const preview = document.querySelector('[data-avatar-preview]');
@@ -40,4 +41,7 @@
         feedback.textContent = 'This image could not be previewed. Choose another photo.';
     });
     window.addEventListener('pagehide', () => { if (objectUrl) URL.revokeObjectURL(objectUrl); });
+};
+initialize();
+document.addEventListener('accounts:updated', initialize);
 })();

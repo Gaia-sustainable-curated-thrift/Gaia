@@ -43,6 +43,11 @@ class RegisterForm(UserCreationForm):
             raise forms.ValidationError('An account with this email already exists.')
         return email
 
+    def _post_clean(self):
+        # Password validators must see the name entered on this registration form.
+        self.instance.first_name = self.cleaned_data.get('full_name', '')
+        super()._post_clean()
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.first_name = self.cleaned_data['full_name']
@@ -64,9 +69,9 @@ class ProfileForm(forms.ModelForm):
         help_text='JPG, PNG or WebP. Maximum 2 MB. Your photo will be cropped to a square.',
     )
     full_name = forms.CharField(max_length=150, label='Full name')
-    phone = forms.CharField(max_length=30, required=False, label='Phone number')
-    city = forms.CharField(max_length=100, required=False)
-    country = forms.CharField(max_length=100, required=False)
+    phone = forms.CharField(max_length=30, label='Phone number', widget=forms.TextInput(attrs={'type': 'tel', 'autocomplete': 'tel'}))
+    city = forms.CharField(max_length=100, widget=forms.TextInput(attrs={'autocomplete': 'address-level2'}))
+    country = forms.CharField(max_length=100, widget=forms.TextInput(attrs={'autocomplete': 'country-name'}))
     email = forms.EmailField(disabled=True, required=False)
 
     class Meta:

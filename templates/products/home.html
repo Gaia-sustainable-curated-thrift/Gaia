@@ -1,7 +1,7 @@
 {% extends 'products/base.html' %}
-{% load static %}
+{% load static asset_version %}
 {% block title %}Shop{% endblock %}
-{% block extra_css %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/home.css' %}">{% endblock %}
+{% block extra_css %}{{ block.super }}<link rel="stylesheet" href="{% versioned_static 'css/home.css' %}">{% endblock %}
 {% block main %}
 <main class="shop-main homepage-main">
 

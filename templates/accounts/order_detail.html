@@ -1,13 +1,13 @@
 {% extends 'accounts/layout.html' %}
-{% load account_tags review_tags %}
+{% load account_tags review_tags tz %}
 {% block account_content %}
 <section class="card order-card">
 <div class="order-status">{% if order.status == 'completed' %}{% include 'includes/icon.html' with name='check' %}{% else %}{% include 'includes/icon.html' with name='bag' %}{% endif %}
 <div>
-<h3 class="olive">{{ order.get_status_display }}
+<h3 class="olive">{{ order_ui.label }}
 </h3>
-<p class="small muted">{{ order.status_note }}
-</p>
+<p class="small muted">{{ order_ui.note }}</p>
+{% if order.status_note and order_ui.status == order.status %}<p class="small muted">{{ order.status_note }}</p>{% endif %}
 </div>
 </div>
 <hr>
@@ -42,8 +42,11 @@
 <div class="total"><dt>Total</dt><dd>{{ order.total|rupiah }}</dd>
 </div>
 </dl>
-<p class="small muted">{% if order.status == 'awaiting_payment' %}Unpaid{% else %}Paid{% endif %} · {{ order.payment_method }}
+<p class="small muted">{{ order_ui.payment_label }} · {{ order.payment_method }}
 </p>
 </section>
-</div><div class="actions"><a class="button olive-button" href="{% url 'orders' %}">Back to Orders</a><a class="button secondary" href="{% url 'chat:order' order.pk %}">Tanya soal pesanan ini</a>{% review_order_action order user %}</div>
+</div>
+{% include 'accounts/includes/order_actions.html' %}
+<div class="actions"><a class="button olive-button" href="{% url 'orders' %}{% if managing_orders %}?scope=manage{% endif %}">Back to Orders</a>
+{% if order.user_id == user.pk %}<a class="button secondary" href="{% url 'chat:order' order.pk %}">Tanya soal pesanan ini</a>{% review_order_action order user %}{% endif %}</div>
 {% endblock %}

@@ -1,4 +1,5 @@
 (() => {
+const initialize = () => {
     const dialog = document.getElementById('my-product-delete-dialog');
     if (!dialog) return;
     const form = dialog.querySelector('[data-product-delete-form]');
@@ -15,4 +16,7 @@
         const bounds = dialog.getBoundingClientRect();
         if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
     });
+};
+initialize();
+document.addEventListener('accounts:updated', initialize);
 })();

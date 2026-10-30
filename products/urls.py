@@ -17,5 +17,6 @@ urlpatterns = [
     path('wishlist/remove/<slug:slug>/', views.wish_remove, name='wish_remove'),
     path('<slug:slug>/edit/', views.edit, name='edit'),
     path('<slug:slug>/delete/', views.delete_listing, name='delete'),
+    path('<slug:slug>/restore/', views.restore_listing, name='restore'),
     path('<slug:slug>/', views.detail, name='detail'),
 ]

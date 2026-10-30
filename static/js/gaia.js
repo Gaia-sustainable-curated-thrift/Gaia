@@ -1,114 +1,10 @@
+// Core GAIA script, loaded on every page: navbar search, the shopping bag (navbar
+// badge, drawer and every add-to-bag button), toasts, the scroll-away navbar and the
+// shared product-card effects. Page features live in their own files under
+// static/js/products/ and plug in through Gaia.register().
 (function () {
-    function moveTabIndicator(tabs, item) {
-        if (!item || !tabs.hasAttribute('data-animated-tabs')) return;
-        var track = tabs.getBoundingClientRect();
-        var bounds = item.getBoundingClientRect();
-        tabs.style.setProperty('--tab-left', (bounds.left - track.left) + 'px');
-        tabs.style.setProperty('--tab-top', (bounds.top - track.top) + 'px');
-        tabs.style.setProperty('--tab-width', bounds.width + 'px');
-        tabs.style.setProperty('--tab-height', bounds.height + 'px');
-    }
-
-    function initAnimatedTabs() {
-        document.querySelectorAll('[data-category-tabs], [data-listing-tabs]').forEach(function (tabs) {
-            tabs.setAttribute('data-animated-tabs', '');
-            function measure() { moveTabIndicator(tabs, tabs.querySelector('.is-active')); }
-            measure();
-            // Enable the slide only after the first placement so the pill doesn't fly in on load.
-            window.requestAnimationFrame(function () {
-                window.requestAnimationFrame(function () { tabs.setAttribute('data-tabs-ready', ''); });
-            });
-            if (window.ResizeObserver) new ResizeObserver(measure).observe(tabs);
-            else window.addEventListener('resize', measure);
-            if (document.fonts) document.fonts.ready.then(measure);
-        });
-    }
-
-    var tabContentAnimations = new WeakMap();
-    function animateTabContent(nodes) {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        nodes.forEach(function (node) {
-            var previous = tabContentAnimations.get(node);
-            if (previous) previous.cancel();
-            if (node.hidden || !node.animate) return;
-            tabContentAnimations.set(node, node.animate([
-                { opacity: 0, transform: 'translateY(6px)' },
-                { opacity: 1, transform: 'translateY(0)' }
-            ], { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }));
-        });
-    }
-
-    function activateItem(tabs, item) {
-        tabs.querySelectorAll('.segment__item').forEach(function (tab) {
-            var isActive = tab === item;
-            tab.classList.toggle('is-active', isActive);
-            if (isActive) {
-                tab.setAttribute('aria-current', 'true');
-            } else {
-                tab.removeAttribute('aria-current');
-            }
-        });
-        moveTabIndicator(tabs, item);
-    }
-
-    function initCategoryTabs() {
-        var tabs = document.querySelector('[data-category-tabs]');
-        if (!tabs) return;
-        var groups = document.querySelectorAll('[data-category-group]');
-
-        tabs.addEventListener('click', function (event) {
-            var item = event.target.closest('.segment__item');
-            if (!item || !tabs.contains(item)) return;
-            event.preventDefault();
-            if (item.classList.contains('is-active')) return;
-
-            activateItem(tabs, item);
-            var slug = item.getAttribute('data-gender');
-            groups.forEach(function (group) {
-                group.hidden = group.getAttribute('data-gender') !== slug;
-            });
-            animateTabContent(groups);
-        });
-    }
-
-    function initListingTabs() {
-        var tabs = document.querySelector('[data-listing-tabs]');
-        if (!tabs) return;
-        var cards = document.querySelectorAll('.product-card[data-category]');
-        var empty = document.querySelector('[data-listing-empty]');
-
-        tabs.addEventListener('click', function (event) {
-            var item = event.target.closest('.segment__item');
-            if (!item || !tabs.contains(item)) return;
-            event.preventDefault();
-            if (item.classList.contains('is-active')) return;
-
-            activateItem(tabs, item);
-            var name = item.getAttribute('data-category-name');
-            cards.forEach(function (card) {
-                card.hidden = card.getAttribute('data-category') !== name;
-            });
-            if (empty) {
-                empty.hidden = Array.prototype.some.call(cards, function (card) { return !card.hidden; });
-            }
-            animateTabContent(Array.prototype.slice.call(cards).concat(empty ? [empty] : []));
-        });
-    }
-
-    function initFilterToggle() {
-        var toggle = document.querySelector('[data-filter-toggle]');
-        var body = document.querySelector('[data-filter-body]');
-        if (!toggle || !body) return;
-
-        toggle.addEventListener('click', function () {
-            var collapsed = body.toggleAttribute('hidden');
-            toggle.setAttribute('aria-expanded', String(!collapsed));
-            if (!collapsed && body.animate && !prefersReducedMotion()) {
-                body.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
-                    { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
-            }
-        });
-    }
+    var modules = [];
+    var ready = false;
 
     function validateSearch(form, input) {
         input.required = true;
@@ -183,29 +79,6 @@
         validateSearch(form, input);
     }
 
-    function initGallery() {
-        var gallery = document.querySelector('[data-gallery]');
-        if (!gallery) return;
-        var main = gallery.querySelector('[data-gallery-main]');
-        var thumbs = gallery.querySelectorAll('[data-gallery-thumb]');
-        if (!main || !thumbs.length) return;
-
-        thumbs.forEach(function (thumb) {
-            thumb.addEventListener('click', function () {
-                thumbs.forEach(function (other) {
-                    other.classList.toggle('is-active', other === thumb);
-                });
-                var full = thumb.getAttribute('data-full');
-                if (!full || main.getAttribute('src') === full) return;
-                main.src = full;
-                if (main.animate && !prefersReducedMotion()) {
-                    main.animate([{ opacity: 0.35, transform: 'scale(1.02)' }, { opacity: 1, transform: 'scale(1)' }],
-                        { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
-                }
-            });
-        });
-    }
-
     function initBagDrawer() {
         var drawer = document.getElementById('bag-drawer');
         var toggles = document.querySelectorAll('[data-bag-toggle]');
@@ -251,12 +124,23 @@
         el.className = 'toast toast--' + toast.kind;
         el.setAttribute('role', toast.kind === 'error' ? 'alert' : 'status');
         el.setAttribute('data-toast', '');
-        el.setAttribute('data-toast-duration', '4000');
+        // A toast with an Undo button stays longer, so there is time to press it.
+        var duration = toast.undo_url ? 8000 : 4000;
+        el.setAttribute('data-toast-duration', String(duration));
 
         var text = document.createElement('span');
         text.className = 'toast__text';
         text.textContent = toast.text;
         el.appendChild(text);
+
+        if (toast.undo_url) {
+            var undo = document.createElement('button');
+            undo.type = 'button';
+            undo.className = 'toast__undo';
+            undo.textContent = 'Undo';
+            undo.addEventListener('click', function () { runUndo(toast, undo); });
+            el.appendChild(undo);
+        }
 
         if (toast.icon) {
             var icon = document.createElement('span');
@@ -276,7 +160,32 @@
         } else {
             document.body.appendChild(el);
         }
-        dismissToast(el, 4000);
+        dismissToast(el, duration);
+    }
+
+    // Undo on a toast (for example after deleting a listing): ask the server to restore it,
+    // then reload the page, or go to the restored listing when the page can't show it again.
+    function runUndo(toast, button) {
+        var field = document.querySelector('[name=csrfmiddlewaretoken]');
+        var cookie = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        button.disabled = true;
+        fetch(toast.undo_url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': field ? field.value : (cookie ? decodeURIComponent(cookie[1]) : '')
+            },
+            credentials: 'same-origin'
+        }).then(function (response) {
+            return response.json();
+        }).then(function (data) {
+            if (!data || data.ok !== true) throw new Error('Undo refused');
+            if (toast.undo_reload) window.location.reload();
+            else window.location.assign(data.redirect_url);
+        }).catch(function () {
+            button.disabled = false;
+            showToast({ kind: 'error', text: 'Could not undo this. Please try again.' });
+        });
     }
 
     function prefersReducedMotion() {
@@ -327,51 +236,51 @@
         window.setTimeout(function () { ghost.remove(); }, 1000);
     }
 
-    // A handful of tiny hearts burst out of the wishlist button when an item is saved.
-    function heartBurst(button) {
-        if (!button || prefersReducedMotion() || !document.body.animate) return;
-        var box = button.querySelector('.icon') || button;
-        var rect = box.getBoundingClientRect();
-        var cx = rect.left + rect.width / 2;
-        var cy = rect.top + rect.height / 2;
-        for (var i = 0; i < 8; i++) {
-            var heart = document.createElement('span');
-            heart.className = 'heart-burst';
-            heart.setAttribute('aria-hidden', 'true');
-            heart.innerHTML = '<svg class="icon" focusable="false"><use href="#icon-heart"></use></svg>';
-            heart.style.left = cx + 'px';
-            heart.style.top = cy + 'px';
-            document.body.appendChild(heart);
-            var angle = (Math.PI * 2 * i) / 8 + (Math.random() - 0.5) * 0.4;
-            var distance = 34 + Math.random() * 22;
-            var spin = (Math.random() - 0.5) * 60;
-            var burst = heart.animate([
-                { transform: 'translate(-50%, -50%) scale(0.3)', opacity: 1 },
-                { transform: 'translate(calc(-50% + ' + Math.cos(angle) * distance + 'px), calc(-50% + ' + Math.sin(angle) * distance + 'px)) scale(1) rotate(' + spin + 'deg)', opacity: 0 }
-            ], { duration: 620 + Math.random() * 160, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
-            burst.onfinish = burst.oncancel = (function (node) { return function () { node.remove(); }; })(heart);
-            window.setTimeout((function (node) { return function () { node.remove(); }; })(heart), 1000);
-        }
-    }
-
     // Every add-to-bag button on the page mirrors whether its listing is in the bag;
     // pressing an added one removes it again.
+    function setBagButton(form, inBag) {
+        var button = form.querySelector('button[type="submit"]');
+        var label = form.querySelector('[data-bag-label]');
+        var changed = button && button.classList.contains('is-active') !== inBag;
+        form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
+        if (changed) replayClass(button, 'is-popping');
+        if (button) {
+            button.classList.toggle('is-active', inBag);
+            button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
+            var icon = button.querySelector('use');
+            if (icon) icon.setAttribute('href', inBag ? '#icon-check' : '#icon-bag');
+        }
+        if (label) label.textContent = inBag ? 'Added to bag' : 'Add to bag';
+    }
+
     function syncBagButtons(slugs) {
         document.querySelectorAll('[data-bag-form]').forEach(function (form) {
-            var inBag = slugs.indexOf(form.getAttribute('data-bag-form')) !== -1;
-            var button = form.querySelector('button[type="submit"]');
-            var label = form.querySelector('[data-bag-label]');
-            var changed = button && button.classList.contains('is-active') !== inBag;
-            form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
-            if (changed) replayClass(button, 'is-popping');
-            if (button) {
-                button.classList.toggle('is-active', inBag);
-                button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
-                var icon = button.querySelector('use');
-                if (icon) icon.setAttribute('href', inBag ? '#icon-check' : '#icon-bag');
-            }
-            if (label) label.textContent = inBag ? 'Added to bag' : 'Add to bag';
+            setBagButton(form, slugs.indexOf(form.getAttribute('data-bag-form')) !== -1);
         });
+    }
+
+    function bagFormsFor(slug) {
+        return Array.prototype.filter.call(document.querySelectorAll('[data-bag-form]'), function (form) {
+            return form.getAttribute('data-bag-form') === slug;
+        });
+    }
+
+    function setBagCount(count) {
+        document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
+            var changed = badge.textContent.trim() !== String(count);
+            badge.textContent = count;
+            badge.hidden = count === 0;
+            if (changed && !badge.hidden) replayClass(badge, 'is-bumping');
+        });
+        document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
+            toggle.setAttribute('aria-label', 'Shopping bag, ' + count + ' item' + (count === 1 ? '' : 's'));
+        });
+    }
+
+    function currentBagCount() {
+        var badge = document.querySelector('[data-bag-count]');
+        var count = badge ? parseInt(badge.textContent, 10) : 0;
+        return isNaN(count) ? 0 : count;
     }
 
     function initBagForms() {
@@ -388,38 +297,53 @@
             var button = form.querySelector('button[type="submit"]');
             if (button) button.disabled = true;
             var drawer = document.getElementById('bag-drawer');
-            var adding = /\/bag\/add\//.test(new URL(form.action).pathname);
+            var url = form.action;
+            var body = new FormData(form);
+            var adding = /\/bag\/add\//.test(new URL(url).pathname);
             var card = form.closest('.product-card');
             var photo = card ? card.querySelector('.product-card__media img') : document.querySelector('[data-gallery-main]');
 
-            fetch(form.action, {
+            // Optimistic UI: an add/remove toggle flips (and the badge moves) straight
+            // away; the server's answer then confirms it, or the change is rolled back.
+            var slug = form.getAttribute('data-bag-form');
+            var revert = null;
+            if (slug) {
+                var previousCount = currentBagCount();
+                bagFormsFor(slug).forEach(function (other) { setBagButton(other, adding); });
+                setBagCount(Math.max(0, previousCount + (adding ? 1 : -1)));
+                if (adding) flyToBag(photo);
+                revert = function () {
+                    bagFormsFor(slug).forEach(function (other) { setBagButton(other, !adding); });
+                    setBagCount(previousCount);
+                };
+            }
+
+            fetch(url, {
                 method: 'POST',
-                body: new FormData(form),
+                body: body,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             }).then(function (response) {
                 return response.json();
             }).then(function (data) {
+                // Rate-limited (429) responses carry only a toast explaining why.
+                if (data && data.ok === false && data.toast && typeof data.bag_count !== 'number') {
+                    if (revert) revert();
+                    showToast(data.toast);
+                    return;
+                }
                 if (!data || typeof data.bag_count !== 'number' || typeof data.ok !== 'boolean') {
                     throw new Error('Invalid bag response');
                 }
                 var panel = document.querySelector('.bag-drawer__panel');
                 if (panel && data.drawer) panel.innerHTML = data.drawer;
-                document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
-                    var changed = badge.textContent.trim() !== String(data.bag_count);
-                    badge.textContent = data.bag_count;
-                    badge.hidden = data.bag_count === 0;
-                    if (changed && !badge.hidden) replayClass(badge, 'is-bumping');
-                });
-                document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
-                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' item' + (data.bag_count === 1 ? '' : 's'));
-                });
+                setBagCount(data.bag_count);
                 if (Array.isArray(data.bag_slugs)) syncBagButtons(data.bag_slugs);
-                if (adding && data.ok && !data.open) flyToBag(photo);
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showToast(data.toast);
             }).catch(function () {
                 // A failed response may follow a successful POST; do not replay it.
+                if (revert) revert();
                 showToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
             }).finally(function () {
                 requestPending = false;
@@ -429,402 +353,9 @@
         });
     }
 
-    function initWishlistForms() {
-        document.querySelectorAll('[data-wishlist-form]').forEach(function (form) {
-            var button = form.querySelector('button[type="submit"]');
-            var label = button.querySelector('[data-wishlist-label]');
-            var saved = button.classList.contains('is-saved');
-            var pending = false;
-            var navigating = false;
-
-            form.addEventListener('submit', function (event) {
-                if (typeof window.fetch !== 'function') return;
-                event.preventDefault();
-                if (pending) return;
-                pending = true;
-                button.disabled = true;
-                label.textContent = saved ? 'Menghapus…' : 'Menyimpan…';
-                form.setAttribute('aria-busy', 'true');
-
-                fetch(form.action, {
-                    method: 'POST',
-                    body: new FormData(form),
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin'
-                }).then(function (response) {
-                    if (response.status === 403 || response.status === 404) {
-                        showToast({ kind: 'error', text: response.status === 403
-                            ? 'Your session is no longer valid. Reload this page before trying again.'
-                            : 'This listing could not be found.' });
-                        return null;
-                    }
-                    return response.json();
-                }).then(function (data) {
-                    if (!data) return;
-                    if (typeof data.login_url === 'string') {
-                        var target = new URL(data.login_url, window.location.href);
-                        if (target.origin !== window.location.origin) throw new Error('Unexpected login redirect');
-                        navigating = true;
-                        window.location.assign(target.href);
-                    } else if (data.ok === true && data.toast && typeof data.saved_count === 'number' && typeof data.saved === 'boolean') {
-                        if (saved !== data.saved) replayClass(button, 'is-popping');
-                        if (!saved && data.saved) heartBurst(button);
-                        saved = data.saved;
-                        button.classList.toggle('is-saved', saved);
-                        button.setAttribute('aria-pressed', saved ? 'true' : 'false');
-                        // Same pressed look as the bag button: outline plus a check mark.
-                        var icon = button.querySelector('use');
-                        if (icon) icon.setAttribute('href', saved ? '#icon-check' : '#icon-heart');
-                        form.action = form.getAttribute(saved ? 'data-remove-url' : 'data-add-url');
-                        document.querySelectorAll('[data-wishlist-count]').forEach(function (count) {
-                            count.textContent = data.saved_count + (data.saved_count === 1
-                                ? ' person has saved this' : ' people have saved this');
-                        });
-                        showToast(data.toast);
-                    } else {
-                        throw new Error('Invalid wishlist response');
-                    }
-                }).catch(function () {
-                    showToast({ kind: 'error', text: 'Could not update your wishlist. Please try again.' });
-                }).finally(function () {
-                    if (!navigating) {
-                        pending = false;
-                        button.disabled = false;
-                        label.textContent = saved ? 'Saved to wishlist' : 'Save to wishlist';
-                        form.removeAttribute('aria-busy');
-                    }
-                });
-            });
-        });
-    }
-
-    function initSellForm() {
-        var form = document.querySelector('[data-sell-form]');
-        if (!form) return;
-
-        var photos = form.querySelector('[data-photos]');
-        var addTile = form.querySelector('[data-photo-add]');
-        var input = form.querySelector('[data-photo-input]');
-        if (photos && addTile && input) {
-            var MAX_PHOTOS = 5;
-            var existingCount = photos.querySelectorAll('[data-existing-photo]').length;
-            var chosen = [];
-
-            var syncInput = function () {
-                var dt = new DataTransfer();
-                chosen.forEach(function (file) { dt.items.add(file); });
-                input.files = dt.files;
-            };
-
-            var render = function () {
-                photos.querySelectorAll('.sell-photo:not([data-existing-photo])').forEach(function (node) { node.remove(); });
-                chosen.forEach(function (file, index) {
-                    var tile = document.createElement('div');
-                    tile.className = 'sell-photo';
-
-                    var img = document.createElement('img');
-                    img.alt = '';
-                    var reader = new FileReader();
-                    reader.onload = function (e) { img.src = e.target.result; };
-                    reader.readAsDataURL(file);
-
-                    var remove = document.createElement('button');
-                    remove.type = 'button';
-                    remove.className = 'sell-photo__remove';
-                    remove.setAttribute('aria-label', 'Remove photo');
-                    remove.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>';
-                    remove.addEventListener('click', function () {
-                        chosen.splice(index, 1);
-                        syncInput();
-                        render();
-                    });
-
-                    tile.appendChild(img);
-                    tile.appendChild(remove);
-
-                    if (index === 0 && existingCount === 0) {
-                        var cover = document.createElement('span');
-                        cover.className = 'sell-photo__cover';
-                        cover.textContent = 'Cover';
-                        tile.appendChild(cover);
-                    }
-                    photos.insertBefore(tile, addTile);
-                });
-                var full = chosen.length + existingCount >= MAX_PHOTOS;
-                addTile.hidden = full;
-                addTile.style.display = full ? 'none' : '';
-            };
-
-            input.addEventListener('change', function () {
-                Array.prototype.forEach.call(input.files, function (file) {
-                    if (chosen.length + existingCount < MAX_PHOTOS) chosen.push(file);
-                });
-                syncInput();
-                render();
-            });
-
-            render();
-        }
-
-        var dropdown = form.querySelector('[data-sell-dropdown]');
-        if (dropdown) {
-            var toggle = dropdown.querySelector('[data-sell-toggle]');
-            var menu = dropdown.querySelector('[data-sell-menu]');
-            var display = dropdown.querySelector('[data-sell-display]');
-            var valueInput = dropdown.querySelector('[data-sell-value]');
-            var parentInput = dropdown.querySelector('[data-sell-parent]');
-
-            function closeMenu() {
-                menu.hidden = true;
-                toggle.setAttribute('aria-expanded', 'false');
-            }
-
-            toggle.addEventListener('click', function (event) {
-                event.stopPropagation();
-                var open = menu.hidden;
-                menu.hidden = !open;
-                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-            });
-
-            dropdown.querySelectorAll('[data-sell-option]').forEach(function (option) {
-                option.addEventListener('click', function () {
-                    dropdown.querySelectorAll('.is-active').forEach(function (el) { el.classList.remove('is-active'); });
-                    option.classList.add('is-active');
-                    display.textContent = option.getAttribute('data-label');
-                    valueInput.value = option.getAttribute('data-value');
-                    parentInput.value = option.getAttribute('data-parent');
-                    toggle.classList.add('is-set');
-                    closeMenu();
-                });
-            });
-
-            document.addEventListener('click', function (event) {
-                if (!dropdown.contains(event.target)) closeMenu();
-            });
-        }
-
-        var price = form.querySelector('[data-price-input]');
-        if (price) {
-            var formatPrice = function () {
-                var digits = price.value.replace(/\D/g, '');
-                price.value = digits ? Number(digits).toLocaleString('id-ID') : '';
-            };
-            price.addEventListener('input', formatPrice);
-            formatPrice();
-        }
-    }
-
-    function initListingSubmit() {
-        var form = document.querySelector('[data-sell-form]');
-        if (!form) return;
-        var errors = document.querySelector('[data-listing-errors]');
-        var status = form.querySelector('[data-listing-status]');
-        var button = form.querySelector('.sell-submit');
-        var originalLabel = button.textContent;
-        var submitting = false;
-        var navigating = false;
-
-        function clearErrors() {
-            errors.textContent = '';
-            errors.hidden = true;
-            form.querySelectorAll('[aria-invalid]').forEach(function (control) {
-                control.removeAttribute('aria-invalid');
-                control.removeAttribute('aria-describedby');
-            });
-        }
-
-        function showErrors(messages) {
-            clearErrors();
-            Object.keys(messages).forEach(function (field) {
-                messages[field].forEach(function (message) {
-                    var item = document.createElement('li');
-                    item.textContent = message;
-                    errors.appendChild(item);
-                });
-            });
-            form.querySelectorAll('[name]').forEach(function (control) {
-                if (messages[control.name]) {
-                    control.setAttribute('aria-invalid', 'true');
-                    control.setAttribute('aria-describedby', 'listing-errors');
-                }
-            });
-            if (messages.category) {
-                var categoryToggle = form.querySelector('[data-sell-toggle]');
-                categoryToggle.setAttribute('aria-invalid', 'true');
-                categoryToggle.setAttribute('aria-describedby', 'listing-errors');
-            }
-            errors.hidden = false;
-            errors.focus();
-        }
-
-        form.addEventListener('submit', function (event) {
-            if (typeof window.fetch !== 'function') return;
-            event.preventDefault();
-            if (submitting) return;
-            submitting = true;
-            clearErrors();
-            form.setAttribute('aria-busy', 'true');
-            button.disabled = true;
-            button.textContent = 'Menyimpan…';
-            status.textContent = 'Menyimpan…';
-
-            fetch(form.action, {
-                method: 'POST',
-                body: new FormData(form),
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin'
-            }).then(function (response) {
-                if (response.redirected) {
-                    var target = new URL(response.url, window.location.href);
-                    if (target.origin !== window.location.origin) throw new Error('Unexpected redirect');
-                    navigating = true;
-                    window.location.assign(target.href);
-                    return null;
-                }
-                if (response.status === 403 || response.status === 404) {
-                    showErrors({ __all__: [response.status === 403
-                        ? 'Sesi tidak valid atau akses ditolak. Muat ulang halaman sebelum mencoba lagi.'
-                        : 'Listing tidak ditemukan atau Anda tidak memiliki akses.'] });
-                    return null;
-                }
-                return response.json();
-            }).then(function (data) {
-                if (!data) return;
-                if (data.ok && typeof data.redirect_url === 'string') {
-                    var target = new URL(data.redirect_url, window.location.href);
-                    if (target.origin !== window.location.origin) throw new Error('Unexpected redirect');
-                    status.textContent = data.message || 'Listing tersimpan.';
-                    navigating = true;
-                    window.location.assign(target.href);
-                } else if (data.ok === false && data.errors && typeof data.errors === 'object') {
-                    showErrors(data.errors);
-                } else {
-                    throw new Error('Invalid listing response');
-                }
-            }).catch(function () {
-                // Do not replay a POST whose result is unknown.
-                showErrors({ __all__: ['Penyimpanan belum dapat dikonfirmasi. Periksa katalog sebelum mencoba lagi.'] });
-            }).finally(function () {
-                if (!navigating) {
-                    submitting = false;
-                    form.removeAttribute('aria-busy');
-                    button.disabled = false;
-                    button.textContent = originalLabel;
-                    status.textContent = '';
-                }
-            });
-        });
-    }
-
-    function initListingDelete() {
-        document.querySelectorAll('[data-delete-listing]').forEach(function (toggle) {
-            var dialog = document.getElementById(toggle.getAttribute('aria-controls'));
-            if (!dialog) return;
-            toggle.addEventListener('click', function () {
-                if (!dialog.open) dialog.showModal();
-                toggle.setAttribute('aria-expanded', 'true');
-            });
-            dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
-            dialog.addEventListener('click', function (event) {
-                if (event.target !== dialog) return;
-                var bounds = dialog.getBoundingClientRect();
-                if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
-            });
-        });
-    }
-
-    // The homepage sell banner plays its entrance the first time it scrolls into view.
-    function initSellBanner() {
-        var banner = document.querySelector('[data-sell-banner]');
-        if (!banner || !('IntersectionObserver' in window) || prefersReducedMotion()) return;
-        if (banner.getBoundingClientRect().top < window.innerHeight) return;
-        banner.setAttribute('data-animate', '');
-        var observer = new IntersectionObserver(function (entries) {
-            if (!entries[0].isIntersecting) return;
-            banner.classList.add('is-visible');
-            observer.disconnect();
-        }, { threshold: 0.35 });
-        observer.observe(banner);
-    }
-
-    // Homepage: section headings, discover cards and category circles reveal as they
-    // scroll in, the hero jackets drift with a light parallax, and discover cards tilt.
-    function initHomeMotion() {
-        var home = document.querySelector('.homepage-main');
-        if (!home || prefersReducedMotion()) return;
-
-        if ('IntersectionObserver' in window) {
-            var observer = new IntersectionObserver(function (entries) {
-                entries.forEach(function (entry) {
-                    if (!entry.isIntersecting) return;
-                    entry.target.classList.add('is-revealed');
-                    observer.unobserve(entry.target);
-                });
-            }, { rootMargin: '0px 0px -10% 0px' });
-            [
-                '.section-head', '.section-title-center',
-                '.discover-card', '.category-circle'
-            ].forEach(function (selector) {
-                var group = home.querySelectorAll(selector);
-                Array.prototype.forEach.call(group, function (node, index) {
-                    if (node.getBoundingClientRect().top < window.innerHeight && !node.closest('[hidden]')) return;
-                    node.style.setProperty('--reveal-delay', (index % 4) * 90 + 'ms');
-                    node.setAttribute('data-reveal-item', '');
-                    observer.observe(node);
-                });
-            });
-        }
-
-        var media = home.querySelector('.hero-banner__media');
-        if (media) {
-            var pending = false;
-            window.addEventListener('scroll', function () {
-                if (pending) return;
-                pending = true;
-                window.requestAnimationFrame(function () {
-                    pending = false;
-                    var y = Math.min(window.scrollY, 700);
-                    media.style.setProperty('--hero-shift', (y * 0.12).toFixed(1) + 'px');
-                });
-            }, { passive: true });
-        }
-
-        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-        home.querySelectorAll('.discover-card').forEach(function (card) {
-            card.addEventListener('pointermove', function (event) {
-                var box = card.getBoundingClientRect();
-                var x = (event.clientX - box.left) / box.width - 0.5;
-                var y = (event.clientY - box.top) / box.height - 0.5;
-                card.classList.add('is-tilting');
-                card.style.setProperty('--tilt-x', (x * 8).toFixed(2) + 'deg');
-                card.style.setProperty('--tilt-y', (-y * 8).toFixed(2) + 'deg');
-            });
-            card.addEventListener('pointerleave', function () {
-                card.classList.remove('is-tilting');
-                card.style.setProperty('--tilt-x', '0deg');
-                card.style.setProperty('--tilt-y', '0deg');
-            });
-        });
-    }
-
-    // Hovering the detail photo zooms in around the cursor (mouse and trackpad only).
-    function initPhotoZoom() {
-        var frame = document.querySelector('.pdp-main-image');
-        var photo = frame && frame.querySelector('[data-gallery-main]');
-        if (!photo || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-        frame.setAttribute('data-zoomable', '');
-        frame.addEventListener('pointermove', function (event) {
-            var box = frame.getBoundingClientRect();
-            frame.style.setProperty('--zoom-x', ((event.clientX - box.left) / box.width * 100) + '%');
-            frame.style.setProperty('--zoom-y', ((event.clientY - box.top) / box.height * 100) + '%');
-        });
-        frame.addEventListener('pointerenter', function () { frame.classList.add('is-zooming'); });
-        frame.addEventListener('pointerleave', function () { frame.classList.remove('is-zooming'); });
-    }
-
     // Show a shimmer behind product photos until they have loaded.
-    function initPhotoShimmer() {
-        document.querySelectorAll('.product-card__media img, .pdp-main-image img').forEach(function (img) {
+    function initPhotoShimmer(root) {
+        (root || document).querySelectorAll('.product-card__media img, .pdp-main-image img').forEach(function (img) {
             if (img.complete) return;
             var frame = img.parentElement;
             frame.classList.add('is-loading');
@@ -972,55 +503,31 @@
         update();
     }
 
-    // Only the card that was clicked shares a name with the detail photo, so the
-    // morph happens between a card and its detail page and nowhere else.
-    function cardPhotoFor(path) {
-        var link = document.querySelector('.product-card__media[href="' + path + '"]');
-        return link && link.querySelector('img');
-    }
-
-    window.addEventListener('pageswap', function (event) {
-        if (!event.viewTransition || !event.activation || !event.activation.entry) return;
-        var photo = cardPhotoFor(new URL(event.activation.entry.url).pathname);
-        if (!photo) return;
-        var current = document.querySelector('[data-gallery-main]');
-        if (current) current.style.viewTransitionName = 'none';
-        photo.style.viewTransitionName = 'product-photo';
-    });
-
-    window.addEventListener('pagereveal', function (event) {
-        if (!event.viewTransition || !window.navigation || !navigation.activation || !navigation.activation.from) return;
-        var photo = cardPhotoFor(new URL(navigation.activation.from.url).pathname);
-        if (!photo) return;
-        var current = document.querySelector('[data-gallery-main]');
-        if (current) current.style.viewTransitionName = 'none';
-        photo.style.viewTransitionName = 'product-photo';
-        event.viewTransition.finished.finally(function () {
-            photo.style.viewTransitionName = '';
-            if (current) current.style.viewTransitionName = 'product-photo';
-        });
-    });
+    // Shared helpers and the hook page modules use to run once the DOM is ready.
+    window.Gaia = {
+        // Deferred page scripts may load after the core has already started, so a
+        // module registered late runs straight away.
+        register: function (init) {
+            if (ready) init();
+            else modules.push(init);
+        },
+        prefersReducedMotion: prefersReducedMotion,
+        replayClass: replayClass,
+        showToast: showToast
+    };
 
     function init() {
-        initAnimatedTabs();
-        initCategoryTabs();
-        initListingTabs();
-        initFilterToggle();
-        initGallery();
         initBagDrawer();
         initBagForms();
-        initWishlistForms();
-        initSellForm();
-        initListingSubmit();
-        initListingDelete();
         initToasts();
         initDrawerSearch(initHeaderSearch());
         initScrollNavbar();
         initCardReveal();
-        initPhotoZoom();
         initPhotoShimmer();
-        initSellBanner();
-        initHomeMotion();
+        // HTMX swaps in new search results; their photos need the loading shimmer too.
+        document.body.addEventListener('htmx:afterSettle', function () { initPhotoShimmer(); });
+        ready = true;
+        modules.forEach(function (run) { run(); });
     }
 
     if (document.readyState === 'loading') {

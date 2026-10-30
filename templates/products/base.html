@@ -1,5 +1,16 @@
 {% extends 'accounts/base.html' %}
+{% load static asset_version %}
 {% block extra_css %}
+<script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
+{# Product page features, one file each; they register with Gaia from gaia.js. #}
+<script src="{% versioned_static 'js/products/tabs.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/search.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/gallery.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/wishlist.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/listing-form.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/listing-delete.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/home.js' %}" defer></script>
+<script src="{% versioned_static 'js/products/page-transitions.js' %}" defer></script>
 {# Product pages opt in to cross-page view transitions, so a card photo can morph into the detail photo. #}
 <style>
 @view-transition { navigation: auto; }

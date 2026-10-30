@@ -550,8 +550,10 @@ class EditListingTests(TestCase):
             ))
             self.assertEqual(response.status_code, 302)
             photos = list(self.product.images.all())
-            self.assertEqual([photo.order for photo in photos], [0, 4, 5, 6, 7])
+            # Urutan dirapikan jadi 0..4 dengan cover di depan; covernya tetap foto yang sama.
+            self.assertEqual([photo.order for photo in photos], [0, 1, 2, 3, 4])
             self.assertEqual(sum(photo.is_primary for photo in photos), 1)
+            self.assertEqual(photos[0].pk, self.cover.pk)
             self.assertEqual(self.product.primary_image.pk, self.cover.pk)
             self.assertTrue(all(photo.image.storage.exists(photo.image.name) for photo in photos[2:]))
 
@@ -663,7 +665,7 @@ class DeleteListingTests(TestCase):
         self.assertContains(response, 'form method="dialog"')
         self.assertContains(response, 'permanently removed')
 
-    def test_delete_removes_only_the_chosen_product_and_its_image_records(self):
+    def test_delete_hides_only_the_chosen_product_and_keeps_its_records(self):
         photo = self.product.images.create(image='products/deleted-photo.png')
         keep = Product.objects.create(seller=self.owner, title='Keep This Shirt', price=150000)
         old_detail = reverse('products:detail', args=[self.product.slug])
@@ -671,8 +673,10 @@ class DeleteListingTests(TestCase):
         response = self.client.post(self.delete_url())
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('products:home'))
+        # Soft delete: hidden from the shop, but the row and its photos are still stored.
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
-        self.assertFalse(type(photo).objects.filter(pk=photo.pk).exists())
+        self.assertIsNotNone(Product.all_objects.get(pk=self.product.pk).deleted_at)
+        self.assertTrue(type(photo).objects.filter(pk=photo.pk).exists())
         self.assertTrue(Product.objects.filter(pk=keep.pk).exists())
         self.assertContains(self.client.get(response.url), 'Listing deleted.')
         self.assertNotContains(self.client.get(response.url), 'Listing deleted.')
@@ -723,8 +727,9 @@ class DeleteListingTests(TestCase):
         conversation.refresh_from_db()
         text.refresh_from_db()
         shared.refresh_from_db()
-        self.assertIsNone(conversation.product_id)
-        self.assertIsNone(shared.product_id)
+        # The chat keeps pointing at the (soft-deleted) listing instead of losing it.
+        self.assertEqual(conversation.product_id, self.product.pk)
+        self.assertEqual(shared.product_id, self.product.pk)
         self.assertEqual(text.body, 'Is this still available?')
         self.assertEqual(conversation.messages.count(), 2)
         self.assertContains(self.client.get(reverse('chat:room', args=[conversation.pk])), 'Is this still available?')
@@ -750,7 +755,7 @@ class DeleteListingTests(TestCase):
             self.assertEqual(order.title, 'Delete This Shirt')
             self.assertEqual(order.subtotal, 125000)
             self.assertEqual(order.image, image_url)
-            self.assertIsNone(order.product_id)
+            self.assertEqual(order.product_id, self.product.pk)
             self.assertEqual(order.seller_id, self.owner.pk)
             self.assertEqual(saved.image, image_url)
             self.assertTrue(photo.image.storage.exists(photo.image.name))

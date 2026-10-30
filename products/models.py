@@ -1,9 +1,16 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
+
+from .storage import product_image_storage
 
 
 class Category(models.Model):
+    """Kategori punya dua tingkat: departemen (Women, Men) dan kategori di dalamnya (Tops, Bottoms, ...).
+
+    Departemen nggak punya parent; listing selalu masuk ke salah satu sub-kategori.
+    """
     name = models.CharField(max_length=80)
     slug = models.SlugField(max_length=120, unique=True, blank=True)
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='children')
@@ -14,6 +21,7 @@ class Category(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
+            # "Tops" ada dua (Women dan Men), jadi slug sub-kategori ikut nama parent-nya: women-tops, men-tops.
             base = f'{self.parent.slug}-{self.name}' if self.parent else self.name
             self.slug = slugify(base)
         super().save(*args, **kwargs)
@@ -22,7 +30,22 @@ class Category(models.Model):
         return f'{self.parent.name} · {self.name}' if self.parent else self.name
 
 
+class ActiveProductManager(models.Manager):
+    """Manager bawaan Product: listing yang sudah dihapus seller (soft delete) nggak ikut muncul.
+
+    Karena ini manager bawaan, semua query biasa (Product.objects..., product.images, user.products)
+    otomatis menyembunyikan listing yang dihapus, jadi halaman lain nggak perlu diubah satu-satu.
+    Untuk melihat semuanya, pakai Product.all_objects.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
 class Product(models.Model):
+    """Satu listing thrift. Tiap listing itu satu barang fisik, jadi nggak ada stok:
+    begitu dibeli, statusnya jadi SOLD dan hilang dari toko."""
+
     class Condition(models.TextChoices):
         EXCELLENT = 'excellent', 'Excellent'
         GOOD = 'good', 'Good'
@@ -43,17 +66,34 @@ class Product(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.AVAILABLE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Soft delete: terisi waktu seller menghapus listing. Barisnya tetap ada di database,
+    # jadi riwayat pesanan tetap utuh dan listing bisa dipulihkan lewat tombol Undo.
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = ActiveProductManager()
+    all_objects = models.Manager()
 
     class Meta:
         ordering = ['-created_at', '-pk']
 
+    def soft_delete(self):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['deleted_at', 'updated_at'])
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=['deleted_at', 'updated_at'])
+
     def save(self, *args, **kwargs):
+        # Slug itu bagian URL yang bisa dibaca (/products/wool-coat/). Judul bisa sama, jadi
+        # ditambah angka sampai unik: wool-coat-2, wool-coat-3, dan seterusnya.
         if not self.slug:
             max_length = self._meta.get_field('slug').max_length
             base = slugify(self.title)[:max_length] or 'product'
             self.slug = base
             number = 2
-            while type(self).objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
+            # _base_manager ikut menghitung listing yang sudah dihapus: slug mereka tetap terpakai.
+            while type(self)._base_manager.filter(slug=self.slug).exclude(pk=self.pk).exists():
                 suffix = f'-{number}'
                 self.slug = f'{base[:max_length - len(suffix)]}{suffix}'
                 number += 1
@@ -61,7 +101,7 @@ class Product(models.Model):
 
     @property
     def primary_image(self):
-        # all() reuses prefetched images; filtering here would issue another query.
+        # Pakai all() supaya foto yang sudah di-prefetch dipakai ulang; kalau di-filter, jadi query baru lagi.
         images = list(self.images.all())
         for image in images:
             if image.is_primary:
@@ -70,6 +110,7 @@ class Product(models.Model):
 
     @property
     def is_purchasable(self):
+        # Dicek di semua tempat yang bisa membeli, masuk bag, atau masuk wishlist.
         return self.status == self.Status.AVAILABLE
 
     def __str__(self):
@@ -77,8 +118,9 @@ class Product(models.Model):
 
 
 class ProductImage(models.Model):
+    """Foto listing. Satu jadi cover (is_primary), sisanya ditampilkan sesuai `order`."""
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
-    image = models.ImageField(upload_to='products/%Y/%m/')
+    image = models.ImageField(upload_to='products/%Y/%m/', storage=product_image_storage)
     is_primary = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
 
@@ -87,6 +129,8 @@ class ProductImage(models.Model):
 
 
 class BasketItem(models.Model):
+    # Model ini nggak dipakai oleh shopping bag. Bag disimpan di session (lihat cart.py)
+    # supaya tamu bisa belanja sebelum login. Model ini dibiarkan untuk admin dan data lama.
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='basket_items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='basket_items')
     quantity = models.PositiveIntegerField(default=1)

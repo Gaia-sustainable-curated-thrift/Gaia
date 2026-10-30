@@ -1,0 +1,26 @@
+{% load tz %}
+{% if order_ui.expires_at %}<p class="small order-deadline">Payment deadline: {% timezone "Asia/Jakarta" %}{{ order_ui.expires_at|date:"j M Y, H:i" }} WIB{% endtimezone %}. Payment must be verified before the reservation expires.</p>{% endif %}
+{% if order_ui.can_cancel or order_ui.can_complete %}<section class="card order-action-panel" aria-labelledby="buyer-order-actions">
+<h2 id="buyer-order-actions">Your Order</h2>
+{% if order_ui.can_cancel %}<p class="small muted">Payment is awaiting administrator verification. Contact support if you have already transferred payment; cancelling does not issue a refund.</p>
+<details class="order-confirmation"><summary class="button secondary">Cancel Order</summary>
+<p>Cancel order #{{ order.number }}? This cannot be undone and the item will be made available again if its reservation is still attached.</p>
+<form method="post" action="{% url 'transaction:cancel_order' order.pk %}">{% csrf_token %}<button class="button" type="submit">Yes, Cancel This Order</button></form>
+</details>{% endif %}
+{% if order_ui.can_complete %}<p class="small muted">Only confirm after you have received your item and checked its condition.</p>
+<form method="post" action="{% url 'transaction:complete_order' order.pk %}">{% csrf_token %}<button class="button olive-button" type="submit">I Have Received This Item</button></form>{% endif %}
+</section>{% endif %}
+{% if order_ui.can_confirm_payment or order_ui.can_ship %}<section class="card order-action-panel" aria-labelledby="admin-order-actions">
+<h2 id="admin-order-actions">Administrator Actions</h2>
+{% if order_ui.can_confirm_payment %}<p class="small muted">Match this order with the payment you received before confirming. Buyer: {{ order.user.get_full_name|default:order.user.username }}.</p>
+<details class="order-confirmation"><summary class="button olive-button">Review Payment</summary>
+<p>Confirm that payment for order #{{ order.number }} has been received. This changes the order to Payment confirmed.</p>
+<form method="post" action="{% url 'transaction:confirm_payment' order.pk %}">{% csrf_token %}<button class="button olive-button" type="submit">Confirm Payment Received</button></form>
+</details>{% endif %}
+{% if order_ui.can_ship %}<p class="small muted">Payment is confirmed. Enter delivery details after handing the item to the courier.</p>
+<form method="post" action="{% url 'transaction:ship_order' order.pk %}" class="order-shipping-form">{% csrf_token %}
+<div class="field"><label for="order-courier">Courier</label><input id="order-courier" name="courier" maxlength="80" value="{{ order.courier }}" required autocomplete="off"></div>
+<div class="field"><label for="order-tracking">Tracking number</label><input id="order-tracking" name="tracking_number" maxlength="100" value="{{ order.tracking_number }}" required autocomplete="off"></div>
+<button class="button olive-button" type="submit">Mark as Shipped</button>
+</form>{% endif %}
+</section>{% endif %}

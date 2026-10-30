@@ -1346,3 +1346,23 @@ dialog::backdrop {
 .account-pagination { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:16px; margin-top:24px; }
 .account-pagination span { color:var(--olive-dark); font-size:14px; }
 @media (max-width:480px) { .account-pagination { gap:10px; } }
+
+.order-scope-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+.order-scope-tabs a { padding:10px 16px; border:1px solid var(--line); border-radius:8px; text-decoration:none; }
+.order-scope-tabs [aria-current="page"] { background:var(--olive); color:white; border-color:var(--olive); }
+.order-action-panel { margin-top:24px; }
+.order-confirmation { max-width:680px; }
+.order-confirmation > summary { cursor:pointer; list-style:none; width:fit-content; }
+.order-confirmation > summary::-webkit-details-marker { display:none; }
+.order-confirmation[open] > summary { margin-bottom:16px; }
+.order-confirmation p { line-height:1.6; margin-bottom:16px; }
+.order-shipping-form { max-width:480px; display:grid; gap:16px; }
+.order-deadline { padding:16px; border-left:3px solid var(--olive); background:var(--canvas); line-height:1.6; }
+.status.paid { background:#e5efdd; color:var(--olive-dark); }
+.status.cancelled { background:#eee; color:#555; }
+.status.expired { background:#f8eadb; color:#704418; }
+@media (max-width:480px) { .order-shipping-form .button { width:100%; } }
+
+.account-request-status { padding:10px 16px; border-radius:8px; background:var(--canvas); color:var(--olive-dark); font-size:14px; }
+.account-request-error { background:#f8e8ed; color:var(--wine); }
+main[aria-busy="true"] button[type="submit"] { opacity:.6; pointer-events:none; }

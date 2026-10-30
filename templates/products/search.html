@@ -10,15 +10,20 @@
         <span>Search</span>
     </nav>
 
-    {% if products %}
+    {% if has_matches %}
     <div class="search-head">
         <h1 class="listing-title">Search Results for &ldquo;{{ q }}&rdquo;</h1>
-        <p class="search-sub">Showing results for {{ result_count }} product{{ result_count|pluralize }}.</p>
+        <p class="search-sub" id="search-count">Showing results for {{ result_count }} product{{ result_count|pluralize }}.</p>
     </div>
 
     <div class="search-layout">
         <aside class="filter-panel">
-            <form class="filter-form" method="get" action="{% url 'products:search' %}">
+            {# HTMX swaps only the results and the count; without JS this is a normal GET form. #}
+            <form class="filter-form" method="get" action="{% url 'products:search' %}"
+                  hx-get="{% url 'products:search' %}" hx-target="#search-results" hx-select="#search-results"
+                  hx-select-oob="#search-count" hx-swap="outerHTML" hx-push-url="true"
+                  hx-trigger="submit, change from:input[type=checkbox], input changed delay:600ms from:.filter-input"
+                  hx-indicator="#search-results">
                 <input type="hidden" name="q" value="{{ q }}">
 
                 <div class="filter-panel__head">
@@ -87,10 +92,21 @@
             </form>
         </aside>
 
-        <div class="product-grid">
-            {% for product in products %}
-                {% include 'products/includes/product_card.html' with product=product %}
-            {% endfor %}
+        <div class="search-results" id="search-results" aria-live="polite">
+            {% if products %}
+            <div class="product-grid">
+                {% for product in products %}
+                    {% include 'products/includes/product_card.html' with product=product %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="state search-results__empty">
+                {% include 'includes/icon.html' with name='filter' %}
+                <h2>No products match these filters</h2>
+                <p>Try a wider price range or fewer filters.</p>
+                <a class="filter-clear" href="{% url 'products:search' %}?q={{ q|urlencode }}">Clear all filters</a>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% else %}

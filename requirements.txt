@@ -6,3 +6,5 @@ whitenoise
 django-allauth[socialaccount]~=65.19
 PyJWT
 Pillow
+cloudinary>=1.40,<2
+django-cloudinary-storage>=0.3.0,<0.4

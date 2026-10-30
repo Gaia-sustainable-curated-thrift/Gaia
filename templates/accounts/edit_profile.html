@@ -1,10 +1,10 @@
 {% extends 'accounts/layout.html' %}
 {% load account_tags static %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/avatar.css' %}"><script src="{% static 'js/avatar.js' %}" defer></script>{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/avatar.css' %}">{% endblock %}
 {% block account_content %}
 <section class="card">
     <h2>Personal Information</h2>
-    <p class="muted">Keep your photo and personal details up to date.</p>
+    <p class="muted">Keep your photo and personal details up to date. Fields marked * are required; your profile photo is optional.</p>
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {{ form.non_field_errors }}
@@ -14,7 +14,7 @@
                 <span data-avatar-fallback {% if profile.avatar %}hidden{% endif %}>{{ user|initials }}</span>
             </div>
             <div class="avatar-controls">
-                <label for="{{ form.avatar.id_for_label }}">Change profile photo</label>
+                <label for="{{ form.avatar.id_for_label }}">Change profile photo (optional)</label>
                 {{ form.avatar }}
                 <p class="small muted" id="avatar-help">{{ form.avatar.help_text }} Changes are saved when you select Save Changes.</p>
                 <p class="small avatar-feedback" data-avatar-feedback role="status"></p>
@@ -23,7 +23,7 @@
         </div>
         <div class="form-fields two-columns">
             {% for field in form %}{% if field.name != 'avatar' %}
-                <div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-errors" id="{{ field.auto_id }}_errors">{{ field.errors }}</div>{% endif %}</div>
+                <div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>{{ field }}{% if field.errors %}<div class="field-errors" id="{{ field.auto_id }}_errors">{{ field.errors }}</div>{% endif %}</div>
             {% endif %}{% endfor %}
         </div>
         <p class="small muted">Your email is managed securely and cannot be changed here.</p>

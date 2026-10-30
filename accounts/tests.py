@@ -877,7 +877,7 @@ class AvatarTests(TestCase):
         self.user = User.objects.create_user('avatar-owner', 'avatar@example.com', PASSWORD, first_name='Avatar')
         Profile.objects.create(user=self.user)
         self.client.force_login(self.user)
-        self.data = {'full_name': 'Avatar Owner', 'username': 'avatar-owner', 'phone': '', 'city': 'Jakarta', 'country': 'Indonesia'}
+        self.data = {'full_name': 'Avatar Owner', 'username': 'avatar-owner', 'phone': '+6281234567890', 'city': 'Jakarta', 'country': 'Indonesia'}
 
     def image(self, filename='photo.png', format='PNG', size=(100, 80)):
         from PIL import Image
@@ -1481,3 +1481,326 @@ class AccountMigrationSafetyTests(TransactionTestCase):
         finally:
             # Only remove the deliberately duplicated fixture so tearDown can migrate forward.
             LegacyUser.objects.filter(pk=second.pk).delete()
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class MyOrdersTransactionIntegrationTests(TestCase):
+    def setUp(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from products.models import Product
+        from transaction.models import ProductReservation, TransactionOrderState
+        self.buyer = User.objects.create_user('orders-buyer', 'orders-buyer@example.test', PASSWORD)
+        self.other = User.objects.create_user('orders-other', 'orders-other@example.test', PASSWORD)
+        self.seller = User.objects.create_user('orders-seller', 'orders-seller@example.test', PASSWORD)
+        self.staff = User.objects.create_user('orders-staff', 'orders-staff@example.test', PASSWORD, is_staff=True)
+        self.product = Product.objects.create(seller=self.seller, title='Reserved Linen Coat', price=100000, status='sold')
+        self.order = AccountOrder.objects.create(
+            user=self.buyer, seller=self.seller, product=self.product, number='MY-ORDER-1', date=date.today(),
+            status='awaiting_payment', title=self.product.title, subtotal=100000, recipient='Buyer', address='Depok')
+        self.state = TransactionOrderState.objects.create(order=self.order)
+        self.reservation = ProductReservation.objects.create(order=self.order, product=self.product,
+                                                             expires_at=timezone.now() + timedelta(minutes=15))
+        self.client.force_login(self.buyer)
+        self.staff_client = Client()
+        self.staff_client.force_login(self.staff)
+        self.detail_url = reverse('order_detail', args=[self.order.pk])
+
+    def action(self, name):
+        return reverse('transaction:' + name, args=[self.order.pk])
+
+    def test_buyer_sees_actions_for_unpaid_order_without_admin_payment_controls(self):
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'Awaiting payment')
+        self.assertContains(response, 'Cancel Order')
+        self.assertContains(response, self.action('cancel_order'))
+        self.assertContains(response, 'Payment deadline:')
+        self.assertNotContains(response, self.action('confirm_payment'))
+        self.assertNotContains(response, self.action('ship_order'))
+        self.assertNotContains(response, self.action('complete_order'))
+
+    def test_cancel_redirects_to_history_releases_item_and_preserves_snapshot(self):
+        response = self.client.post(self.action('cancel_order'))
+        self.assertRedirects(response, self.detail_url)
+        self.state.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(self.state.status, 'cancelled')
+        self.assertEqual(self.product.status, 'available')
+        self.assertTrue(AccountOrder.objects.filter(pk=self.order.pk).exists())
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'Cancelled')
+        self.assertContains(response, 'Not paid')
+        self.assertNotContains(response, 'Cancel Order')
+        self.assertContains(self.client.get(reverse('orders')), 'Cancelled')
+        from accounts.views import _deletion_blocked
+        self.assertFalse(_deletion_blocked(self.buyer))
+        self.assertFalse(_deletion_blocked(self.seller))
+
+    def test_expired_order_releases_stock_on_my_orders_and_has_no_cancel_action(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from transaction.models import ProductReservation
+        ProductReservation.objects.filter(pk=self.reservation.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertContains(self.client.get(reverse('orders')), 'Expired')
+        self.state.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(self.state.status, 'expired')
+        self.assertEqual(self.product.status, 'available')
+        self.assertNotContains(self.client.get(self.detail_url), 'Cancel Order')
+
+    def test_staff_payment_confirmation_is_visible_to_buyer_and_disables_cancel(self):
+        response = self.staff_client.get(self.detail_url)
+        self.assertContains(response, self.action('confirm_payment'))
+        self.assertRedirects(self.staff_client.post(self.action('confirm_payment')), self.detail_url)
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'Payment confirmed')
+        self.assertContains(response, 'Paid')
+        self.assertNotContains(response, 'Awaiting payment')
+        self.assertNotContains(response, 'Cancel Order')
+        self.assertContains(self.client.get(reverse('orders')), 'Payment confirmed')
+        session = self.client.session
+        session['transaction_completed_orders'] = [self.order.pk]
+        session.save()
+        self.assertContains(self.client.get(reverse('transaction:confirmation')), 'Payment confirmed')
+        self.client.post(self.action('cancel_order'))
+        self.state.refresh_from_db()
+        self.assertEqual(self.state.status, 'paid')
+        from accounts.views import _deletion_blocked
+        self.assertTrue(_deletion_blocked(self.buyer))
+        self.assertTrue(_deletion_blocked(self.seller))
+
+    def test_paid_reservation_is_not_expired_or_released_after_its_original_deadline(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from transaction.models import ProductReservation
+        self.staff_client.post(self.action('confirm_payment'))
+        ProductReservation.objects.filter(pk=self.reservation.pk).update(expires_at=timezone.now() - timedelta(days=1))
+        self.client.get(reverse('orders'))
+        self.product.refresh_from_db()
+        self.state.refresh_from_db()
+        self.assertEqual(self.state.status, 'paid')
+        self.assertEqual(self.product.status, 'sold')
+        self.assertTrue(ProductReservation.objects.filter(order=self.order).exists())
+
+    def test_shipping_needs_valid_details_then_buyer_can_complete_and_review(self):
+        self.staff_client.post(self.action('confirm_payment'))
+        self.assertContains(self.staff_client.get(self.detail_url), 'Tracking number')
+        self.staff_client.post(self.action('ship_order'), {'courier': 'JNE'})
+        self.state.refresh_from_db()
+        self.assertEqual(self.state.status, 'paid')
+        self.staff_client.post(self.action('ship_order'), {'courier': 'JNE', 'tracking_number': 'JNE-123'})
+        self.order.refresh_from_db()
+        self.assertEqual((self.order.status, self.order.courier, self.order.tracking_number), ('in_transit', 'JNE', 'JNE-123'))
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, 'I Have Received This Item')
+        self.assertContains(response, 'JNE-123')
+        self.assertRedirects(self.client.post(self.action('complete_order')), self.detail_url)
+        self.order.refresh_from_db()
+        self.state.refresh_from_db()
+        self.assertEqual((self.order.status, self.state.status), ('completed', 'completed'))
+        self.assertContains(self.client.get(self.detail_url), reverse('reviews:create_order_review', args=[self.order.pk]))
+
+    def test_status_cannot_skip_payment_or_shipping(self):
+        self.client.post(self.action('complete_order'))
+        self.staff_client.post(self.action('ship_order'), {'courier': 'JNE', 'tracking_number': '123'})
+        self.order.refresh_from_db()
+        self.state.refresh_from_db()
+        self.assertEqual((self.order.status, self.state.status), ('awaiting_payment', 'active'))
+
+    def test_nonstaff_cannot_confirm_payment_or_mark_shipped(self):
+        for action in ('confirm_payment', 'ship_order'):
+            response = self.client.post(self.action(action))
+            self.assertEqual(response.status_code, 302)
+            self.assertIn('/admin/login/', response.url)
+        self.state.refresh_from_db()
+        self.assertEqual(self.state.status, 'active')
+
+    def test_other_buyers_and_seller_cannot_read_or_mutate_the_order(self):
+        for user in (self.other, self.seller):
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(self.detail_url).status_code, 404)
+            for action in ('cancel_order', 'complete_order'):
+                self.assertEqual(self.client.post(self.action(action)).status_code, 404)
+            self.assertNotContains(self.client.get(reverse('orders')), self.order.number)
+            self.assertEqual(self.client.get(reverse('orders'), {'scope': 'manage'}).status_code, 404)
+        self.state.refresh_from_db()
+        self.assertEqual(self.state.status, 'active')
+
+    def test_staff_manage_scope_keeps_pagination_and_default_scope_is_personal(self):
+        self.assertNotContains(self.staff_client.get(reverse('orders')), self.order.number)
+        for i in range(13):
+            AccountOrder.objects.create(user=self.other, number=f'MANAGE-{i}', date=date.today(),
+                                       status='completed', title='Other purchase', subtotal=1, recipient='Other', address='Depok')
+        response = self.staff_client.get(reverse('orders'), {'scope': 'manage'})
+        self.assertEqual(response.context['page_obj'].paginator.count, 14)
+        self.assertContains(response, 'scope=manage&amp;page=2')
+        self.assertContains(self.staff_client.get(reverse('orders'), {'scope': 'manage', 'page': 2}), self.order.number)
+
+    def test_expired_payment_cannot_be_confirmed_by_staff(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from transaction.models import ProductReservation
+        ProductReservation.objects.filter(pk=self.reservation.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.staff_client.post(self.action('confirm_payment'))
+        self.state.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(self.state.status, 'expired')
+        self.assertEqual(self.product.status, 'available')
+
+    def test_repeating_old_cancel_does_not_release_a_new_buyers_reservation(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from transaction.models import ProductReservation, TransactionOrderState
+        self.client.post(self.action('cancel_order'))
+        new_order = AccountOrder.objects.create(user=self.other, seller=self.seller, product=self.product,
+                                               number='NEW-RESERVATION', date=date.today(), status='awaiting_payment',
+                                               title='Coat', subtotal=100000, recipient='Other', address='Depok')
+        TransactionOrderState.objects.create(order=new_order)
+        ProductReservation.objects.create(order=new_order, product=self.product, expires_at=timezone.now() + timedelta(minutes=15))
+        self.product.status = 'sold'
+        self.product.save()
+        self.client.post(self.action('cancel_order'))
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, 'sold')
+        self.assertTrue(ProductReservation.objects.filter(order=new_order).exists())
+
+    def test_mutations_are_post_only_and_require_csrf_for_buyer_and_staff(self):
+        for user, actions in [(self.buyer, ('cancel_order', 'complete_order')), (self.staff, ('confirm_payment', 'ship_order'))]:
+            strict = Client(enforce_csrf_checks=True)
+            strict.force_login(user)
+            for action in actions:
+                self.assertEqual(strict.get(self.action(action)).status_code, 405)
+                self.assertEqual(strict.post(self.action(action)).status_code, 403)
+
+    def test_legacy_snapshots_still_render_without_creating_state_on_get(self):
+        from transaction.models import TransactionOrderState
+        legacy = AccountOrder.objects.create(user=self.buyer, number='LEGACY-SHIPPED', date=date.today(),
+                                            status='in_transit', title='Legacy Coat', subtotal=10, recipient='Buyer', address='Depok')
+        url = reverse('order_detail', args=[legacy.pk])
+        self.assertContains(self.client.get(url), 'In transit')
+        self.assertFalse(TransactionOrderState.objects.filter(order=legacy).exists())
+        self.assertRedirects(self.client.post(reverse('transaction:complete_order', args=[legacy.pk])), url)
+        self.assertEqual(TransactionOrderState.objects.get(order=legacy).status, 'completed')
+
+    def test_checkout_payment_shipping_and_receipt_work_without_admin_database_edits(self):
+        from products.models import Product
+        product = Product.objects.create(seller=self.seller, title='New Checkout Coat', price=50000)
+        session = self.client.session
+        session['bag'] = {str(product.pk): 1}
+        session['transaction_address'] = {'recipient': 'Buyer', 'phone': '08123', 'address': 'Street',
+                                          'city': 'Depok', 'postal_code': '16424', 'country': 'Indonesia'}
+        session['transaction_payment'] = 'bank_transfer'
+        session.save()
+        self.client.post(reverse('transaction:confirmation'))
+        order = AccountOrder.objects.get(product=product)
+        self.assertContains(self.client.get(reverse('orders')), order.number)
+        self.staff_client.post(reverse('transaction:confirm_payment', args=[order.pk]))
+        self.staff_client.post(reverse('transaction:ship_order', args=[order.pk]), {'courier': 'JNE', 'tracking_number': 'LIVE-FLOW-123'})
+        self.client.post(reverse('transaction:complete_order', args=[order.pk]))
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'completed')
+        self.assertContains(self.client.get(reverse('order_detail', args=[order.pk])), 'Review Seller')
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class RequiredProfileFieldsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('required-profile', 'required@example.test', PASSWORD, first_name='Before')
+        Profile.objects.create(user=self.user, phone='+628111111111', city='Jakarta', country='Indonesia')
+        self.client.force_login(self.user)
+        self.data = {'full_name': 'Updated Owner', 'username': 'updated-profile',
+                     'phone': '+62 812 3456 7890', 'city': 'Bandung', 'country': 'Indonesia'}
+
+    def test_all_editable_text_fields_reject_missing_blank_and_whitespace(self):
+        for field in ('full_name', 'username', 'phone', 'city', 'country'):
+            for value in (None, '', '   '):
+                with self.subTest(field=field, value=value):
+                    data = self.data.copy()
+                    if value is None:
+                        data.pop(field)
+                    else:
+                        data[field] = value
+                    form = ProfileForm(data, instance=User.objects.get(pk=self.user.pk))
+                    self.assertFalse(form.is_valid())
+                    self.assertEqual(form.errors.as_data()[field][0].code, 'required')
+
+    def test_missing_contact_details_do_not_partially_save_the_user_or_profile(self):
+        for field in ('phone', 'city', 'country'):
+            data = {**self.data, field: '   '}
+            response = self.client.post(reverse('edit_profile'), data)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(field, response.context['form'].errors)
+            self.user.refresh_from_db()
+            self.assertEqual((self.user.first_name, self.user.username), ('Before', 'required-profile'))
+            self.assertEqual((self.user.profile.phone, self.user.profile.city, self.user.profile.country),
+                             ('+628111111111', 'Jakarta', 'Indonesia'))
+
+    def test_complete_profile_saves_without_requiring_an_avatar_or_editable_email(self):
+        response = self.client.post(reverse('edit_profile'), self.data)
+        self.assertRedirects(response, reverse('profile'))
+        self.user.refresh_from_db()
+        self.assertEqual((self.user.profile.phone, self.user.profile.city, self.user.profile.country),
+                         ('+62 812 3456 7890', 'Bandung', 'Indonesia'))
+        self.assertFalse(self.user.profile.avatar)
+        self.assertEqual(self.user.email, 'required@example.test')
+
+    def test_page_explains_required_fields_and_browser_validation_matches_backend(self):
+        response = self.client.get(reverse('edit_profile'))
+        self.assertContains(response, 'Fields marked * are required')
+        self.assertContains(response, 'Change profile photo (optional)')
+        form = response.context['form']
+        for name in ('full_name', 'username', 'phone', 'city', 'country'):
+            self.assertIn(' required', str(form[name]))
+        self.assertNotIn('required', str(form['avatar']))
+        self.assertTrue(form.fields['email'].disabled)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class AccountValidationRegressionTests(TestCase):
+    def test_password_similarity_uses_the_submitted_full_name(self):
+        form = RegisterForm({'full_name': 'LavenderFoxOrbit', 'email': 'new@example.test',
+                             'password1': 'LavenderFoxOrbit2026!', 'password2': 'LavenderFoxOrbit2026!'})
+        self.assertFalse(form.is_valid())
+        self.assertIn('password2', form.errors)
+
+    def test_empty_registration_is_bound_and_shows_required_errors(self):
+        response = self.client.post(reverse('register'), {})
+        self.assertTrue(response.context['form'].is_bound)
+        self.assertIn('email', response.context['form'].errors)
+
+    def test_competing_username_change_shows_form_error_without_partial_save(self):
+        user = User.objects.create_user('race-owner', 'race@example.test', PASSWORD, first_name='Original')
+        Profile.objects.create(user=user, city='Jakarta')
+        self.client.force_login(user)
+        original = ProfileForm.is_valid
+        def competing(form):
+            valid = original(form)
+            User.objects.create_user('contended-name')
+            return valid
+        with patch.object(ProfileForm, 'is_valid', competing):
+            response = self.client.post(reverse('edit_profile'), {'full_name': 'Changed', 'username': 'contended-name',
+                'phone': '08123456789', 'city': 'Bandung', 'country': 'Indonesia'})
+        self.assertContains(response, 'This username was just taken')
+        user.refresh_from_db()
+        self.assertEqual((user.username, user.first_name, user.profile.city), ('race-owner', 'Original', 'Jakarta'))
+
+
+    def test_case_insensitive_username_uniqueness_is_enforced_by_database(self):
+        User.objects.create_user('CaseTwin')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            User.objects.create_user('casetwin')
+
+    def test_two_prevalidated_profile_forms_cannot_create_case_variant_usernames(self):
+        first = User.objects.create_user('race-first')
+        second = User.objects.create_user('race-second')
+        Profile.objects.create(user=first)
+        Profile.objects.create(user=second)
+        data = {'full_name': 'Owner', 'phone': '08123456789', 'city': 'Depok', 'country': 'Indonesia'}
+        a = ProfileForm({**data, 'username': 'SharedName'}, instance=first)
+        b = ProfileForm({**data, 'username': 'sharedname'}, instance=second)
+        self.assertTrue(a.is_valid(), a.errors)
+        self.assertTrue(b.is_valid(), b.errors)
+        a.save()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            b.save()
+        self.assertEqual(User.objects.filter(username__iexact='sharedname').count(), 1)
