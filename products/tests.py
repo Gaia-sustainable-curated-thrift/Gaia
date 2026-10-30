@@ -348,6 +348,75 @@ class WishlistSaveTests(TestCase):
         self.assertEqual(WishlistItem.objects.count(), 0)
 
 
+class SellerRatingDisplayTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('rating-seller')
+        cls.other_seller = get_user_model().objects.create_user('rating-other-seller')
+        cls.first_buyer = get_user_model().objects.create_user('rating-first-buyer')
+        cls.second_buyer = get_user_model().objects.create_user('rating-second-buyer')
+        cls.product = Product.objects.create(seller=cls.seller, title='Rated Shirt', price=150000)
+
+    def review(self, reviewer, rating, seller=None):
+        from reviews.models import Review
+
+        return Review.objects.create(
+            reviewer=reviewer, seller=seller or self.seller,
+            rating=rating, title='Buyer review', comment='Review from a buyer.',
+        )
+
+    def page(self, product=None):
+        return self.client.get(reverse('products:detail', args=[(product or self.product).slug]))
+
+    def test_average_and_count_are_specific_to_the_real_seller(self):
+        self.review(self.first_buyer, 5)
+        self.review(self.second_buyer, 2)
+        self.review(self.first_buyer, 1, seller=self.other_seller)
+        response = self.page()
+        self.assertContains(response, '<span class="pdp-rating-value">3.5</span>', html=True)
+        self.assertContains(response, '<span class="pdp-rating-count">(2)</span>', html=True)
+        another = Product.objects.create(seller=self.seller, title='Another Rated Shirt', price=175000)
+        self.assertContains(self.page(another), '<span class="pdp-rating-value">3.5</span>', html=True)
+
+    def test_fractional_star_fill_follows_the_database_average(self):
+        from reviews.templatetags.review_tags import seller_rating
+
+        self.review(self.first_buyer, 5)
+        self.review(self.second_buyer, 4)
+        summary = seller_rating(self.seller)
+        self.assertEqual(summary['average_rating'], 4.5)
+        self.assertEqual(summary['total_reviews'], 2)
+        self.assertEqual(summary['star_fill'], [100, 100, 100, 100, 50])
+        response = self.page()
+        self.assertContains(response, 'class="pdp-rating-star"', count=5)
+        self.assertContains(response, 'style="width: 50%"', count=1)
+
+    def test_editing_and_deleting_reviews_updates_the_display(self):
+        first = self.review(self.first_buyer, 5)
+        second = self.review(self.second_buyer, 1)
+        self.assertContains(self.page(), '<span class="pdp-rating-value">3.0</span>', html=True)
+        second.rating = 3
+        second.save(update_fields=['rating'])
+        self.assertContains(self.page(), '<span class="pdp-rating-value">4.0</span>', html=True)
+        first.delete()
+        response = self.page()
+        self.assertContains(response, '<span class="pdp-rating-value">3.0</span>', html=True)
+        self.assertContains(response, '<span class="pdp-rating-count">(1)</span>', html=True)
+        second.delete()
+        self.assertContains(self.page(), 'No reviews yet')
+
+    def test_seller_without_reviews_has_no_fake_score_or_full_stars(self):
+        response = self.page()
+        self.assertContains(response, 'No reviews yet')
+        self.assertNotContains(response, 'class="pdp-rating-value"')
+        self.assertNotContains(response, 'class="pdp-rating-star"')
+
+    def test_sidebar_bag_uses_the_shared_dialog_trigger(self):
+        response = self.page()
+        self.assertContains(response, 'class="site-drawer-account-icon" type="button" data-bag-toggle')
+        self.assertNotContains(response, f'class="site-drawer-account-icon" href="{reverse("orders")}"')
+
+
 class EditListingTests(TestCase):
     @classmethod
     def setUpTestData(cls):

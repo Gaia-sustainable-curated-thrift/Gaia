@@ -10,7 +10,9 @@ def seller_rating(seller):
     summary = Review.objects.filter(seller=seller).aggregate(
         average_rating=Avg("rating"), total_reviews=Count("pk"),
     )
-    return {"seller": seller, **summary}
+    average = summary['average_rating'] or 0
+    star_fill = [round(max(0, min(1, average - index)) * 100) for index in range(5)]
+    return {"seller": seller, **summary, "star_fill": star_fill}
 
 
 @register.inclusion_tag("reviews/_account_nav.html")

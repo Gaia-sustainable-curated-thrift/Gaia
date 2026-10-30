@@ -160,6 +160,8 @@
 
         toggles.forEach(function (toggle) {
             toggle.addEventListener('click', function () {
+                var sidebar = document.getElementById('site-drawer');
+                if (sidebar && sidebar.open) sidebar.close();
                 if (!drawer.open) drawer.showModal();
             });
         });

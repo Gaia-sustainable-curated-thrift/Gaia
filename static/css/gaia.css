@@ -598,6 +598,8 @@
 .site-drawer-categories a:last-child { border-bottom: 0; }
 .site-drawer-categories a:hover { color: var(--wine); }
 .site-drawer-categories a span { font-size: 24px; line-height: 1; }
+.site-drawer button.site-drawer-account-icon { border: 0; padding: 0; color: inherit; background: transparent; }
+.site-drawer button.site-drawer-account-icon:hover { background: var(--field); }
 .site-drawer {
     height: calc(100vh - 16px);
     height: calc(100dvh - 16px);
@@ -1188,6 +1190,10 @@
 .pdp-rating-value { font-size: 16px; font-weight: 600; line-height: 1.5; }
 .pdp-rating-count { font-size: 16px; line-height: 1.5; }
 .pdp-rating-stars { display: inline-flex; align-items: center; gap: 2px; }
+.pdp-rating-star { position: relative; display: inline-flex; flex: 0 0 24px; width: 24px; height: 24px; }
+.pdp-rating-star > .icon { color: var(--selected); }
+.pdp-rating-star__fill { position: absolute; inset: 0 auto 0 0; overflow: hidden; color: var(--olive); }
+.pdp-rating-star__fill .icon { display: block; max-width: none; }
 
 .pdp-rating .icon {
     width: 24px;
@@ -1288,6 +1294,7 @@
     .pdp-rating-value { font-weight: 400; }
     .pdp-rating-stars { gap: 4px; }
     .pdp-rating .icon { width: 16px; height: 16px; }
+    .pdp-rating-star { flex-basis: 16px; width: 16px; height: 16px; }
     .pdp-chat,
     .pdp-edit { width: 100%; font-size: 12px; min-height: 44px; }
     .pdp-owner-actions { width: 100%; }
