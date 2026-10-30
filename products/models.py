@@ -49,12 +49,24 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.title)[:200]
+            max_length = self._meta.get_field('slug').max_length
+            base = slugify(self.title)[:max_length] or 'product'
+            self.slug = base
+            number = 2
+            while type(self).objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
+                suffix = f'-{number}'
+                self.slug = f'{base[:max_length - len(suffix)]}{suffix}'
+                number += 1
         super().save(*args, **kwargs)
 
     @property
     def primary_image(self):
-        return self.images.filter(is_primary=True).first() or self.images.first()
+        # all() reuses prefetched images; filtering here would issue another query.
+        images = list(self.images.all())
+        for image in images:
+            if image.is_primary:
+                return image
+        return images[0] if images else None
 
     @property
     def is_purchasable(self):

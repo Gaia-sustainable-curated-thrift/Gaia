@@ -170,16 +170,19 @@
 
     function initToasts() {
         document.querySelectorAll('[data-toast]').forEach(function (toast) {
+            var drawer = document.getElementById('bag-drawer');
+            if (drawer && drawer.open) drawer.appendChild(toast);
             var duration = parseInt(toast.getAttribute('data-toast-duration'), 10) || 4000;
             dismissToast(toast, duration);
         });
     }
 
     function showBagToast(toast) {
-        if (!toast || toast.kind !== 'added') return;
+        document.querySelectorAll('.toast[data-toast]').forEach(function (existing) { existing.remove(); });
+        if (!toast || (toast.kind !== 'added' && toast.kind !== 'error')) return;
         var el = document.createElement('div');
-        el.className = 'toast toast--added';
-        el.setAttribute('role', 'status');
+        el.className = 'toast toast--' + toast.kind;
+        el.setAttribute('role', toast.kind === 'error' ? 'alert' : 'status');
         el.setAttribute('data-toast', '');
         el.setAttribute('data-toast-duration', '4000');
 
@@ -195,16 +198,24 @@
             el.appendChild(icon);
         }
 
-        document.body.appendChild(el);
+        var drawer = document.getElementById('bag-drawer');
+        (drawer && drawer.open ? drawer : document.body).appendChild(el);
         dismissToast(el, 4000);
     }
 
     function initBagForms() {
+        var requestPending = false;
         document.addEventListener('submit', function (event) {
             var form = event.target;
-            if (!form.matches('form[action*="/bag/"]')) return;
+            if (!form.matches('form[action]') || !/\/bag\/(add|set|undo)\//.test(new URL(form.action).pathname)) return;
+            if (typeof window.fetch !== 'function') return;
 
             event.preventDefault();
+            if (requestPending) return;
+            requestPending = true;
+            form.setAttribute('aria-busy', 'true');
+            var button = form.querySelector('button[type="submit"]');
+            if (button) button.disabled = true;
             var drawer = document.getElementById('bag-drawer');
 
             fetch(form.action, {
@@ -213,9 +224,11 @@
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             }).then(function (response) {
-                return response.ok ? response.json() : null;
+                return response.json();
             }).then(function (data) {
-                if (!data) return;
+                if (!data || typeof data.bag_count !== 'number' || typeof data.ok !== 'boolean') {
+                    throw new Error('Invalid bag response');
+                }
                 var panel = document.querySelector('.bag-drawer__panel');
                 if (panel && data.drawer) panel.innerHTML = data.drawer;
                 document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
@@ -228,7 +241,12 @@
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showBagToast(data.toast);
             }).catch(function () {
-                form.submit();
+                // A failed response may follow a successful POST; do not replay it.
+                showBagToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
+            }).finally(function () {
+                requestPending = false;
+                form.removeAttribute('aria-busy');
+                if (button) button.disabled = false;
             });
         });
     }
@@ -242,6 +260,7 @@
         var input = form.querySelector('[data-photo-input]');
         if (photos && addTile && input) {
             var MAX_PHOTOS = 5;
+            var existingCount = photos.querySelectorAll('[data-existing-photo]').length;
             var chosen = [];
 
             var syncInput = function () {
@@ -251,7 +270,7 @@
             };
 
             var render = function () {
-                photos.querySelectorAll('.sell-photo').forEach(function (node) { node.remove(); });
+                photos.querySelectorAll('.sell-photo:not([data-existing-photo])').forEach(function (node) { node.remove(); });
                 chosen.forEach(function (file, index) {
                     var tile = document.createElement('div');
                     tile.className = 'sell-photo';
@@ -276,7 +295,7 @@
                     tile.appendChild(img);
                     tile.appendChild(remove);
 
-                    if (index === 0) {
+                    if (index === 0 && existingCount === 0) {
                         var cover = document.createElement('span');
                         cover.className = 'sell-photo__cover';
                         cover.textContent = 'Cover';
@@ -284,14 +303,14 @@
                     }
                     photos.insertBefore(tile, addTile);
                 });
-                var full = chosen.length >= MAX_PHOTOS;
+                var full = chosen.length + existingCount >= MAX_PHOTOS;
                 addTile.hidden = full;
                 addTile.style.display = full ? 'none' : '';
             };
 
             input.addEventListener('change', function () {
                 Array.prototype.forEach.call(input.files, function (file) {
-                    if (chosen.length < MAX_PHOTOS) chosen.push(file);
+                    if (chosen.length + existingCount < MAX_PHOTOS) chosen.push(file);
                 });
                 syncInput();
                 render();
@@ -348,6 +367,22 @@
         }
     }
 
+    function initListingDelete() {
+        var dialog = document.getElementById('delete-listing-dialog');
+        var toggle = document.querySelector('[data-delete-listing]');
+        if (!dialog || !toggle) return;
+        toggle.addEventListener('click', function () {
+            if (!dialog.open) dialog.showModal();
+            toggle.setAttribute('aria-expanded', 'true');
+        });
+        dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
+        dialog.addEventListener('click', function (event) {
+            if (event.target !== dialog) return;
+            var bounds = dialog.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+        });
+    }
+
     function init() {
         initCategoryTabs();
         initListingTabs();
@@ -356,6 +391,7 @@
         initBagDrawer();
         initBagForms();
         initSellForm();
+        initListingDelete();
         initToasts();
         initDrawerSearch(initHeaderSearch());
     }

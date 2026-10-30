@@ -1,13 +1,13 @@
 {% extends 'products/base.html' %}
 {% load static %}
-{% block title %}List an item{% endblock %}
+{% block title %}{% if editing %}Edit listing{% else %}List an item{% endif %}{% endblock %}
 {% block main %}
 <main class="sell-main">
     <div class="sell-head">
-        <a class="sell-back" href="{% url 'products:home' %}" aria-label="Back to home">
+        <a class="sell-back" href="{% if editing %}{% url 'products:detail' product.slug %}{% else %}{% url 'products:home' %}{% endif %}" aria-label="{% if editing %}Back to product{% else %}Back to home{% endif %}">
             {% include 'includes/icon.html' with name='arrow-left' %}
         </a>
-        <h1 class="sell-title">List an item</h1>
+        <h1 class="sell-title">{% if editing %}Edit listing{% else %}List an item{% endif %}</h1>
     </div>
 
     {% if errors %}
@@ -21,7 +21,14 @@
 
         <section class="sell-section">
             <h2 class="sell-label">Select maximum 5 photos</h2>
+            {% if existing_images %}<p class="sell-photo-note">Existing photos are kept. Add more photos up to five in total.</p>{% endif %}
             <div class="sell-photos" data-photos>
+                {% for image in existing_images %}
+                <div class="sell-photo" data-existing-photo>
+                    <img src="{{ image.image.url }}" alt="Existing photo {{ forloop.counter }}">
+                    {% if image.pk == cover_id %}<span class="sell-photo__cover">Cover</span>{% endif %}
+                </div>
+                {% endfor %}
                 <label class="sell-photo-add" data-photo-add>
                     {% include 'includes/icon.html' with name='plus' %}
                     <input class="sell-photo-input" type="file" name="photos" accept="image/*" multiple data-photo-input>
@@ -34,8 +41,8 @@
                 <section class="sell-field">
                     <h2 class="sell-label">Select category</h2>
                     <div class="sell-dropdown" data-sell-dropdown>
-                        <button class="sell-select" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false">
-                            <span data-sell-display>Choose a category</span>
+                        <button class="sell-select{% if selected_category %} is-set{% endif %}" type="button" data-sell-toggle aria-haspopup="listbox" aria-expanded="false">
+                            <span data-sell-display>{% if selected_category %}{{ selected_category.parent.name }}'s {{ selected_category.name|lower }}{% else %}Choose a category{% endif %}</span>
                             {% include 'includes/icon.html' with name='caret-down' %}
                         </button>
                         <div class="sell-menu" data-sell-menu hidden>
@@ -53,7 +60,7 @@
                             {% endfor %}
                         </div>
                         <input type="hidden" name="parent" value="{{ selected_parent }}" data-sell-parent>
-                        <input type="hidden" name="category" value="{{ form.category|default:'' }}" data-sell-value>
+                        <input type="hidden" name="category" value="{{ form.category.value|default_if_none:'' }}" data-sell-value>
                     </div>
                 </section>
             </div>
@@ -63,7 +70,7 @@
                     <h2 class="sell-label">Listing title</h2>
                     <input class="sell-input" type="text" name="title" maxlength="200"
                            placeholder="Subdued Angel Wings Hoodie"
-                           value="{{ form.title|default:'' }}">
+                           value="{{ form.title.value|default_if_none:'' }}">
                 </section>
             </div>
         </div>
@@ -76,7 +83,7 @@
                         {% for condition in conditions %}
                         <label class="sell-chip">
                             <input type="radio" name="condition" value="{{ condition.value }}"
-                                   {% if form.condition == condition.value or not form and condition.value == 'good' %}checked{% endif %}>
+                                   {% if form.condition.value == condition.value %}checked{% endif %}>
                             <span>{{ condition.label }}</span>
                         </label>
                         {% endfor %}
@@ -88,12 +95,12 @@
                 <section class="sell-field">
                     <h2 class="sell-label">Price</h2>
                     <input class="sell-input sell-price__input" type="text" name="price" inputmode="numeric"
-                           placeholder="2.000.000" data-price-input value="{{ form.price|default:'' }}">
+                           placeholder="2.000.000" data-price-input value="{{ form.price.value|default_if_none:'' }}">
                 </section>
             </div>
         </div>
 
-        <button class="button sell-submit" type="submit">List item</button>
+        <button class="button sell-submit" type="submit">{% if editing %}Save changes{% else %}List item{% endif %}</button>
     </form>
 </main>
 {% endblock %}

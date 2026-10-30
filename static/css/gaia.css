@@ -1118,9 +1118,10 @@
 
 .pdp-seller-card {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 40px;
+    gap: 16px;
     margin-top: 4px;
     padding: 12px;
     border-radius: 20px;
@@ -1177,11 +1178,18 @@
     stroke: none;
 }
 
-.pdp-chat {
+.pdp-chat,
+.pdp-edit {
     flex-shrink: 0;
     padding: 8px 24px;
     color: var(--wine-light);
 }
+.pdp-edit { margin-left: auto; }
+.pdp-owner-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.pdp-owner-actions .button { padding: 8px 16px; }
+.pdp-delete { color: var(--wine); }
+.pdp-delete-dialog h2 { font-family: "EB Garamond", Georgia, serif; font-size: 32px; line-height: 1.2; color: var(--olive-dark); margin: 0 0 16px; }
+.pdp-delete-dialog .actions { gap: 12px; }
 
 .pdp-also { margin-top: 72px; }
 
@@ -1262,7 +1270,10 @@
     .pdp-rating-value { font-weight: 400; }
     .pdp-rating-stars { gap: 4px; }
     .pdp-rating .icon { width: 16px; height: 16px; }
-    .pdp-chat { width: 100%; font-size: 12px; min-height: 44px; }
+    .pdp-chat,
+    .pdp-edit { width: 100%; font-size: 12px; min-height: 44px; }
+    .pdp-owner-actions { width: 100%; }
+    .pdp-owner-actions .button { flex: 1; width: auto; min-height: 44px; font-size: 12px; }
     .pdp-also { margin-top: 24px; }
     .pdp-also__title { font-size: 24px; margin-bottom: 24px; }
     .pdp-related-grid {
@@ -1370,6 +1381,16 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.bag-stepper__remove {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--wine);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 
 .bag-item__body {
@@ -1554,6 +1575,8 @@
 }
 
 .toast__icon { display: inline-flex; }
+.toast--error { width: min(560px, calc(100vw - 32px)); gap: 16px; background: var(--wine-light); color: var(--wine-dark); }
+.toast--error .toast__text { font-size: 16px; font-weight: 600; line-height: 1.5; }
 .toast__icon .icon { width: 32px; height: 32px; color: var(--ink); }
 
 /* ---------- Shopping bag responsive ---------- */
@@ -1691,6 +1714,7 @@
 }
 
 .sell-section { display: flex; flex-direction: column; gap: 16px; }
+.sell-photo-note { margin: 0; font-size: 14px; color: var(--olive-dark); line-height: 1.5; }
 
 .sell-field { display: flex; flex-direction: column; gap: 16px; }
 
