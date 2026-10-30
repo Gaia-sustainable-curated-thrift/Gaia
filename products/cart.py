@@ -1,3 +1,5 @@
+from django.contrib.auth import SESSION_KEY as AUTH_SESSION_KEY
+
 from .models import Product
 
 SESSION_KEY = 'bag'
@@ -70,6 +72,10 @@ def items(session):
         .prefetch_related('images')
         .filter(pk__in=ids, status=Product.Status.AVAILABLE)
     )
+    # A seller can never buy their own listing, even one added before signing in.
+    owner_id = session.get(AUTH_SESSION_KEY)
+    if owner_id is not None:
+        products = products.exclude(seller_id=owner_id)
     by_id = {str(product.pk): product for product in products}
     available = {key: quantity for key, quantity in data.items() if key in by_id}
     if session.get(SESSION_KEY) != available:

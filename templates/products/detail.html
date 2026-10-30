@@ -49,7 +49,7 @@
                     <form class="pdp-action-form" method="post" action="{% url 'products:bag_add' product.slug %}">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button class="button pdp-bag" type="submit" {% if not product.is_purchasable %}disabled{% endif %}>
+                        <button class="button pdp-bag" type="submit" {% if not product.is_purchasable or user == product.seller %}disabled{% endif %}>
                             {% include 'includes/icon.html' with name='bag' %}<span>Add to bag</span>
                         </button>
                     </form>

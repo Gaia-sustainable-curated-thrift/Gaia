@@ -219,6 +219,10 @@ class BagTests(TestCase):
         response = self.client.post(reverse('products:wish_add', args=[self.product.slug]))
         self.assertEqual(response.status_code, 302)
         self.assertIn('/accounts/login/', response.url)
+        # After signing in the visitor lands back on the product page, not the POST-only endpoint.
+        next_url = parse_qs(urlparse(response.url).query)['next'][0]
+        self.assertEqual(next_url, reverse('products:detail', args=[self.product.slug]))
+        self.assertEqual(self.client.get(next_url).status_code, 200)
 
     def test_wish_add_saves_for_authenticated_user(self):
         self.client.force_login(self.seller)
@@ -855,3 +859,65 @@ class SellTests(TestCase):
         self.assertContains(response, 'value="Keep This Title"')
         self.assertEqual(response.context['selected_category'], self.child)
         self.assertEqual(response.context['form']['condition'].value(), 'excellent')
+
+
+class OwnListingPurchaseTests(TestCase):
+    ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('own-seller')
+        cls.buyer = get_user_model().objects.create_user('own-buyer')
+        cls.product = Product.objects.create(seller=cls.seller, title='Own Jacket', price=200000)
+
+    def test_seller_cannot_add_own_listing_to_bag(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:bag_add', args=[self.product.slug]), **self.ajax)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['toast']['text'], 'You cannot buy your own listing.')
+        self.assertEqual(cart.count(self.client.session), 0)
+
+    def test_seller_cannot_set_or_restore_own_listing_quantity(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:bag_set', args=[self.product.slug]), {'quantity': 1})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(cart.count(self.client.session), 0)
+        session = self.client.session
+        session['bag_undo'] = {'product_id': self.product.pk, 'quantity': 1}
+        session.save()
+        self.client.post(reverse('products:bag_undo'))
+        self.assertEqual(cart.count(self.client.session), 0)
+
+    def test_listing_bagged_as_guest_is_dropped_after_seller_signs_in(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.assertEqual(cart.count(self.client.session), 1)
+        self.client.force_login(self.seller)
+        session = self.client.session
+        self.assertEqual(cart.items(session), [])
+        self.assertNotIn(str(self.product.pk), session.get('bag', {}))
+
+    def test_other_buyers_can_still_add_the_listing(self):
+        self.client.force_login(self.buyer)
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.assertEqual(cart.count(self.client.session), 1)
+
+    def test_add_to_bag_button_is_disabled_for_the_owner(self):
+        self.client.force_login(self.seller)
+        response = self.client.get(reverse('products:detail', args=[self.product.slug]))
+        self.assertContains(response, 'class="button pdp-bag" type="submit" disabled')
+
+
+class SnapshotImageUrlTests(SimpleTestCase):
+    def render(self, image):
+        from django.template.loader import render_to_string
+
+        return render_to_string('includes/product_image.html', {'item': {'image': image, 'title': 'Coat'}})
+
+    def test_uploaded_media_url_is_used_as_is(self):
+        self.assertIn('src="/media/products/2026/10/a.jpg"', self.render('/media/products/2026/10/a.jpg'))
+
+    def test_absolute_url_is_used_as_is(self):
+        self.assertIn('src="https://cdn.example.test/a.jpg"', self.render('https://cdn.example.test/a.jpg'))
+
+    def test_static_asset_path_still_goes_through_static(self):
+        self.assertIn('src="/static/images/reference-coat.png"', self.render('images/reference-coat.png'))

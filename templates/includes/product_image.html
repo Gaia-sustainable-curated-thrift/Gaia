@@ -1,3 +1,3 @@
-{% load static %}{% if item.image %}<img class="product-image" src="{% static item.image %}" alt="{{ item.title }}" loading="lazy">{% else %}
+{% load static %}{% if item.image %}<img class="product-image" src="{% if item.image|slice:':1' == '/' or '://' in item.image %}{{ item.image }}{% else %}{% static item.image %}{% endif %}" alt="{{ item.title }}" loading="lazy">{% else %}
 <div class="product-placeholder" role="img" aria-label="No product photo">{% include 'includes/icon.html' with name='bag' %}
 </div>{% endif %}

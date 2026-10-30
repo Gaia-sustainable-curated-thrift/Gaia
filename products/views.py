@@ -358,6 +358,10 @@ def _bag_json(request, *, toast=None, open_drawer=False, status=200):
     }, status=status)
 
 
+def _is_own_listing(request, product):
+    return request.user.is_authenticated and product.seller_id == request.user.pk
+
+
 def _bag_error(request, text, fallback, *, open_drawer=False, status=409):
     toast = {'kind': 'error', 'text': text}
     if _is_ajax(request):
@@ -372,6 +376,8 @@ def bag_add(request, slug):
     product = get_object_or_404(Product, slug=slug)
     if not product.is_purchasable:
         return _bag_error(request, 'This item is no longer available.', reverse('products:home'))
+    if _is_own_listing(request, product):
+        return _bag_error(request, 'You cannot buy your own listing.', _product_url(product), status=403)
     already_in_bag = cart.quantity_for(request.session, product.pk) > 0
     cart.add(request.session, product.pk)
     toast = {
@@ -401,6 +407,8 @@ def bag_set(request, slug):
             request, 'This item is no longer available.',
             reverse('products:home'), open_drawer=True,
         )
+    if quantity > 0 and _is_own_listing(request, product):
+        return _bag_error(request, 'You cannot buy your own listing.', _product_url(product), open_drawer=True, status=403)
     if quantity > cart.MAX_QUANTITY:
         return _bag_error(request, 'Each listing is available only once.', _product_url(product), open_drawer=True, status=400)
 
@@ -427,7 +435,7 @@ def bag_undo(request):
     toast = None
     if entry:
         product = Product.objects.filter(pk=entry['product_id']).first()
-        if product is None or not product.is_purchasable:
+        if product is None or not product.is_purchasable or _is_own_listing(request, product):
             return _bag_error(
                 request, 'This item is no longer available and could not be restored.',
                 reverse('products:home'), open_drawer=True,
