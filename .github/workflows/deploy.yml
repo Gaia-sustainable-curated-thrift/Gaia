@@ -3,21 +3,82 @@ name: Push to PWS
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: pws-gaia-production
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    name: Deploy Gaia to PWS
-    if: github.ref == 'refs/heads/main'
+  test:
+    # Runs on every pull request into main and before every deploy; branch
+    # protection can require this check so broken code never reaches main.
+    name: Run tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run tests with coverage
+        env:
+          PRODUCTION: 'False'
+        run: |
+          python -m coverage run --rcfile=/dev/null --branch --source=accounts,products,transaction,chat,reviews \
+            --omit='*/tests.py,*/test_*.py,*/migrations/*,*/e2e.py' manage.py test --noinput
+          python -m coverage report --rcfile=/dev/null
+
+  browser-tests:
+    # Playwright functional tests (products/e2e.py, reviews/e2e.py) in headless Chromium.
+    name: Run browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install dependencies and Chromium
+        run: |
+          pip install -r reviews/requirements-dev.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Run browser tests
+        env:
+          PRODUCTION: 'False'
+        run: python manage.py test products.e2e reviews.e2e --noinput
+
+  deploy:
+    name: Deploy Gaia to PWS
+    needs: [test, browser-tests]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: pws-gaia-production
+      cancel-in-progress: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
