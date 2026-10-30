@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 from .storage import product_image_storage
@@ -29,6 +30,18 @@ class Category(models.Model):
         return f'{self.parent.name} · {self.name}' if self.parent else self.name
 
 
+class ActiveProductManager(models.Manager):
+    """Manager bawaan Product: listing yang sudah dihapus seller (soft delete) nggak ikut muncul.
+
+    Karena ini manager bawaan, semua query biasa (Product.objects..., product.images, user.products)
+    otomatis menyembunyikan listing yang dihapus, jadi halaman lain nggak perlu diubah satu-satu.
+    Untuk melihat semuanya, pakai Product.all_objects.
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
 class Product(models.Model):
     """Satu listing thrift. Tiap listing itu satu barang fisik, jadi nggak ada stok:
     begitu dibeli, statusnya jadi SOLD dan hilang dari toko."""
@@ -53,9 +66,23 @@ class Product(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.AVAILABLE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Soft delete: terisi waktu seller menghapus listing. Barisnya tetap ada di database,
+    # jadi riwayat pesanan tetap utuh dan listing bisa dipulihkan lewat tombol Undo.
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = ActiveProductManager()
+    all_objects = models.Manager()
 
     class Meta:
         ordering = ['-created_at', '-pk']
+
+    def soft_delete(self):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['deleted_at', 'updated_at'])
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=['deleted_at', 'updated_at'])
 
     def save(self, *args, **kwargs):
         # Slug itu bagian URL yang bisa dibaca (/products/wool-coat/). Judul bisa sama, jadi
@@ -65,7 +92,8 @@ class Product(models.Model):
             base = slugify(self.title)[:max_length] or 'product'
             self.slug = base
             number = 2
-            while type(self).objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
+            # _base_manager ikut menghitung listing yang sudah dihapus: slug mereka tetap terpakai.
+            while type(self)._base_manager.filter(slug=self.slug).exclude(pk=self.pk).exists():
                 suffix = f'-{number}'
                 self.slug = f'{base[:max_length - len(suffix)]}{suffix}'
                 number += 1
