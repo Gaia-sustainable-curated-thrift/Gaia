@@ -424,6 +424,9 @@ def _delete_photos(photos):
 
     def remove_files():
         for storage, name in files:
+            # Demo listings may share one illustration; keep it while another row uses it.
+            if ProductImage.objects.filter(image=name).exists():
+                continue
             try:
                 storage.delete(name)
             except Exception:

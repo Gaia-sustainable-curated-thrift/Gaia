@@ -64,9 +64,9 @@ class ProfileForm(forms.ModelForm):
         help_text='JPG, PNG or WebP. Maximum 2 MB. Your photo will be cropped to a square.',
     )
     full_name = forms.CharField(max_length=150, label='Full name')
-    phone = forms.CharField(max_length=30, required=False, label='Phone number')
-    city = forms.CharField(max_length=100, required=False)
-    country = forms.CharField(max_length=100, required=False)
+    phone = forms.CharField(max_length=30, label='Phone number', widget=forms.TextInput(attrs={'type': 'tel', 'autocomplete': 'tel'}))
+    city = forms.CharField(max_length=100, widget=forms.TextInput(attrs={'autocomplete': 'address-level2'}))
+    country = forms.CharField(max_length=100, widget=forms.TextInput(attrs={'autocomplete': 'country-name'}))
     email = forms.EmailField(disabled=True, required=False)
 
     class Meta:
