@@ -599,6 +599,7 @@ Tim menggunakan AI sebagai asisten pemrograman dan mencatat penggunaannya secara
 | **OpenAI Codex / ChatGPT** | Danar, modul User / Authentication | Membantu memahami Django dan pembagian modul, menganalisis desain, menyusun dan meninjau implementasi akun, pengujian, integrasi, serta dokumentasi. |
 | **Claude Code** (asisten pemrograman dari Anthropic, dijalankan dari ekstensi VS Code) | Deva, modul Chat dan integrasi awal login Google | Membantu merancang dan menyusun kode, membuat template, CSS, JavaScript, dan test, menelusuri bug, menguji di browser, memandu Git, menjelaskan kode, serta menyusun dokumentasi. |
 | **OpenAI ChatGPT / Codex** | Keisha, modul Review & Rating | Membantu memahami Python dan Django, menyusun serta memperbaiki kode, menyesuaikan desain, menyusun pengujian dan dokumentasi, serta memandu Git. |
+| **ChatGPT** | Salma, modul Transaksi | Membantu debugging, memahami hasil pengujian, memperbaiki kode berdasarkan hasil tersebut, serta memahami konsep dan alur implementasi transaksi. |
 
 ### Bantuan AI untuk Product (Kayla)
 
@@ -630,6 +631,12 @@ Pada modul User, AI juga membantu integrasi awal login Google menggunakan `djang
 - AI membantu integrasi dengan akun, produk, dan pesanan, penyesuaian Figma, serta pemeriksaan navbar dan tampilan mobile.
 - AI membantu menyusun tes, menganalisis kegagalan, memperbaiki implementasi, dan menyiapkan paket pembaruan. Sebagian pengujian juga dijalankan AI pada salinan kode. Implementasi mendapat bantuan AI secara langsung dan tidak diklaim seluruhnya ditulis manual.
 
+### Bantuan AI untuk Transaksi (Salma)
+
+- AI membantu mengidentifikasi dan memperbaiki kesalahan pada kode program.
+- AI membantu memahami hasil pengujian serta memperbaiki kode berdasarkan hasil tersebut.
+- AI membantu memahami konsep dan alur implementasi fitur transaksi.
+
 ### Strategi prompt
 
 Untuk modul User, konteks diberikan berupa file proyek, referensi desain, materi tutorial, dan kebutuhan fitur. Permintaan dilakukan bertahap: membaca dan menganalisis terlebih dahulu, menjelaskan pilihan implementasi, lalu melakukan pekerjaan yang diminta. Audit dipersempit ke modul User saat diperlukan, dan temuan dibedakan antara tanggung jawab akun dengan integrasi Product, Transaksi, Chat, serta Review & Rating.
@@ -637,6 +644,8 @@ Untuk modul User, konteks diberikan berupa file proyek, referensi desain, materi
 Untuk modul Chat, konteks yang diberikan berupa repository, desain Figma, hasil terminal, dan keputusan pengembang. Pengerjaan dilakukan bertahap dari model, service, API, tampilan, hingga integrasi, dengan pratinjau kode pada banyak tahap serta penjelasan alur untuk dipelajari.
 
 Untuk modul Review & Rating, konteks yang diberikan berupa ketentuan tugas, repository, desain Figma, potongan kode, dan hasil terminal. Pengerjaan dilakukan bertahap dari fitur sederhana untuk dipelajari, kemudian dilengkapi sesuai kebutuhan modul. Perubahan pada bagian bersama dibahas untuk membatasi dampaknya terhadap modul anggota lain.
+
+Untuk modul Transaksi, permintaan disertai penjelasan masalah, pesan error, dan hasil pengujian. Penjelasan alur kode diminta sebelum perubahan diterapkan, dan solusi diminta secara bertahap serta spesifik pada bagian kode yang perlu diperbaiki.
 
 ### Keterbatasan AI yang ditemui
 
@@ -646,6 +655,8 @@ Pada modul Chat, hasil awal AI tetap memerlukan pemeriksaan. Test menemukan fung
 
 Pada modul Review & Rating, saran AI perlu dicocokkan dengan versi kode, struktur template, dan desain proyek. Pengujian lokal tidak otomatis membuktikan migrasi, data, dan konfigurasi PWS sudah benar. Tes dan coverage tidak menjamin aplikasi bebas seluruh bug atau celah keamanan. Verifikasi review menggunakan catatan pesanan aplikasi, bukan bukti pembayaran dari bank atau payment gateway.
 
+Pada modul Transaksi, saran kode dari AI terkadang belum sepenuhnya sesuai dengan model, relasi, atau implementasi yang sudah ada. Perubahan yang disarankan juga dapat menimbulkan masalah baru jika diterapkan tanpa memeriksa bagian lain yang terdampak. Selain itu, solusi yang benar secara sintaks belum tentu sesuai dengan kebutuhan fungsional proyek.
+
 ### Peran pengembang dan pemeriksaan hasil
 
 Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, membahas kelayakan serta pembagian fitur, dan mengoordinasikan integrasi dengan anggota tim. Percakapan juga mencakup peninjauan hasil coverage yang dijalankan pengembang. Bantuan AI mencakup kode dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir terhadap perubahan, kesesuaian dengan tugas, dan perilaku aplikasi tetap menjadi tanggung jawab pengembang modul.
@@ -653,6 +664,8 @@ Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, 
 Untuk modul Chat, Deva menentukan cakupan fitur berdasarkan Figma dan kebutuhan tugas, memilih jenis percakapan dan pesan, memutuskan penggunaan polling, meninjau pratinjau kode, menguji alur secara manual menggunakan dua akun, menjalankan perintah Git, serta mengoordinasikan perubahan pada file bersama. Bantuan AI mencakup kode, test, dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir dan tanggung jawab atas perubahan tetap berada pada pengembang modul.
 
 Untuk modul Review & Rating, Keisha menentukan kebutuhan dan batas fitur, memberikan referensi, meminta revisi, menerapkan perubahan, menjalankan perintah Git serta tes, dan mempelajari alur kode melalui penjelasan dan latihan. Pengujian manual lokal mencakup checkout pesanan uji, perubahan status melalui admin, pembuatan, pengeditan, dan penghapusan review, serta pemeriksaan review dan balasan dari akun seller. Data demo diberi label sintetis dan tidak diklaim sebagai transaksi atau ulasan nyata. Tanggung jawab atas perubahan yang dikumpulkan tetap berada pada pengembang modul.
+
+Untuk modul Transaksi, Salma menentukan kebutuhan dan ruang lingkup fitur, serta menyesuaikan kode dengan struktur dan kebutuhan proyek Gaia. AI menjadi alat pendukung dalam proses pengembangan, sedangkan tanggung jawab atas kualitas dan hasil akhir tetap berada pada pengembang modul.
 
 <!-- Anggota lain dapat menambahkan disclosure berdasarkan penggunaan AI yang benar-benar dilakukan pada modul masing-masing. -->
 
