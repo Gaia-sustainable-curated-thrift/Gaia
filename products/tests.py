@@ -225,9 +225,10 @@ class BagTests(TestCase):
         self.assertEqual(self.client.get(next_url).status_code, 200)
 
     def test_wish_add_saves_for_authenticated_user(self):
-        self.client.force_login(self.seller)
+        buyer = get_user_model().objects.create_user('wish-buyer')
+        self.client.force_login(buyer)
         self.client.post(reverse('products:wish_add', args=[self.product.slug]))
-        self.assertTrue(WishlistItem.objects.filter(user=self.seller, product_key=self.product.slug).exists())
+        self.assertTrue(WishlistItem.objects.filter(user=buyer, product_key=self.product.slug).exists())
 
     def test_checkout_links_to_login_for_anonymous(self):
         self.client.post(reverse('products:bag_add', args=[self.product.slug]))
@@ -1017,3 +1018,59 @@ class SnapshotImageUrlTests(SimpleTestCase):
 
     def test_static_asset_path_still_goes_through_static(self):
         self.assertIn('src="/static/images/reference-coat.png"', self.render('images/reference-coat.png'))
+
+
+class OwnerSoldAndWishlistTests(TestCase):
+    ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('sold-seller')
+        cls.buyer = get_user_model().objects.create_user('sold-buyer')
+        cls.product = Product.objects.create(
+            seller=cls.seller, title='Sold Jacket', price=200000, status=Product.Status.SOLD,
+        )
+
+    def detail(self):
+        return self.client.get(reverse('products:detail', args=[self.product.slug]))
+
+    def test_owner_can_open_their_sold_listing_with_a_notice(self):
+        self.client.force_login(self.seller)
+        response = self.detail()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This item has been sold.')
+        self.assertContains(response, 'badge--sold')
+        self.assertContains(response, reverse('products:edit', args=[self.product.slug]))
+        self.assertContains(response, 'id="delete-listing-dialog"')
+
+    def test_sold_listing_stays_hidden_from_everyone_else(self):
+        self.assertEqual(self.detail().status_code, 404)
+        self.client.force_login(self.buyer)
+        self.assertEqual(self.detail().status_code, 404)
+
+    def test_available_listing_has_no_sold_notice(self):
+        self.product.status = Product.Status.AVAILABLE
+        self.product.save(update_fields=['status'])
+        self.client.force_login(self.seller)
+        self.assertNotContains(self.detail(), 'This item has been sold.')
+
+    def test_saving_edits_to_a_sold_listing_returns_to_its_page(self):
+        women = Category.objects.create(name='Women')
+        tops = Category.objects.create(name='Tops', parent=women)
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:edit', args=[self.product.slug]), {
+            'title': 'Sold Jacket', 'category': tops.pk, 'condition': 'good', 'price': '210.000',
+        })
+        self.assertRedirects(response, reverse('products:detail', args=[self.product.slug]))
+
+    def test_owner_cannot_wishlist_their_own_listing(self):
+        self.product.status = Product.Status.AVAILABLE
+        self.product.save(update_fields=['status'])
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:wish_add', args=[self.product.slug]), **self.ajax)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['toast']['text'], 'You cannot save your own listing.')
+        self.assertFalse(WishlistItem.objects.filter(user=self.seller).exists())
+        response = self.client.post(reverse('products:wish_add', args=[self.product.slug]))
+        self.assertRedirects(response, reverse('products:detail', args=[self.product.slug]))
+        self.assertFalse(WishlistItem.objects.filter(user=self.seller).exists())

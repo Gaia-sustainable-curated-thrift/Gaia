@@ -208,8 +208,11 @@ def detail(request, slug):
         Product.objects
         .select_related('category', 'category__parent', 'seller', 'seller__profile')
         .prefetch_related('images'),
-        slug=slug, status=Product.Status.AVAILABLE,
+        slug=slug,
     )
+    # Sold listings leave the shop, but their owner can still open, edit or delete them.
+    if not product.is_purchasable and product.seller_id != request.user.pk:
+        raise Http404('Listing is no longer available')
 
     images = list(product.images.all())
     primary = product.primary_image
@@ -266,7 +269,7 @@ def _listing_form_page(request, product=None):
         message = 'Listing updated.' if editing else 'Listing created.'
         if editing or _is_ajax(request):
             request.session['bag_toast'] = {'kind': 'added', 'text': message}
-        destination = _product_url(product) if product.is_purchasable else reverse('profile')
+        destination = _product_url(product)
         if _is_ajax(request):
             return JsonResponse({
                 'ok': True,
@@ -490,6 +493,12 @@ def wish_add(request, slug):
     product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
     if not request.user.is_authenticated:
         return _wish_login_required(request, product)
+    if _is_own_listing(request, product):
+        toast = {'kind': 'error', 'text': 'You cannot save your own listing.'}
+        if _is_ajax(request):
+            return JsonResponse({'ok': False, 'toast': toast}, status=403)
+        request.session['bag_toast'] = toast
+        return redirect(_product_url(product))
 
     image = product.primary_image
     WishlistItem.objects.update_or_create(

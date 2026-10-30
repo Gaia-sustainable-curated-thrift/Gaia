@@ -1137,6 +1137,19 @@
 
 .pdp-actions-block { margin-top: 15px; }
 
+.pdp-sold-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--selected);
+    color: var(--olive-dark);
+}
+.pdp-sold-note p { margin: 0; font-size: 16px; line-height: 1.5; }
+.pdp-sold-note .icon { flex-shrink: 0; width: 24px; height: 24px; }
+
 .pdp-actions {
     display: flex;
     gap: 24px;
@@ -1335,6 +1348,9 @@
     .pdp-condition { font-weight: 400; }
     .pdp-actions { flex-direction: column; gap: 8px; }
     .pdp-actions-block { margin-top: 16px; }
+    .pdp-sold-note { gap: 8px; margin-bottom: 12px; padding: 10px 12px; }
+    .pdp-sold-note p { font-size: 12px; }
+    .pdp-sold-note .icon { width: 20px; height: 20px; }
     .pdp-actions .button { font-size: 12px; min-height: 44px; gap: 8px; }
     .pdp-actions .icon { width: 28px; height: 28px; }
     .pdp-saved { text-align: center; }
@@ -1644,6 +1660,20 @@
 .toast--error { width: min(560px, calc(100vw - 32px)); gap: 16px; background: var(--wine-light); color: var(--wine-dark); }
 .toast--error .toast__text { font-size: 16px; font-weight: 600; line-height: 1.5; }
 .toast__icon .icon { width: 32px; height: 32px; color: var(--ink); }
+
+.bag-drawer .toast--in-drawer {
+    position: static;
+    transform: none;
+    width: auto;
+    min-height: 0;
+    margin-top: 16px;
+    gap: 16px;
+    background: var(--field);
+    box-shadow: none;
+}
+.bag-drawer .toast--in-drawer.is-leaving { transform: none; }
+.bag-drawer .toast--in-drawer.toast--added .toast__text { font-size: 16px; line-height: 1.5; }
+.bag-drawer .toast--in-drawer .toast__icon .icon { width: 24px; height: 24px; }
 
 /* ---------- Shopping bag responsive ---------- */
 @media (min-width: 641px) and (max-width: 1023px) {

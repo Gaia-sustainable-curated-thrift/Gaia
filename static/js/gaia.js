@@ -213,8 +213,16 @@
             el.appendChild(icon);
         }
 
+        // With the bag open, show the toast inside the panel above the summary so it
+        // never covers the checkout button or spills outside the drawer.
         var drawer = document.getElementById('bag-drawer');
-        (drawer && drawer.open ? drawer : document.body).appendChild(el);
+        var panel = drawer && drawer.open ? drawer.querySelector('.bag-drawer__panel') : null;
+        if (panel) {
+            el.classList.add('toast--in-drawer');
+            panel.insertBefore(el, panel.querySelector('.bag-drawer__summary'));
+        } else {
+            document.body.appendChild(el);
+        }
         dismissToast(el, 4000);
     }
 

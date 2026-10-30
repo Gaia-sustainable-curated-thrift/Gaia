@@ -113,7 +113,7 @@ class ProductSearchTests(TestCase):
         detail = reverse('products:detail', args=[self.shoes.slug])
         self.assertEqual(self.client.get(detail).status_code, 404)
         self.client.force_login(self.seller)
-        self.assertEqual(self.client.get(detail).status_code, 404)
+        self.assertEqual(self.client.get(detail).status_code, 200)
         self.assertTrue(self.seller.products.filter(pk=self.shoes.pk, status=Product.Status.SOLD).exists())
         self.assertEqual(self.client.get(reverse('products:edit', args=[self.shoes.slug])).status_code, 200)
 

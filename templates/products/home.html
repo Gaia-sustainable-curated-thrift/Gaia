@@ -39,14 +39,18 @@
         <div class="discover-grid">
             <a class="discover-card" href="{% url 'products:listing' 'women' %}">
                 <img src="{% static 'images/discover-women.png' %}" alt="">
-                <span class="discover-card__sub">Shop for</span>
-                <span class="discover-card__title">Women</span>
+                <span class="discover-card__label">
+                    <span class="discover-card__sub">Shop for</span>
+                    <span class="discover-card__title">Women</span>
+                </span>
                 <span class="button">Discover {% include 'includes/icon.html' with name='arrow-right' %}</span>
             </a>
             <a class="discover-card discover-card--men" href="{% url 'products:listing' 'men' %}">
                 <img src="{% static 'images/discover-men.png' %}" alt="">
-                <span class="discover-card__sub">Shop for</span>
-                <span class="discover-card__title">Men</span>
+                <span class="discover-card__label">
+                    <span class="discover-card__sub">Shop for</span>
+                    <span class="discover-card__title">Men</span>
+                </span>
                 <span class="button">Discover {% include 'includes/icon.html' with name='arrow-right' %}</span>
             </a>
         </div>

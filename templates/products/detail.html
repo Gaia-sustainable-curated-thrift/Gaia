@@ -45,6 +45,12 @@
             </div>
 
             <div class="pdp-actions-block">
+                {% if user == product.seller and not product.is_purchasable %}
+                <div class="pdp-sold-note" role="status">
+                    {% include 'includes/icon.html' with name='check' %}
+                    <p><strong>This item has been sold.</strong> It's hidden from the shop, so only you can see this page.</p>
+                </div>
+                {% endif %}
                 <div class="pdp-actions">
                     {% if user == product.seller %}
                     <button class="button pdp-delete" type="button" data-delete-listing aria-haspopup="dialog" aria-controls="delete-listing-dialog" aria-expanded="false">{% include 'includes/icon.html' with name='trash' %}<span>Delete</span></button>
