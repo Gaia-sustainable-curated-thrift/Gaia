@@ -464,3 +464,7 @@ Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, 
 ---
 
 **Gaia — A circular fashion marketplace where every piece gets a second chance.**
+
+### Foto katalog contoh
+
+Migrasi `products.0008` memperbarui 100 listing contoh milik `danariqbalabi` dengan nama barang tanpa awalan nomor dan 100 foto referensi berbeda sesuai kategori. ID/slug, status penjualan, dan riwayat pesanan tetap dipertahankan. Sumber metadata/foto tercatat di `static/images/demo-catalog/SOURCES.md` dan `products/demo_catalog_photos.json`; hak gambar tetap pada pemiliknya. Ini data demonstrasi, bukan barang nyata yang dijual. Tombol admin memakai foto terbaru; CLI dapat memakai `--natural-photos`.

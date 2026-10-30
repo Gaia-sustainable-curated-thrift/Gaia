@@ -8,6 +8,7 @@ from django.urls import path, reverse
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
 from .demo_catalog_v1 import DemoCatalogError, seed_demo_catalog
+from .demo_catalog_v2 import refresh_demo_catalog
 from .models import BasketItem, Category, Product, ProductImage
 
 
@@ -57,6 +58,7 @@ class ProductAdmin(admin.ModelAdmin):
             try:
                 created, kept = seed_demo_catalog(get_user_model(), Category, Product, ProductImage,
                                                   form.cleaned_data['username'])
+                refresh_demo_catalog(get_user_model(), Category, Product, ProductImage, form.cleaned_data['username'])
             except DemoCatalogError as error:
                 form.add_error(None, str(error))
             else:
