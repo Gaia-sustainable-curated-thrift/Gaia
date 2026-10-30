@@ -400,6 +400,11 @@
             }).then(function (response) {
                 return response.json();
             }).then(function (data) {
+                // Rate-limited (429) responses carry only a toast explaining why.
+                if (data && data.ok === false && data.toast && typeof data.bag_count !== 'number') {
+                    showToast(data.toast);
+                    return;
+                }
                 if (!data || typeof data.bag_count !== 'number' || typeof data.ok !== 'boolean') {
                     throw new Error('Invalid bag response');
                 }
@@ -461,7 +466,9 @@
                     return response.json();
                 }).then(function (data) {
                     if (!data) return;
-                    if (typeof data.login_url === 'string') {
+                    if (data.ok === false && data.toast && typeof data.login_url !== 'string') {
+                        showToast(data.toast);
+                    } else if (typeof data.login_url === 'string') {
                         var target = new URL(data.login_url, window.location.href);
                         if (target.origin !== window.location.origin) throw new Error('Unexpected login redirect');
                         navigating = true;

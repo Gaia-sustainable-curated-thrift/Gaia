@@ -11,6 +11,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from accounts.models import WishlistItem
 from . import cart
+from .decorators import owner_required, rate_limit
 from .forms import ProductListingForm
 from .models import Category, Product, ProductImage
 
@@ -302,23 +303,23 @@ def _listing_form_page(request, product=None):
 
 
 @login_required
+@rate_limit('listing-create', limit=10, window=60 * 60)
 def sell(request):
     return _listing_form_page(request)
 
 
 @login_required
-def edit(request, slug):
-    product = get_object_or_404(
-        Product.objects.select_related('category__parent').prefetch_related('images'),
-        slug=slug, seller=request.user,
-    )
+@rate_limit('listing-edit', limit=30, window=10 * 60)
+@owner_required(lambda: Product.objects.select_related('category__parent').prefetch_related('images'))
+def edit(request, product):
     return _listing_form_page(request, product)
 
 
 @login_required
 @require_POST
-def delete_listing(request, slug):
-    product = get_object_or_404(Product, slug=slug, seller=request.user)
+@rate_limit('listing-delete', limit=20, window=10 * 60)
+@owner_required()
+def delete_listing(request, product):
     product_id = product.pk
     product.delete()
     cart.remove(request.session, product_id)
@@ -376,6 +377,7 @@ def _bag_error(request, text, fallback, *, open_drawer=False, status=409):
 
 
 @require_POST
+@rate_limit('bag', limit=60, window=60)
 def bag_add(request, slug):
     product = get_object_or_404(Product, slug=slug)
     if not product.is_purchasable:
@@ -396,6 +398,7 @@ def bag_add(request, slug):
 
 
 @require_POST
+@rate_limit('bag', limit=60, window=60)
 def bag_remove(request, slug):
     product = get_object_or_404(Product, slug=slug)
     in_bag = cart.quantity_for(request.session, product.pk) > 0
@@ -412,6 +415,7 @@ def bag_remove(request, slug):
 
 
 @require_POST
+@rate_limit('bag', limit=60, window=60)
 def bag_set(request, slug):
     product = get_object_or_404(Product, slug=slug)
     try:
@@ -450,6 +454,7 @@ def bag_set(request, slug):
 
 
 @require_POST
+@rate_limit('bag', limit=60, window=60)
 def bag_undo(request):
     entry = request.session.pop('bag_undo', None)
     toast = None
@@ -489,6 +494,7 @@ def _wish_response(request, product, *, saved, toast):
 
 
 @require_POST
+@rate_limit('wishlist', limit=40, window=60)
 def wish_add(request, slug):
     product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
     if not request.user.is_authenticated:
@@ -521,6 +527,7 @@ def wish_add(request, slug):
 
 
 @require_POST
+@rate_limit('wishlist', limit=40, window=60)
 def wish_remove(request, slug):
     product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
     if not request.user.is_authenticated:
