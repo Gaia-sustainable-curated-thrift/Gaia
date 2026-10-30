@@ -62,6 +62,23 @@
         });
     }
 
+    function validateSearch(form, input) {
+        input.required = true;
+        input.pattern = '.*\\S.*';
+        input.addEventListener('input', function () { input.setCustomValidity(''); });
+        input.addEventListener('invalid', function () {
+            if (!input.value.trim()) input.setCustomValidity('Enter a search term.');
+        });
+        form.addEventListener('submit', function (event) {
+            input.value = input.value.trim();
+            if (!input.value) {
+                event.preventDefault();
+                input.setCustomValidity('Enter a search term.');
+                input.reportValidity();
+            }
+        });
+    }
+
     function initHeaderSearch() {
         var display = document.querySelector('[data-search]');
         if (!display) return null;
@@ -86,6 +103,7 @@
 
         if (placeholder) placeholder.remove();
         display.appendChild(form);
+        validateSearch(form, input);
         var mobileToggle = document.querySelector('[data-mobile-search-toggle]');
         if (mobileToggle) {
             mobileToggle.addEventListener('click', function () {
@@ -111,16 +129,10 @@
         var input = box.querySelector('input');
         if (!input) return;
 
-        input.readOnly = false;
-        input.setAttribute('aria-label', 'Search');
-
-        var form = document.createElement('form');
-        form.className = 'search-form';
-        form.method = 'get';
-        form.action = url;
-        form.setAttribute('role', 'search');
-        form.appendChild(input);
-        box.appendChild(form);
+        var form = box.querySelector('form');
+        if (!form) return;
+        input.value = new URLSearchParams(window.location.search).get('q') || '';
+        validateSearch(form, input);
     }
 
     function initGallery() {
@@ -237,7 +249,7 @@
                     badge.hidden = data.bag_count === 0;
                 });
                 document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
-                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' items');
+                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' item' + (data.bag_count === 1 ? '' : 's'));
                 });
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showToast(data.toast);

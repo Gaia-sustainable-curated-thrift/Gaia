@@ -18,9 +18,6 @@ CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
 GENDER_ORDER = ['women', 'men']
 CONDITION_LABELS = {'signs_of_wear': 'Signs of Wear'}
 
-SELLER_RATING = '5.0'
-SELLER_REVIEWS = 120
-
 
 def order_categories(categories):
     return sorted(categories, key=lambda c: (CATEGORY_ORDER.get(c.name.lower(), 99), c.name))
@@ -37,6 +34,7 @@ def department_categories(parent, slug):
 def home(request):
     picked = (
         Product.objects
+        .filter(status=Product.Status.AVAILABLE)
         .select_related('category')
         .prefetch_related('images')
         .order_by('-created_at')[:5]
@@ -79,7 +77,7 @@ def listing(request, gender=None):
             Product.objects
             .select_related('category')
             .prefetch_related('images')
-            .filter(category__parent=parent) if parent else Product.objects.none()
+            .filter(category__parent=parent, status=Product.Status.AVAILABLE) if parent else Product.objects.none()
         )
     else:
         parent = parents.first()
@@ -88,6 +86,7 @@ def listing(request, gender=None):
         link_base = reverse('products:picked')
         products = (
             Product.objects
+            .filter(status=Product.Status.AVAILABLE)
             .select_related('category')
             .prefetch_related('images')
         )
@@ -95,7 +94,7 @@ def listing(request, gender=None):
     categories = department_categories(parent, gender or (parent.slug if parent else 'all'))
 
     if category_slug:
-        active_category = next((c for c in categories if c.slug == category_slug), None)
+        active_category = next((c for c in categories if c.slug == category_slug or c.name.lower() == category_slug.lower()), None)
     else:
         active_category = categories[0] if categories else None
 
@@ -118,19 +117,22 @@ def listing(request, gender=None):
 
 def search(request):
     q = request.GET.get('q', '').strip()
+    if not q:
+        request.session['bag_toast'] = {'kind': 'error', 'text': 'Enter a search term.'}
+        return redirect('products:home')
     base = (
         Product.objects
+        .filter(status=Product.Status.AVAILABLE)
         .select_related('category', 'category__parent')
         .prefetch_related('images')
     )
-    if q:
-        base = base.filter(
-            Q(title__icontains=q)
-            | Q(description__icontains=q)
-            | Q(style_tags__icontains=q)
-            | Q(category__name__icontains=q)
-            | Q(category__parent__name__icontains=q)
-        )
+    base = base.filter(
+        Q(title__icontains=q)
+        | Q(description__icontains=q)
+        | Q(style_tags__icontains=q)
+        | Q(category__name__icontains=q)
+        | Q(category__parent__name__icontains=q)
+    )
 
     price_from = request.GET.get('price_from', '').strip()
     price_to = request.GET.get('price_to', '').strip()
@@ -139,9 +141,9 @@ def search(request):
     selected_conditions = request.GET.getlist('condition')
 
     products = base
-    if price_from.isdigit():
+    if price_from.isascii() and price_from.isdigit():
         products = products.filter(price__gte=int(price_from))
-    if price_to.isdigit():
+    if price_to.isascii() and price_to.isdigit():
         products = products.filter(price__lte=int(price_to))
     if selected_genders:
         products = products.filter(category__parent__slug__in=selected_genders)
@@ -204,9 +206,9 @@ def search(request):
 def detail(request, slug):
     product = get_object_or_404(
         Product.objects
-        .select_related('category', 'category__parent', 'seller')
+        .select_related('category', 'category__parent', 'seller', 'seller__profile')
         .prefetch_related('images'),
-        slug=slug,
+        slug=slug, status=Product.Status.AVAILABLE,
     )
 
     images = list(product.images.all())
@@ -217,6 +219,7 @@ def detail(request, slug):
 
     related = (
         Product.objects
+        .filter(status=Product.Status.AVAILABLE)
         .select_related('category')
         .prefetch_related('images')
         .exclude(pk=product.pk)
@@ -234,8 +237,6 @@ def detail(request, slug):
         'related': related,
         'saved_count': saved_items.count(),
         'wishlist_saved': request.user.is_authenticated and saved_items.filter(user=request.user).exists(),
-        'seller_rating': SELLER_RATING,
-        'seller_reviews': SELLER_REVIEWS,
     })
 
 
@@ -265,14 +266,15 @@ def _listing_form_page(request, product=None):
         message = 'Listing updated.' if editing else 'Listing created.'
         if editing or _is_ajax(request):
             request.session['bag_toast'] = {'kind': 'added', 'text': message}
+        destination = _product_url(product) if product.is_purchasable else reverse('profile')
         if _is_ajax(request):
             return JsonResponse({
                 'ok': True,
                 'product_id': product.pk,
-                'redirect_url': _product_url(product),
+                'redirect_url': destination,
                 'message': message,
             }, status=200 if editing else 201)
-        return redirect('products:detail', slug=product.slug)
+        return redirect(destination)
 
     if request.method == 'POST' and _is_ajax(request):
         return JsonResponse({
@@ -362,18 +364,19 @@ def _bag_error(request, text, fallback, *, open_drawer=False, status=409):
         return _bag_json(request, toast=toast, open_drawer=open_drawer, status=status)
     request.session['bag_toast'] = toast
     request.session['bag_open'] = open_drawer
-    return _redirect_back(request, fallback)
+    return redirect(fallback)
 
 
 @require_POST
 def bag_add(request, slug):
     product = get_object_or_404(Product, slug=slug)
     if not product.is_purchasable:
-        return _bag_error(request, 'This item is no longer available.', _product_url(product))
+        return _bag_error(request, 'This item is no longer available.', reverse('products:home'))
+    already_in_bag = cart.quantity_for(request.session, product.pk) > 0
     cart.add(request.session, product.pk)
     toast = {
         'kind': 'added',
-        'text': f'Added \u201c{product.title}\u201d to bag',
+        'text': 'This item is already in your bag.' if already_in_bag else f'Added \u201c{product.title}\u201d to bag',
         'icon': True,
     }
     if _is_ajax(request):
@@ -389,15 +392,17 @@ def bag_set(request, slug):
         quantity = int(request.POST.get('quantity', ''))
     except (TypeError, ValueError):
         return _bag_error(
-            request, 'Enter a valid whole-number quantity.', _product_url(product),
+            request, 'Enter a valid whole-number quantity.', _product_url(product) if product.is_purchasable else reverse('products:home'),
             open_drawer=True, status=400,
         )
 
     if quantity > 0 and not product.is_purchasable:
         return _bag_error(
-            request, 'This item is no longer available. Please remove it from your bag.',
-            _product_url(product), open_drawer=True,
+            request, 'This item is no longer available.',
+            reverse('products:home'), open_drawer=True,
         )
+    if quantity > cart.MAX_QUANTITY:
+        return _bag_error(request, 'Each listing is available only once.', _product_url(product), open_drawer=True, status=400)
 
     toast = None
     if quantity <= 0:
@@ -413,7 +418,7 @@ def bag_set(request, slug):
         return _bag_json(request, toast=toast, open_drawer=True)
     request.session['bag_toast'] = toast
     request.session['bag_open'] = True
-    return _redirect_back(request, _product_url(product))
+    return _redirect_back(request, _product_url(product)) if product.is_purchasable else redirect('products:home')
 
 
 @require_POST
@@ -438,7 +443,7 @@ def bag_undo(request):
 
 @require_POST
 def wish_add(request, slug):
-    product = get_object_or_404(Product, slug=slug)
+    product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
     if not request.user.is_authenticated:
         login_response = redirect_to_login(_product_url(product), settings.LOGIN_URL)
         if _is_ajax(request):

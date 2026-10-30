@@ -68,9 +68,11 @@
                 <h2 class="pdp-seller-label">Listed by</h2>
                 <div class="pdp-seller-card">
                     <div class="pdp-seller-profile">
-                        <span class="pdp-avatar" aria-hidden="true">{{ product.seller|initials }}</span>
+                        <a class="pdp-avatar" href="{% url 'reviews:seller_reviews' product.seller.pk %}" aria-label="View seller {{ product.seller.username }}">
+                            {% if product.seller.profile.avatar %}<img src="{{ product.seller.profile.avatar.url }}" alt="">{% else %}{{ product.seller|initials }}{% endif %}
+                        </a>
                         <div class="pdp-seller-details">
-                            <span class="pdp-username">@{{ product.seller.username }}</span>
+                            <a class="pdp-username" href="{% url 'reviews:seller_reviews' product.seller.pk %}">@{{ product.seller.username }}</a>
                             {% seller_rating product.seller %}
                         </div>
                     </div>

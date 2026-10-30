@@ -584,6 +584,20 @@
 }
 
 /* ---------- Site drawer ---------- */
+.site-drawer .site-drawer-search { display: flex; }
+.site-drawer-categories a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    min-height: 50px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e6e6df;
+    font-size: 17px;
+}
+.site-drawer-categories a:last-child { border-bottom: 0; }
+.site-drawer-categories a:hover { color: var(--wine); }
+.site-drawer-categories a span { font-size: 24px; line-height: 1; }
 .site-drawer {
     height: calc(100vh - 16px);
     height: calc(100dvh - 16px);
@@ -1140,6 +1154,7 @@
     width: 60px;
     height: 60px;
     border-radius: 50%;
+    overflow: hidden;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
@@ -1149,6 +1164,7 @@
     font-size: 20px;
     font-weight: 600;
 }
+.pdp-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .pdp-seller-details {
     display: flex;
@@ -1357,6 +1373,8 @@
     color: var(--olive-dark);
 }
 
+.bag-drawer__title:focus { outline: none; }
+
 .bag-drawer__items {
     display: flex;
     flex-direction: column;
@@ -1385,7 +1403,7 @@
     object-fit: cover;
 }
 
-.bag-stepper__remove {
+.bag-item__remove {
     border: 0;
     padding: 0;
     background: transparent;
@@ -1435,33 +1453,11 @@
     color: var(--olive-dark);
 }
 
-.bag-stepper {
+.bag-item__actions {
     display: flex;
     align-items: center;
     gap: 12px;
     margin-left: auto;
-}
-
-.bag-stepper__btn {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--ink);
-    cursor: pointer;
-}
-
-.bag-stepper__btn .icon { width: 20px; height: 20px; }
-.bag-stepper__btn:hover { color: var(--wine); }
-
-.bag-stepper__value {
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 2;
-    color: var(--ink);
 }
 
 .bag-drawer__summary {
@@ -1600,10 +1596,6 @@
     .bag-item__meta { font-size: 12px; }
     .bag-item__row { gap: 16px; }
     .bag-item__price { font-size: 16px; line-height: 2; }
-    .bag-stepper { gap: 12px; }
-    .bag-stepper__btn { width: 24px; height: 24px; }
-    .bag-stepper__btn .icon { width: 16px; height: 16px; }
-    .bag-stepper__value { font-size: 16px; line-height: 2; }
     .bag-summary { margin-bottom: 16px; }
     .bag-summary__label { font-size: 16px; line-height: 2; }
     .bag-summary__note { font-size: 10px; }
@@ -1642,10 +1634,7 @@
     .bag-item__meta { font-size: 12px; }
     .bag-item__row { flex-direction: column; align-items: flex-start; gap: 4px; }
     .bag-item__price { font-size: 16px; line-height: 2; }
-    .bag-stepper { margin-left: 0; gap: 20px; }
-    .bag-stepper__btn { width: 20px; height: 20px; }
-    .bag-stepper__btn .icon { width: 14px; height: 14px; }
-    .bag-stepper__value { font-size: 16px; font-weight: 400; line-height: 1.5; }
+    .bag-item__actions { margin-left: 0; }
     .bag-summary { margin-bottom: 12px; }
     .bag-summary__label { font-size: 16px; line-height: 2; }
     .bag-summary__note { font-size: 8px; }

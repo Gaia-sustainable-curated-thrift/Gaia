@@ -95,7 +95,7 @@ class ListingEmptyStateTests(TestCase):
 
 class SharedNavbarTests(TestCase):
     def test_anonymous_navbar_uses_shared_component_without_member_actions(self):
-        for path in ['/products/', '/products/search/', '/accounts/login/']:
+        for path in ['/products/', '/products/search/?q=shirt', '/accounts/login/']:
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertTemplateUsed(response, 'includes/navbar.html')
@@ -108,7 +108,7 @@ class SharedNavbarTests(TestCase):
     def test_authenticated_navbar_is_shared_by_product_and_account_pages(self):
         user = get_user_model().objects.create_user('navbar-seller')
         self.client.force_login(user)
-        for path in ['/products/', '/products/search/', '/products/sell/', '/accounts/profile/', '/accounts/wishlist/']:
+        for path in ['/products/', '/products/search/?q=shirt', '/products/sell/', '/accounts/profile/', '/accounts/wishlist/']:
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertTemplateUsed(response, 'includes/navbar.html')
@@ -181,7 +181,7 @@ class BagTests(TestCase):
     def test_ajax_count_tracks_add_remove_and_undo_without_stale_toast(self):
         headers = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
         add = reverse('products:bag_add', args=[self.product.slug])
-        for expected in [1, 2]:
+        for expected in [1, 1]:
             response = self.client.post(add, **headers)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['bag_count'], expected)
@@ -190,9 +190,9 @@ class BagTests(TestCase):
         )
         self.assertEqual(response.json()['bag_count'], 0)
         response = self.client.post(reverse('products:bag_undo'), **headers)
-        self.assertEqual(response.json()['bag_count'], 2)
+        self.assertEqual(response.json()['bag_count'], 1)
         response = self.client.get(reverse('products:home'))
-        self.assertContains(response, 'aria-label="Shopping bag, 2 items"')
+        self.assertContains(response, 'aria-label="Shopping bag, 1 item"')
         self.assertContains(response, 'data-bag-count')
         self.assertNotContains(response, 'toast toast--added')
 
@@ -662,6 +662,7 @@ class DeleteListingTests(TestCase):
             image_url = photo.image.url
             order = AccountOrder.objects.create(
                 user=self.other, number='DELETE-TEST-001', date=timezone.localdate(), status='completed',
+                product=self.product, seller=self.owner,
                 title=self.product.title, condition='Good', image=image_url,
                 subtotal=self.product.price, recipient='Buyer', address='Jakarta',
             )
@@ -675,6 +676,8 @@ class DeleteListingTests(TestCase):
             self.assertEqual(order.title, 'Delete This Shirt')
             self.assertEqual(order.subtotal, 125000)
             self.assertEqual(order.image, image_url)
+            self.assertIsNone(order.product_id)
+            self.assertEqual(order.seller_id, self.owner.pk)
             self.assertEqual(saved.image, image_url)
             self.assertTrue(photo.image.storage.exists(photo.image.name))
             self.client.force_login(self.other)

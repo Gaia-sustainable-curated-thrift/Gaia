@@ -48,7 +48,12 @@ def room(request, pk):
         'initials': services.initials(title),
         'product': services.serialize_product(conversation.product),
         'thread': [services.serialize_message(m, request.user) for m in conversation.messages.select_related('sender', 'product')],
-        'can_offer': conversation.kind == Conversation.Kind.PRODUCT and request.user.pk == conversation.buyer_id,
+        'can_offer': (
+            conversation.kind == Conversation.Kind.PRODUCT
+            and request.user.pk == conversation.buyer_id
+            and conversation.product is not None
+            and conversation.product.is_purchasable
+        ),
     })
 
 
