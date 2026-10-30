@@ -1616,7 +1616,7 @@ class MyOrdersTransactionIntegrationTests(TestCase):
         self.assertEqual(self.state.status, 'active')
 
     def test_other_buyers_and_seller_cannot_read_or_mutate_the_order(self):
-        for user in (self.other, self.seller):
+        for user in (self.other,):
             self.client.force_login(user)
             self.assertEqual(self.client.get(self.detail_url).status_code, 404)
             for action in ('cancel_order', 'complete_order'):
@@ -1904,3 +1904,107 @@ class AccountHardeningTests(TestCase):
                 self.assertEqual(cls.return_value.save.call_count, 1)
             self.assertTrue(default_storage.exists(name))
             self.assertTrue(Profile.objects.get(user=self.user).avatar.name.startswith(PREFIX))
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class SellerOrdersAndSupportSetupTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user('sales-owner', 'sales@example.test', PASSWORD)
+        self.buyer = User.objects.create_user('sales-buyer', 'buyer-sales@example.test', PASSWORD)
+        self.other = User.objects.create_user('sales-other')
+        self.order = AccountOrder.objects.create(user=self.buyer, seller=self.seller, number='SELLER-VISIBLE',
+            date=date.today(), status='awaiting_payment', title='Sold linen coat', subtotal=100000,
+            recipient='Buyer', address='Depok')
+        self.client.force_login(self.seller)
+
+    def test_sales_tab_shows_only_orders_linked_to_the_logged_in_seller(self):
+        AccountOrder.objects.create(user=self.buyer, seller=self.other, number='OTHER-SELLER', date=date.today(),
+            status='completed', title='Other coat', subtotal=1, recipient='Buyer', address='Depok')
+        self.assertContains(self.client.get(reverse('orders')), 'My Sales')
+        self.assertNotContains(self.client.get(reverse('orders')), self.order.number)
+        response = self.client.get(reverse('orders'), {'scope': 'sales'})
+        self.assertContains(response, self.order.number)
+        self.assertNotContains(response, 'OTHER-SELLER')
+        self.assertContains(response, self.buyer.username)
+        self.assertNotContains(response, 'Manage Orders')
+
+    def test_seller_detail_is_read_only_and_returns_to_sales(self):
+        detail = reverse('order_detail', args=[self.order.pk])
+        response = self.client.get(detail)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'scope=sales')
+        for action in ('cancel_order', 'complete_order', 'confirm_payment', 'ship_order'):
+            self.assertNotContains(response, reverse('transaction:' + action, args=[self.order.pk]))
+        self.assertNotContains(response, reverse('reviews:create_order_review', args=[self.order.pk]))
+        for action in ('cancel_order', 'complete_order'):
+            self.assertEqual(self.client.post(reverse('transaction:' + action, args=[self.order.pk])).status_code, 404)
+        for action in ('confirm_payment', 'ship_order'):
+            self.assertIn('/admin/login/', self.client.post(reverse('transaction:' + action, args=[self.order.pk])).url)
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(detail).status_code, 404)
+        self.assertNotContains(self.client.get(reverse('orders'), {'scope': 'sales'}), self.order.number)
+
+    def test_sales_scope_keeps_pagination_and_cannot_be_forged_with_seller_id(self):
+        for index in range(13):
+            AccountOrder.objects.create(user=self.buyer, seller=self.seller, number=f'SALE-{index}', date=date.today(),
+                status='completed', title='Sold coat', subtotal=1, recipient='Buyer', address='Depok')
+        response = self.client.get(reverse('orders'), {'scope': 'sales', 'seller_id': self.other.pk})
+        self.assertEqual(response.context['page_obj'].paginator.count, 14)
+        self.assertContains(response, 'scope=sales&amp;page=2')
+        self.assertEqual(len(self.client.get(reverse('orders'), {'scope': 'sales', 'page': 2}).context['orders']), 2)
+
+    def test_sales_state_labels_follow_transaction_without_becoming_admin(self):
+        from transaction.models import TransactionOrderState
+        state = TransactionOrderState.objects.create(order=self.order, status='paid')
+        for status, label in [('paid', 'Payment confirmed'), ('cancelled', 'Cancelled'), ('expired', 'Expired')]:
+            state.status = status
+            state.save()
+            response = self.client.get(reverse('orders'), {'scope': 'sales'})
+            self.assertContains(response, label)
+            self.assertEqual(response.context['orders'][0].account_display['can_confirm_payment'], False)
+
+    @override_settings(GAIA_CARE_USER_ID=None, GAIA_CARE_USERNAME='gaiacare')
+    def test_support_check_never_creates_an_account_or_promotes_an_impostor(self):
+        from .support_readiness import support_readiness
+        self.assertFalse(support_readiness()['ready'])
+        self.assertFalse(User.objects.filter(username='gaiacare').exists())
+        impostor = User.objects.create_user('gaiacare', password=PASSWORD)
+        self.assertFalse(support_readiness()['ready'])
+        impostor.refresh_from_db()
+        self.assertFalse(impostor.is_staff)
+
+    def test_support_readiness_detects_signin_and_configuration_problems(self):
+        from .support_readiness import support_readiness
+        support = User.objects.create_user('support-no-password', is_staff=True)
+        with override_settings(GAIA_CARE_USER_ID=support.pk):
+            self.assertFalse(support_readiness()['ready'])
+            support.set_password(PASSWORD)
+            support.save()
+            self.assertTrue(support_readiness()['ready'])
+            support.is_active = False
+            support.save()
+            self.assertFalse(support_readiness()['ready'])
+        with override_settings(GAIA_CARE_USER_ID='bad-id'):
+            self.assertFalse(support_readiness()['ready'])
+        from allauth.socialaccount.models import SocialAccount
+        support.is_active = True
+        support.set_unusable_password()
+        support.save()
+        SocialAccount.objects.create(user=support, provider='google', uid='support-test-id')
+        with override_settings(GAIA_CARE_USER_ID=support.pk):
+            self.assertTrue(support_readiness()['ready'])
+
+    def test_support_setup_and_candidate_command_are_read_only(self):
+        url = reverse('support_setup')
+        self.assertEqual(self.client.get(url).status_code, 404)
+        operator = User.objects.create_user('operator', is_staff=True, password=PASSWORD)
+        self.client.force_login(operator)
+        self.assertContains(self.client.get(reverse('account_settings')), 'Check Gaia Care Setup')
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.post(url).status_code, 405)
+        output = StringIO()
+        call_command('check_gaia_care', username=operator.username, stdout=output)
+        self.assertIn(f'GAIA_CARE_USER_ID={operator.pk}', output.getvalue())
+        self.assertIn('Candidate only', output.getvalue())
+        with self.assertRaises(CommandError):
+            call_command('check_gaia_care', username=self.other.username, stdout=StringIO())

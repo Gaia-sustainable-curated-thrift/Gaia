@@ -1,5 +1,6 @@
 {% extends 'accounts/layout.html' %}
 {% block account_content %}
+{% if user.is_staff %}<p><a class="button secondary" href="{% url 'support_setup' %}">Check Gaia Care Setup</a></p>{% endif %}
 <section class="card">
 <h2>Account Security
 </h2>

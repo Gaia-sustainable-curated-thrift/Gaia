@@ -1,10 +1,11 @@
 {% extends 'accounts/layout.html' %}
 {% load static account_tags %}
 {% block account_content %}
-{% if can_manage_orders %}<nav class="order-scope-tabs" aria-label="Order scope">
-<a href="{% url 'orders' %}" {% if not managing_orders %}aria-current="page"{% endif %}>My Purchases</a>
-<a href="{% url 'orders' %}?scope=manage" {% if managing_orders %}aria-current="page"{% endif %}>Manage Orders</a>
-</nav>{% endif %}
+<nav class="order-scope-tabs" aria-label="Order scope">
+<a href="{% url 'orders' %}" {% if not managing_orders and not sales_view %}aria-current="page"{% endif %}>My Purchases</a>
+<a href="{% url 'orders' %}?scope=sales" {% if sales_view %}aria-current="page"{% endif %}>My Sales</a>
+{% if can_manage_orders %}<a href="{% url 'orders' %}?scope=manage" {% if managing_orders %}aria-current="page"{% endif %}>Manage Orders</a>{% endif %}
+</nav>
 {% if orders %}
 <p class="list-count">{{ page_obj.paginator.count }} order{{ page_obj.paginator.count|pluralize }} · All statuses
 </p>
@@ -12,7 +13,7 @@
 <article class="card order-card">
 <div class="order-meta"><span>#{{ order.number }} · {{ order.date|date:'j F Y' }}</span><span class="status {{ order.account_display.status }}">{{ order.account_display.label }}</span>
 </div>
-{% if managing_orders %}<p class="small muted">Buyer: {{ order.user.get_full_name|default:order.user.username }}</p>{% endif %}
+{% if managing_orders or sales_view %}<p class="small muted">Buyer: {{ order.user.get_full_name|default:order.user.username }}</p>{% endif %}
 <div class="order-product">{% include 'includes/product_image.html' with item=order %}
 <div>
 <h3>{{ order.title }}
@@ -24,9 +25,9 @@
 </article>{% endfor %}
 </div>{% else %}
 <section class="card empty-state">{% include 'includes/icon.html' with name='bag' %}
-<h2>No orders yet
+<h2>{% if sales_view %}No sales yet{% else %}No orders yet{% endif %}
 </h2>
-<p class="muted">Your next pre-loved find will appear here.
+<p class="muted">{% if sales_view %}Orders for your listings will appear here when a buyer checks out.{% else %}Your next pre-loved find will appear here.{% endif %}
 </p><a class="button olive-button" href="/">Back to Home</a>
 </section>{% endif %}
 {% include 'includes/account_pagination.html' with pagination_label='Orders' %}

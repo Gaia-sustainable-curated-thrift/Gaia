@@ -281,3 +281,24 @@ class AccountBrowserTests(StaticLiveServerTestCase):
             except Exception:
                 pass
         page.unroute('**/accounts/settings/')
+
+
+    def test_seller_can_open_sales_and_detail_without_reload_or_admin_controls(self):
+        from accounts.models import AccountOrder
+        from datetime import date
+        buyer = get_user_model().objects.create_user('sales-browser-buyer')
+        order = AccountOrder.objects.create(user=buyer, seller=self.user, number='BROWSER-SALE', date=date.today(),
+            status='awaiting_payment', title='Browser Sale Coat', subtotal=100, recipient='Buyer', address='Depok')
+        page = self.page(self.user, width=390)
+        page.goto(self.url('orders'))
+        self.mark(page)
+        page.get_by_role('link', name='My Sales', exact=True).click()
+        expect(page).to_have_url(self.url('orders') + '?scope=sales')
+        expect(page.locator('main')).to_contain_text(order.number)
+        page.get_by_role('link', name='View Details', exact=True).click()
+        expect(page).to_have_url(self.url('order_detail', order.pk))
+        expect(page.locator('main')).to_contain_text('Sale to')
+        expect(page.get_by_role('button', name='Confirm Payment Received')).to_have_count(0)
+        self.assert_preserved(page)
+        page.get_by_role('link', name='Back to Orders', exact=True).click()
+        expect(page).to_have_url(self.url('orders') + '?scope=sales')

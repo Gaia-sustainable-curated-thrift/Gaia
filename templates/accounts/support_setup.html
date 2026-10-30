@@ -1,0 +1,12 @@
+{% extends 'accounts/layout.html' %}
+{% block account_content %}
+<section class="card"><h2>Gaia Care Operator</h2>
+{% if support_status.ready %}<p class="olive">The configured account has an active staff role and a sign-in method.</p>{% else %}<p class="muted">Support is not ready for an operator to sign in.</p><ul>{% for reason in support_status.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>{% endif %}
+{% if support_status.user %}<p>Account: <strong>{{ support_status.user.username }}</strong></p>{% endif %}
+<p>Explicit operator ID configured: {{ support_status.uses_explicit_id|yesno:'Yes,No' }}.</p>
+<p>Use an existing active staff account whose operator can sign in. Check the candidate in the deployment terminal:</p>
+<pre>python manage.py check_gaia_care --username USERNAME_OPERATOR</pre>
+<p>Set the reported <code>GAIA_CARE_USER_ID</code> in PWS Environs and restart the application. This page does not change credentials, permissions, or environment variables.</p>
+<p>Then test with two accounts: the buyer sends a support message; the configured operator signs in and replies. A linked Google account still requires valid OAuth configuration.</p>
+<a class="button" href="{% url 'account_settings' %}">Back to Settings</a></section>
+{% endblock %}

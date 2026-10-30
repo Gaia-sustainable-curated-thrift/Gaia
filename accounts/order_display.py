@@ -26,9 +26,18 @@ def order_display(order, viewer):
     current_reservation = bool(reservation is not None and not reservation.is_expired)
     owner = viewer.pk == order.user_id
     staff = viewer.is_active and viewer.is_staff
+    sale = viewer.pk == order.seller_id and not owner
+    note = notes.get(status, order.status_note)
+    if sale:
+        note = {
+            'awaiting_payment': 'Your buyer is awaiting payment verification by an administrator.',
+            'paid': 'Payment is confirmed. An administrator will record shipping details.',
+            'in_transit': 'The order is in transit. The buyer can confirm receipt when it arrives.',
+            'completed': 'Order completed. Your buyer can now leave a seller review.',
+        }.get(status, note)
     return {
         'status': status, 'label': labels.get(status, order.get_status_display()),
-        'note': notes.get(status, order.status_note),
+        'note': note,
         'payment_label': 'Paid' if status in ('paid', 'in_transit', 'completed') else 'Not paid',
         'can_cancel': owner and active,
         'can_complete': owner and status == 'in_transit',

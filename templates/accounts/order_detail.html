@@ -1,6 +1,7 @@
 {% extends 'accounts/layout.html' %}
 {% load account_tags review_tags tz %}
 {% block account_content %}
+{% if sales_view %}<p class="small muted">Sale to {{ order.user.get_full_name|default:order.user.username }}. Payment verification and shipping updates are managed by an administrator.</p>{% endif %}
 <section class="card order-card">
 <div class="order-status">{% if order.status == 'completed' %}{% include 'includes/icon.html' with name='check' %}{% else %}{% include 'includes/icon.html' with name='bag' %}{% endif %}
 <div>
@@ -47,6 +48,6 @@
 </section>
 </div>
 {% include 'accounts/includes/order_actions.html' %}
-<div class="actions"><a class="button olive-button" href="{% url 'orders' %}{% if managing_orders %}?scope=manage{% endif %}">Back to Orders</a>
+<div class="actions"><a class="button olive-button" href="{% url 'orders' %}{% if sales_view %}?scope=sales{% elif managing_orders %}?scope=manage{% endif %}">Back to Orders</a>
 {% if order.user_id == user.pk %}<a class="button secondary" href="{% url 'chat:order' order.pk %}">Tanya soal pesanan ini</a>{% review_order_action order user %}{% endif %}</div>
 {% endblock %}

@@ -165,20 +165,23 @@ def edit_profile(request):
 @login_required
 def orders(request):
     staff = request.user.is_active and request.user.is_staff
-    managing = request.GET.get('scope') == 'manage'
+    scope = request.GET.get('scope', '')
+    managing = scope == 'manage'
+    selling = scope == 'sales'
     if managing and not staff:
         raise Http404
     expire_reservations()
-    queryset = AccountOrder.objects.all() if managing else request.user.account_orders.all()
+    queryset = (AccountOrder.objects.all() if managing else
+                request.user.sales_orders.all() if selling else request.user.account_orders.all())
     queryset = queryset.select_related('transaction_state', 'product_reservation', 'user')
     page = Paginator(queryset.order_by('-date', '-pk'), 12).get_page(request.GET.get('page'))
     for order in page.object_list:
         order.account_display = order_display(order, request.user)
     return render(request, 'accounts/orders.html', account_context(
-        request, 'Manage Orders' if managing else 'Orders',
-        'Verify payments and manage shipping.' if managing else "Track your orders and follow each item's journey.",
+        request, 'Manage Orders' if managing else 'My Sales' if selling else 'Orders',
+        'Verify payments and manage shipping.' if managing else 'Track purchases of your listings.' if selling else "Track your orders and follow each item's journey.",
         'orders', orders=page.object_list, page_obj=page, managing_orders=managing,
-        can_manage_orders=staff,
+        can_manage_orders=staff, sales_view=selling, order_scope='manage' if managing else 'sales' if selling else '',
     ))
 
 
@@ -187,7 +190,7 @@ def order_detail(request, pk):
     staff = request.user.is_active and request.user.is_staff
     queryset = AccountOrder.objects.select_related('transaction_state', 'product_reservation', 'user')
     if not staff:
-        queryset = queryset.filter(user=request.user)
+        queryset = queryset.filter(Q(user=request.user) | Q(seller=request.user))
     order = get_object_or_404(queryset, pk=pk)
     expire_reservations()
     # Expiry may have changed the transaction state since the first read.
@@ -195,7 +198,8 @@ def order_detail(request, pk):
     return render(request, 'accounts/order_detail.html', account_context(
         request, 'Order Details', f'Details and delivery status for order #{order.number}.',
         'orders', order=order, order_ui=order_display(order, request.user),
-        managing_orders=staff and order.user_id != request.user.pk,
+        managing_orders=staff and order.user_id != request.user.pk and order.seller_id != request.user.pk,
+        sales_view=order.seller_id == request.user.pk and order.user_id != request.user.pk,
     ))
 
 
@@ -382,4 +386,16 @@ def my_products(request):
     return render(request, 'accounts/my_products.html', account_context(
         request, 'My Products', 'Manage your listings and give every piece a new story.',
         'products', page_obj=page, selected_status=status, listing_totals=totals,
+    ))
+
+
+@login_required
+@require_http_methods(['GET', 'HEAD'])
+def support_setup(request):
+    if not request.user.is_active or not request.user.is_staff:
+        raise Http404
+    from .support_readiness import support_readiness
+    return render(request, 'accounts/support_setup.html', account_context(
+        request, 'Gaia Care Setup', 'Check the support operator configured for this deployment.',
+        'settings', support_status=support_readiness(),
     ))

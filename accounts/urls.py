@@ -22,6 +22,7 @@ urlpatterns = [
     path('delete/', views.delete_account, name='delete_account'),
     path('delete/email/', views.send_delete_confirmation, name='send_delete_confirmation'),
     path('delete/confirm/<str:token>/', views.delete_account, name='delete_account_confirm'),
+    path('support/setup/', views.support_setup, name='support_setup'),
     path('settings/', views.account_settings, name='account_settings'),
     path('password/change/', views.ChangePasswordView.as_view(), name='password_change'),
     path('password/reset/', sensitive_rate_limit('reset', 3, 20, 3600)(auth.PasswordResetView.as_view()), name='password_reset'),
