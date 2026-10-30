@@ -153,7 +153,7 @@ Untuk menguji app tertentu, tambahkan nama app, misalnya `python manage.py test 
 
 Set `PRODUCTION=True` dan `SECRET_KEY` acak baru (minimal 50 karakter) melalui environment PWS sebelum deploy. Key lama di riwayat repository harus dianggap bocor dan tidak digunakan kembali. Nilai secret tidak boleh dimasukkan ke GitHub atau log. Rotasi key membuat sesi/token lama tidak berlaku.
 
-Mode produksi mematikan debug, mengaktifkan cookie secure, redirect HTTPS, dan HSTS. Proxy PWS harus meneruskan serta menimpa `X-Forwarded-Proto`; jangan mempercayai header langsung dari klien. Jalankan `python manage.py check --deploy` dengan konfigurasi produksi. Media upload harus disajikan oleh server media/proxy pada `/media/` dengan tipe konten gambar dan `X-Content-Type-Options: nosniff`; `DEBUG=False` tidak menggunakan server media pengembangan Django.
+Mode produksi mematikan debug, mengaktifkan cookie secure, redirect HTTPS, dan HSTS. Proxy PWS harus meneruskan serta menimpa `X-Forwarded-Proto`; jangan mempercayai header langsung dari klien. Jalankan `python manage.py check --deploy` dengan konfigurasi produksi. PWS memakai endpoint `/media/` aplikasi untuk foto upload yang telah diverifikasi sebagai gambar, dengan tipe konten hasil deteksi dan `X-Content-Type-Options: nosniff`. File HTML/SVG dan path di luar folder gambar ditolak. Foto chat hanya dapat diakses peserta percakapan; jangan memintas pemeriksaan akses ini melalui proxy publik. Endpoint ini tetap bekerja dengan `DEBUG=False`. Penyimpanan media harus persisten antar-deploy.
 
 Rujukan: [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/).
 
