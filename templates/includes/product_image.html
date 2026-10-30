@@ -1,3 +1,2 @@
-{% load static %}{% if item.image %}<img class="product-image" src="{% static item.image %}" alt="{{ item.title }}" loading="lazy">{% else %}
-<div class="product-placeholder" role="img" aria-label="No product photo">{% include 'includes/icon.html' with name='bag' %}
-</div>{% endif %}
+{% load account_tags %}{% with image_url=item.image|product_image_url %}{% if image_url %}<img class="product-image" src="{{ image_url }}" alt="{{ item.title }}" loading="lazy">{% else %}
+<div class="product-placeholder" role="img" aria-label="No product photo">{% include 'includes/icon.html' with name='bag' %}</div>{% endif %}{% endwith %}

@@ -1362,3 +1362,24 @@ class GoogleAccountPasswordExperienceTests(TestCase):
         self.client.force_login(self.user)
         self.assertContains(self.client.get(reverse('account_settings')), 'Change Password')
         self.assertIn('old_password', self.client.get(reverse('password_change')).context['form'].fields)
+
+
+class AccountProductImageTests(SimpleTestCase):
+    def test_snapshot_media_static_and_storage_urls_render_correctly(self):
+        from django.template.loader import render_to_string
+        for source, expected in [('/media/products/coat.jpg', '/media/products/coat.jpg'),
+                                 ('images/reference-coat.png', '/static/images/reference-coat.png'),
+                                 ('/static/images/coat.png', '/static/images/coat.png'),
+                                 ('https://cdn.example.test/coat.jpg?token=1', 'https://cdn.example.test/coat.jpg?token=1')]:
+            with self.subTest(source=source):
+                html = render_to_string('includes/product_image.html', {'item': {'image': source, 'title': '<Coat>'}})
+                self.assertIn(f'src="{expected}"', html)
+                self.assertNotIn('/static/media/', html)
+                self.assertIn('alt="&lt;Coat&gt;"', html)
+
+    def test_invalid_urls_use_the_placeholder(self):
+        from django.template.loader import render_to_string
+        for source in ('', 'javascript:alert(1)', 'data:text/html,test', '//evil.example.test/x', 'https://['):
+            html = render_to_string('includes/product_image.html', {'item': {'image': source, 'title': 'Coat'}})
+            self.assertIn('No product photo', html)
+            self.assertNotIn('<img', html)
