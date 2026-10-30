@@ -41,7 +41,7 @@ def _visible_wishlist_items(user):
 def register(request):
     if request.user.is_authenticated:
         return redirect('profile')
-    form = RegisterForm(request.POST or None)
+    form = RegisterForm(request.POST if request.method == 'POST' else None)
     if request.method == 'POST' and form.is_valid():
         try:
             with transaction.atomic():
@@ -148,10 +148,17 @@ def edit_profile(request):
     details = context['profile']
     form = ProfileForm(request.POST if request.method == 'POST' else None, request.FILES if request.method == 'POST' else None, instance=request.user, initial={'full_name': request.user.get_full_name(), 'phone': details.phone, 'city': details.city, 'country': details.country})
     if request.method == 'POST' and form.is_valid():
-        with transaction.atomic():
-            form.save()
-        messages.success(request, 'Profile updated successfully. Your account details are saved.')
-        return redirect('profile')
+        try:
+            with transaction.atomic():
+                form.save()
+        except IntegrityError:
+            if get_user_model().objects.filter(username__iexact=form.cleaned_data['username']).exclude(pk=request.user.pk).exists():
+                form.add_error('username', 'This username was just taken. Please choose another username.')
+            else:
+                raise
+        else:
+            messages.success(request, 'Profile updated successfully. Your account details are saved.')
+            return redirect('profile')
     return render(request, 'accounts/edit_profile.html', {**context, 'form': form})
 
 

@@ -3,9 +3,11 @@ branch = True
 source = accounts
 omit =
     accounts/tests.py
+    accounts/e2e.py
     accounts/migrations/*
 
 [report]
+omit = accounts/e2e.py
 show_missing = True
 precision = 2
 fail_under = 91

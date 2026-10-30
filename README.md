@@ -361,7 +361,7 @@ Buka `htmlcov/index.html` untuk melihat baris dan cabang yang tercakup. Tes meng
 ```bash
 pip install -r reviews/requirements-dev.txt
 python -m playwright install chromium
-python manage.py test products.e2e reviews.e2e --noinput
+python manage.py test accounts.e2e products.e2e reviews.e2e --noinput
 ```
 
 Kalau Chrome atau Edge sudah terpasang, set `GAIA_TEST_BROWSER` ke lokasi file aplikasinya agar tidak perlu mengunduh Chromium.
@@ -378,7 +378,7 @@ Kalau Chrome atau Edge sudah terpasang, set `GAIA_TEST_BROWSER` ke lokasi file a
 Workflow `.github/workflows/deploy.yml` terdiri dari tiga job:
 
 1. **Run tests**: cek tidak ada migrasi yang tertinggal, jalankan seluruh unit test, dan tampilkan laporan coverage.
-2. **Run browser tests**: jalankan functional test Playwright (`products.e2e`, `reviews.e2e`) di Chromium.
+2. **Run browser tests**: jalankan functional test Playwright (`accounts.e2e`, `products.e2e`, `reviews.e2e`) di Chromium.
 3. **Deploy Gaia to PWS**: berjalan hanya untuk push/merge ke `main`, dan hanya kalau dua job di atas lulus. Commit dikirim ke branch `master` PWS Gaia.
 
 Dua job pertama juga berjalan di setiap pull request ke `main`. Deploy bisa dijalankan manual dari tab **Actions > Push to PWS > Run workflow**, dengan branch `main`.
@@ -468,3 +468,19 @@ Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, 
 ### Foto katalog contoh
 
 Migrasi `products.0008` memperbarui 100 listing contoh milik `danariqbalabi` dengan nama barang tanpa awalan nomor dan 100 foto referensi berbeda sesuai kategori. ID/slug, status penjualan, dan riwayat pesanan tetap dipertahankan. Sumber metadata/foto tercatat di `static/images/demo-catalog/SOURCES.md` dan `products/demo_catalog_photos.json`; hak gambar tetap pada pemiliknya. Ini data demonstrasi, bukan barang nyata yang dijual. Tombol admin memakai foto terbaru; CLI dapat memakai `--natural-photos`.
+
+### Interaktivitas dan tes browser modul User
+
+Form registrasi/login, profil dan avatar, wishlist remove/undo, ganti password, pengiriman ulang email, konfirmasi penghapusan akun, serta navigasi/pagination akun memakai AJAX HTML melalui `static/js/account-ajax.js`. Respons tetap dirender Django dengan escaping dan CSRF; tanpa JavaScript, form dan link biasa tetap bekerja. Navigasi menyimpan history browser, style halaman dimuat bila diperlukan, submit ganda dicegah, dan kegagalan jaringan/403 mempertahankan input serta menampilkan pesan. Google OAuth tetap mengikuti navigasi autentikasi provider.
+
+Tes `accounts.e2e` menjalankan 12 skenario di Chromium/Chrome, memeriksa penanda JavaScript yang akan hilang jika terjadi reload penuh. Cakupannya termasuk mobile 390px, avatar, validasi gagal, wishlist pagination/remove/undo, hapus akun/listing, password/logout, resend cooldown, CSRF, jaringan gagal/retry, privasi, dan fallback tanpa JavaScript. CI browser juga menjalankan suite ini. Jalankan `python manage.py test accounts.e2e --noinput` setelah menginstal `reviews/requirements-dev.txt` dan Chromium. `GAIA_TEST_BROWSER` dapat menunjuk Chrome/Edge lokal.
+
+Migrasi `accounts.0007` menyelaraskan aturan username tidak peka huruf besar/kecil di database. Jika ada username lama yang hanya berbeda kapitalisasi, migrasi berhenti tanpa menggabungkan atau mengganti nama akun otomatis. Registrasi memvalidasi password terhadap nama yang benar-benar dimasukkan; benturan username setelah validasi ditampilkan sebagai error form.
+
+### Persiapan demo modul User
+
+- Jelaskan alur URL -> view -> form -> model -> template, lalu bagaimana fetch mengganti bagian halaman tanpa reload.
+- Demo registrasi, validasi profil yang gagal, upload avatar, wishlist remove/undo, dan hapus akun pada akun demo yang tidak punya pesanan aktif.
+- Jelaskan mengapa form tetap divalidasi server, CSRF dipertahankan, queryset dibatasi pemilik, dan unique index database diperlukan meskipun form sudah mengecek duplikat.
+- Latihan live coding: menambah validasi panjang nomor telepon, mengubah ukuran pagination, atau menambah field profil beserta migration/form/template/test. Kerjakan pada branch latihan dan database lokal.
+- Coverage dan browser test bukan bukti TDD. Proyek tidak mengklaim Red-Green-Refactor tanpa bukti riwayat Git. Nilai demo/live coding ditentukan dari pemahaman dan pekerjaan mandiri saat penilaian.
