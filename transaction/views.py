@@ -330,6 +330,8 @@ def confirmation(request):
 
                     order = AccountOrder.objects.create(
                         user=request.user,
+                        product=product,
+                        seller=product.seller,
                         number=f"G-{batch}-{index:02d}",
                         date=timezone.localdate(),
                         status=AccountOrder.Status.AWAITING_PAYMENT,
@@ -361,16 +363,13 @@ def confirmation(request):
                             timezone.now() + timedelta(minutes=15)
                         ),
                     )
+                    product.status = Product.Status.SOLD
+                    product.save()
 
                     created_orders.append(order)
 
         except IntegrityError:
-            messages.error(
-                request,
-                "A product was just reserved by another buyer. "
-                "Please review your bag."
-            )
-            return redirect("transaction:checkout")
+            raise
 
         request.session.pop("bag", None)
 
