@@ -1,4 +1,43 @@
 (function () {
+    function moveTabIndicator(tabs, item) {
+        if (!item || !tabs.hasAttribute('data-animated-tabs')) return;
+        var track = tabs.getBoundingClientRect();
+        var bounds = item.getBoundingClientRect();
+        tabs.style.setProperty('--tab-left', (bounds.left - track.left) + 'px');
+        tabs.style.setProperty('--tab-top', (bounds.top - track.top) + 'px');
+        tabs.style.setProperty('--tab-width', bounds.width + 'px');
+        tabs.style.setProperty('--tab-height', bounds.height + 'px');
+    }
+
+    function initAnimatedTabs() {
+        document.querySelectorAll('[data-category-tabs], [data-listing-tabs]').forEach(function (tabs) {
+            tabs.setAttribute('data-animated-tabs', '');
+            function measure() { moveTabIndicator(tabs, tabs.querySelector('.is-active')); }
+            measure();
+            // Enable the slide only after the first placement so the pill doesn't fly in on load.
+            window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () { tabs.setAttribute('data-tabs-ready', ''); });
+            });
+            if (window.ResizeObserver) new ResizeObserver(measure).observe(tabs);
+            else window.addEventListener('resize', measure);
+            if (document.fonts) document.fonts.ready.then(measure);
+        });
+    }
+
+    var tabContentAnimations = new WeakMap();
+    function animateTabContent(nodes) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        nodes.forEach(function (node) {
+            var previous = tabContentAnimations.get(node);
+            if (previous) previous.cancel();
+            if (node.hidden || !node.animate) return;
+            tabContentAnimations.set(node, node.animate([
+                { opacity: 0, transform: 'translateY(6px)' },
+                { opacity: 1, transform: 'translateY(0)' }
+            ], { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }));
+        });
+    }
+
     function activateItem(tabs, item) {
         tabs.querySelectorAll('.segment__item').forEach(function (tab) {
             var isActive = tab === item;
@@ -9,6 +48,7 @@
                 tab.removeAttribute('aria-current');
             }
         });
+        moveTabIndicator(tabs, item);
     }
 
     function initCategoryTabs() {
@@ -20,12 +60,14 @@
             var item = event.target.closest('.segment__item');
             if (!item || !tabs.contains(item)) return;
             event.preventDefault();
+            if (item.classList.contains('is-active')) return;
 
             activateItem(tabs, item);
             var slug = item.getAttribute('data-gender');
             groups.forEach(function (group) {
                 group.hidden = group.getAttribute('data-gender') !== slug;
             });
+            animateTabContent(groups);
         });
     }
 
@@ -39,6 +81,7 @@
             var item = event.target.closest('.segment__item');
             if (!item || !tabs.contains(item)) return;
             event.preventDefault();
+            if (item.classList.contains('is-active')) return;
 
             activateItem(tabs, item);
             var name = item.getAttribute('data-category-name');
@@ -48,6 +91,7 @@
             if (empty) {
                 empty.hidden = Array.prototype.some.call(cards, function (card) { return !card.hidden; });
             }
+            animateTabContent(Array.prototype.slice.call(cards).concat(empty ? [empty] : []));
         });
     }
 
@@ -59,6 +103,10 @@
         toggle.addEventListener('click', function () {
             var collapsed = body.toggleAttribute('hidden');
             toggle.setAttribute('aria-expanded', String(!collapsed));
+            if (!collapsed && body.animate && !prefersReducedMotion()) {
+                body.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+                    { duration: 220, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+            }
         });
     }
 
@@ -148,7 +196,12 @@
                     other.classList.toggle('is-active', other === thumb);
                 });
                 var full = thumb.getAttribute('data-full');
-                if (full) main.src = full;
+                if (!full || main.getAttribute('src') === full) return;
+                main.src = full;
+                if (main.animate && !prefersReducedMotion()) {
+                    main.animate([{ opacity: 0.35, transform: 'scale(1.02)' }, { opacity: 1, transform: 'scale(1)' }],
+                        { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+                }
             });
         });
     }
@@ -226,6 +279,81 @@
         dismissToast(el, 4000);
     }
 
+    function prefersReducedMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    // Restart a one-shot CSS animation class (bag badge bump, icon pop).
+    function replayClass(el, name) {
+        if (!el || prefersReducedMotion()) return;
+        el.classList.remove(name);
+        void el.offsetWidth;
+        el.classList.add(name);
+        el.addEventListener('animationend', function done() {
+            el.classList.remove(name);
+            el.removeEventListener('animationend', done);
+        });
+    }
+
+    // A copy of the product photo flies from where it was added into the navbar bag.
+    function flyToBag(source) {
+        if (!source || prefersReducedMotion() || !document.body.animate) return;
+        var target = document.querySelector('.gaia-navbar .nav-bag');
+        var from = source.getBoundingClientRect();
+        if (!from.width || !from.height) return;
+        var navbar = document.querySelector('.gaia-navbar');
+        var navHidden = navbar && navbar.classList.contains('is-nav-scrolled') && !navbar.classList.contains('is-nav-revealed');
+        var to = target && !navHidden ? target.getBoundingClientRect() : { left: window.innerWidth - 56, top: 16, width: 40, height: 40 };
+        var size = Math.min(from.width, from.height, 160);
+        var ghost = source.cloneNode(false);
+        ghost.removeAttribute('style');
+        ghost.removeAttribute('loading');
+        ghost.className = 'fly-to-bag';
+        ghost.setAttribute('aria-hidden', 'true');
+        ghost.style.left = (from.left + (from.width - size) / 2) + 'px';
+        ghost.style.top = (from.top + (from.height - size) / 2) + 'px';
+        ghost.style.width = size + 'px';
+        ghost.style.height = size + 'px';
+        document.body.appendChild(ghost);
+        var dx = to.left + to.width / 2 - (from.left + from.width / 2);
+        var dy = to.top + to.height / 2 - (from.top + from.height / 2);
+        var flight = ghost.animate([
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+            { transform: 'translate(' + dx * 0.55 + 'px, ' + (dy * 0.35 - 60) + 'px) scale(0.55)', opacity: 1, offset: 0.55 },
+            { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.12)', opacity: 0.2 }
+        ], { duration: 720, easing: 'cubic-bezier(0.5, 0, 0.2, 1)' });
+        flight.onfinish = flight.oncancel = function () { ghost.remove(); };
+        // Backup cleanup in case the finish event never fires (e.g. a background tab).
+        window.setTimeout(function () { ghost.remove(); }, 1000);
+    }
+
+    // A handful of tiny hearts burst out of the wishlist button when an item is saved.
+    function heartBurst(button) {
+        if (!button || prefersReducedMotion() || !document.body.animate) return;
+        var box = button.querySelector('.icon') || button;
+        var rect = box.getBoundingClientRect();
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        for (var i = 0; i < 8; i++) {
+            var heart = document.createElement('span');
+            heart.className = 'heart-burst';
+            heart.setAttribute('aria-hidden', 'true');
+            heart.innerHTML = '<svg class="icon" focusable="false"><use href="#icon-heart"></use></svg>';
+            heart.style.left = cx + 'px';
+            heart.style.top = cy + 'px';
+            document.body.appendChild(heart);
+            var angle = (Math.PI * 2 * i) / 8 + (Math.random() - 0.5) * 0.4;
+            var distance = 34 + Math.random() * 22;
+            var spin = (Math.random() - 0.5) * 60;
+            var burst = heart.animate([
+                { transform: 'translate(-50%, -50%) scale(0.3)', opacity: 1 },
+                { transform: 'translate(calc(-50% + ' + Math.cos(angle) * distance + 'px), calc(-50% + ' + Math.sin(angle) * distance + 'px)) scale(1) rotate(' + spin + 'deg)', opacity: 0 }
+            ], { duration: 620 + Math.random() * 160, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+            burst.onfinish = burst.oncancel = (function (node) { return function () { node.remove(); }; })(heart);
+            window.setTimeout((function (node) { return function () { node.remove(); }; })(heart), 1000);
+        }
+    }
+
     // Every add-to-bag button on the page mirrors whether its listing is in the bag;
     // pressing an added one removes it again.
     function syncBagButtons(slugs) {
@@ -233,7 +361,9 @@
             var inBag = slugs.indexOf(form.getAttribute('data-bag-form')) !== -1;
             var button = form.querySelector('button[type="submit"]');
             var label = form.querySelector('[data-bag-label]');
+            var changed = button && button.classList.contains('is-active') !== inBag;
             form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
+            if (changed) replayClass(button, 'is-popping');
             if (button) {
                 button.classList.toggle('is-active', inBag);
                 button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
@@ -258,6 +388,9 @@
             var button = form.querySelector('button[type="submit"]');
             if (button) button.disabled = true;
             var drawer = document.getElementById('bag-drawer');
+            var adding = /\/bag\/add\//.test(new URL(form.action).pathname);
+            var card = form.closest('.product-card');
+            var photo = card ? card.querySelector('.product-card__media img') : document.querySelector('[data-gallery-main]');
 
             fetch(form.action, {
                 method: 'POST',
@@ -273,13 +406,16 @@
                 var panel = document.querySelector('.bag-drawer__panel');
                 if (panel && data.drawer) panel.innerHTML = data.drawer;
                 document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
+                    var changed = badge.textContent.trim() !== String(data.bag_count);
                     badge.textContent = data.bag_count;
                     badge.hidden = data.bag_count === 0;
+                    if (changed && !badge.hidden) replayClass(badge, 'is-bumping');
                 });
                 document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
                     toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' item' + (data.bag_count === 1 ? '' : 's'));
                 });
                 if (Array.isArray(data.bag_slugs)) syncBagButtons(data.bag_slugs);
+                if (adding && data.ok && !data.open) flyToBag(photo);
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showToast(data.toast);
             }).catch(function () {
@@ -331,6 +467,8 @@
                         navigating = true;
                         window.location.assign(target.href);
                     } else if (data.ok === true && data.toast && typeof data.saved_count === 'number' && typeof data.saved === 'boolean') {
+                        if (saved !== data.saved) replayClass(button, 'is-popping');
+                        if (!saved && data.saved) heartBurst(button);
                         saved = data.saved;
                         button.classList.toggle('is-saved', saved);
                         button.setAttribute('aria-pressed', saved ? 'true' : 'false');
@@ -595,7 +733,276 @@
         });
     }
 
+    // The homepage sell banner plays its entrance the first time it scrolls into view.
+    function initSellBanner() {
+        var banner = document.querySelector('[data-sell-banner]');
+        if (!banner || !('IntersectionObserver' in window) || prefersReducedMotion()) return;
+        if (banner.getBoundingClientRect().top < window.innerHeight) return;
+        banner.setAttribute('data-animate', '');
+        var observer = new IntersectionObserver(function (entries) {
+            if (!entries[0].isIntersecting) return;
+            banner.classList.add('is-visible');
+            observer.disconnect();
+        }, { threshold: 0.35 });
+        observer.observe(banner);
+    }
+
+    // Homepage: section headings, discover cards and category circles reveal as they
+    // scroll in, the hero jackets drift with a light parallax, and discover cards tilt.
+    function initHomeMotion() {
+        var home = document.querySelector('.homepage-main');
+        if (!home || prefersReducedMotion()) return;
+
+        if ('IntersectionObserver' in window) {
+            var observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (!entry.isIntersecting) return;
+                    entry.target.classList.add('is-revealed');
+                    observer.unobserve(entry.target);
+                });
+            }, { rootMargin: '0px 0px -10% 0px' });
+            [
+                '.section-head', '.section-title-center',
+                '.discover-card', '.category-circle'
+            ].forEach(function (selector) {
+                var group = home.querySelectorAll(selector);
+                Array.prototype.forEach.call(group, function (node, index) {
+                    if (node.getBoundingClientRect().top < window.innerHeight && !node.closest('[hidden]')) return;
+                    node.style.setProperty('--reveal-delay', (index % 4) * 90 + 'ms');
+                    node.setAttribute('data-reveal-item', '');
+                    observer.observe(node);
+                });
+            });
+        }
+
+        var media = home.querySelector('.hero-banner__media');
+        if (media) {
+            var pending = false;
+            window.addEventListener('scroll', function () {
+                if (pending) return;
+                pending = true;
+                window.requestAnimationFrame(function () {
+                    pending = false;
+                    var y = Math.min(window.scrollY, 700);
+                    media.style.setProperty('--hero-shift', (y * 0.12).toFixed(1) + 'px');
+                });
+            }, { passive: true });
+        }
+
+        if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+        home.querySelectorAll('.discover-card').forEach(function (card) {
+            card.addEventListener('pointermove', function (event) {
+                var box = card.getBoundingClientRect();
+                var x = (event.clientX - box.left) / box.width - 0.5;
+                var y = (event.clientY - box.top) / box.height - 0.5;
+                card.classList.add('is-tilting');
+                card.style.setProperty('--tilt-x', (x * 8).toFixed(2) + 'deg');
+                card.style.setProperty('--tilt-y', (-y * 8).toFixed(2) + 'deg');
+            });
+            card.addEventListener('pointerleave', function () {
+                card.classList.remove('is-tilting');
+                card.style.setProperty('--tilt-x', '0deg');
+                card.style.setProperty('--tilt-y', '0deg');
+            });
+        });
+    }
+
+    // Hovering the detail photo zooms in around the cursor (mouse and trackpad only).
+    function initPhotoZoom() {
+        var frame = document.querySelector('.pdp-main-image');
+        var photo = frame && frame.querySelector('[data-gallery-main]');
+        if (!photo || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+        frame.setAttribute('data-zoomable', '');
+        frame.addEventListener('pointermove', function (event) {
+            var box = frame.getBoundingClientRect();
+            frame.style.setProperty('--zoom-x', ((event.clientX - box.left) / box.width * 100) + '%');
+            frame.style.setProperty('--zoom-y', ((event.clientY - box.top) / box.height * 100) + '%');
+        });
+        frame.addEventListener('pointerenter', function () { frame.classList.add('is-zooming'); });
+        frame.addEventListener('pointerleave', function () { frame.classList.remove('is-zooming'); });
+    }
+
+    // Show a shimmer behind product photos until they have loaded.
+    function initPhotoShimmer() {
+        document.querySelectorAll('.product-card__media img, .pdp-main-image img').forEach(function (img) {
+            if (img.complete) return;
+            var frame = img.parentElement;
+            frame.classList.add('is-loading');
+            function done() { frame.classList.remove('is-loading'); }
+            img.addEventListener('load', done, { once: true });
+            img.addEventListener('error', done, { once: true });
+        });
+    }
+
+    // Product cards fade up the first time they enter the viewport. Cards already on
+    // screen at load are left alone so nothing above the fold flickers.
+    function initCardReveal() {
+        if (!('IntersectionObserver' in window) || prefersReducedMotion()) return;
+        var cards = document.querySelectorAll('.product-card');
+        if (!cards.length) return;
+        var observer = new IntersectionObserver(function (entries) {
+            var index = 0;
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                entry.target.style.setProperty('--reveal-delay', Math.min(index++, 4) * 60 + 'ms');
+                entry.target.classList.add('is-revealed');
+                observer.unobserve(entry.target);
+            });
+        }, { rootMargin: '0px 0px -8% 0px' });
+        cards.forEach(function (card) {
+            var box = card.getBoundingClientRect();
+            if (card.hidden || box.top < window.innerHeight) return;
+            card.setAttribute('data-reveal', '');
+            observer.observe(card);
+        });
+    }
+
+    function initScrollNavbar() {
+        var navbar = document.querySelector('.gaia-navbar');
+        if (!navbar) return;
+
+        var revealDelay = 180;
+        var leaveDelay = 120;
+        var revealTimer;
+        var hideTimer;
+        var overNavbar = false;
+        var overEdge = false;
+        var scrolled = false;
+        var framePending = false;
+        var lastScrollY = window.scrollY;
+        var threshold;
+
+        // An invisible strip along the top of the screen brings the navbar back on hover.
+        var edge = document.createElement('button');
+        edge.type = 'button';
+        edge.className = 'nav-reveal-edge';
+        edge.setAttribute('aria-label', 'Show navigation');
+        edge.setAttribute('aria-expanded', 'false');
+        if (!navbar.id) navbar.id = 'site-navbar';
+        edge.setAttribute('aria-controls', navbar.id);
+        edge.hidden = true;
+        document.body.appendChild(edge);
+        navbar.setAttribute('data-scroll-nav', '');
+
+        function reveal() {
+            window.clearTimeout(hideTimer);
+            if (!scrolled) return;
+            navbar.classList.add('is-nav-revealed');
+            edge.setAttribute('aria-expanded', 'true');
+        }
+
+        function hide() {
+            if (overNavbar || overEdge || navbar.contains(document.activeElement) || document.activeElement === edge) return;
+            navbar.classList.remove('is-nav-revealed');
+            edge.setAttribute('aria-expanded', 'false');
+        }
+
+        function hideWhenOutside() {
+            window.clearTimeout(hideTimer);
+            hideTimer = window.setTimeout(hide, leaveDelay);
+        }
+
+        function measure() {
+            threshold = navbar.offsetHeight + parseFloat(window.getComputedStyle(navbar).marginTop || 0);
+        }
+
+        function update() {
+            framePending = false;
+            var y = window.scrollY;
+            var delta = y - lastScrollY;
+            lastScrollY = y;
+            var next = y > threshold;
+            if (next !== scrolled) {
+                scrolled = next;
+                window.clearTimeout(revealTimer);
+                window.clearTimeout(hideTimer);
+                navbar.classList.toggle('is-nav-scrolled', scrolled);
+                navbar.classList.remove('is-nav-revealed');
+                edge.hidden = !scrolled;
+                edge.setAttribute('aria-expanded', 'false');
+                if (scrolled && (overNavbar || navbar.contains(document.activeElement))) reveal();
+                return;
+            }
+            // Scrolling back up brings the navbar back, which is the only way on touch screens.
+            if (scrolled && delta < -8) reveal();
+            else if (scrolled && delta > 8) hide();
+        }
+
+        edge.addEventListener('pointerenter', function (event) {
+            if (event.pointerType === 'touch') return;
+            overEdge = true;
+            window.clearTimeout(hideTimer);
+            window.clearTimeout(revealTimer);
+            revealTimer = window.setTimeout(reveal, revealDelay);
+        });
+        edge.addEventListener('pointerleave', function () {
+            overEdge = false;
+            window.clearTimeout(revealTimer);
+            hideWhenOutside();
+        });
+        edge.addEventListener('click', reveal);
+        edge.addEventListener('focus', reveal);
+        navbar.addEventListener('pointerenter', function (event) {
+            if (event.pointerType === 'touch') return;
+            overNavbar = true;
+            window.clearTimeout(hideTimer);
+        });
+        navbar.addEventListener('pointerleave', function () {
+            overNavbar = false;
+            hideWhenOutside();
+        });
+        navbar.addEventListener('focusin', reveal);
+        navbar.addEventListener('focusout', hideWhenOutside);
+        edge.addEventListener('blur', hideWhenOutside);
+        document.addEventListener('pointerdown', function (event) {
+            if (!navbar.contains(event.target) && event.target !== edge) {
+                if (document.activeElement === edge) edge.blur();
+                hideWhenOutside();
+            }
+        });
+        window.addEventListener('scroll', function () {
+            if (!framePending) {
+                framePending = true;
+                window.requestAnimationFrame(update);
+            }
+        }, { passive: true });
+        window.addEventListener('resize', function () { measure(); update(); });
+        if (window.ResizeObserver) new ResizeObserver(function () { measure(); update(); }).observe(navbar);
+        measure();
+        update();
+    }
+
+    // Only the card that was clicked shares a name with the detail photo, so the
+    // morph happens between a card and its detail page and nowhere else.
+    function cardPhotoFor(path) {
+        var link = document.querySelector('.product-card__media[href="' + path + '"]');
+        return link && link.querySelector('img');
+    }
+
+    window.addEventListener('pageswap', function (event) {
+        if (!event.viewTransition || !event.activation || !event.activation.entry) return;
+        var photo = cardPhotoFor(new URL(event.activation.entry.url).pathname);
+        if (!photo) return;
+        var current = document.querySelector('[data-gallery-main]');
+        if (current) current.style.viewTransitionName = 'none';
+        photo.style.viewTransitionName = 'product-photo';
+    });
+
+    window.addEventListener('pagereveal', function (event) {
+        if (!event.viewTransition || !window.navigation || !navigation.activation || !navigation.activation.from) return;
+        var photo = cardPhotoFor(new URL(navigation.activation.from.url).pathname);
+        if (!photo) return;
+        var current = document.querySelector('[data-gallery-main]');
+        if (current) current.style.viewTransitionName = 'none';
+        photo.style.viewTransitionName = 'product-photo';
+        event.viewTransition.finished.finally(function () {
+            photo.style.viewTransitionName = '';
+            if (current) current.style.viewTransitionName = 'product-photo';
+        });
+    });
+
     function init() {
+        initAnimatedTabs();
         initCategoryTabs();
         initListingTabs();
         initFilterToggle();
@@ -608,6 +1015,12 @@
         initListingDelete();
         initToasts();
         initDrawerSearch(initHeaderSearch());
+        initScrollNavbar();
+        initCardReveal();
+        initPhotoZoom();
+        initPhotoShimmer();
+        initSellBanner();
+        initHomeMotion();
     }
 
     if (document.readyState === 'loading') {

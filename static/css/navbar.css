@@ -154,3 +154,41 @@
 }
 
 .nav-avatar img, .site-drawer-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+
+/* Scroll behaviour: past the navbar it tucks away, and slides back when the pointer
+   nears the top edge, the page scrolls up, or something inside it gets focus. */
+.gaia-navbar { --nav-sticky-top: 12px; }
+.gaia-navbar[data-scroll-nav] { position: sticky; top: var(--nav-sticky-top); z-index: 100; transition: transform 220ms ease, box-shadow 220ms ease; }
+.gaia-navbar.is-nav-scrolled:not(.is-nav-revealed):not(:focus-within) { transform: translateY(calc(-100% - 64px)); pointer-events: none; }
+.gaia-navbar.is-nav-scrolled.is-nav-revealed { box-shadow: 0 8px 28px rgba(37, 39, 16, 0.12); }
+.nav-reveal-edge { position: fixed; inset: 0 0 auto; z-index: 99; width: 100%; height: 24px; padding: 0; border: 0; background: transparent; cursor: default; }
+.nav-reveal-edge[hidden] { display: none; }
+.nav-reveal-edge:focus-visible { outline-offset: -3px; }
+@media (max-width: 640px) {
+    .gaia-navbar { --nav-sticky-top: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gaia-navbar[data-scroll-nav] { transition: none; }
+}
+
+/* Microinteractions: soft hover/press on icons, a focus glow on search and a bump on the bag count. */
+.gaia-navbar .icon-button { transition: background-color 180ms ease, transform 120ms ease; }
+.gaia-navbar .icon-button:hover { background: var(--field); }
+.gaia-navbar .icon-button:active { transform: scale(0.92); }
+.gaia-navbar .account-link { transition: color 180ms ease, opacity 180ms ease; }
+.gaia-navbar .account-link:hover { opacity: 0.8; }
+.gaia-navbar .search-display { transition: box-shadow 200ms ease, background-color 200ms ease; }
+.gaia-navbar .search-display:focus-within { background: #fff; box-shadow: 0 0 0 4px rgba(116, 15, 53, 0.12); }
+.gaia-navbar .nav-bag__count.is-bumping { animation: nav-count-bump 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes nav-count-bump {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gaia-navbar .icon-button,
+    .gaia-navbar .account-link,
+    .gaia-navbar .search-display { transition: none; }
+    .gaia-navbar .icon-button:active { transform: none; }
+    .gaia-navbar .nav-bag__count.is-bumping { animation: none; }
+}
