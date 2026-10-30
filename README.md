@@ -373,3 +373,7 @@ Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Re
 Jalankan `python manage.py seed_demo_products --username danariqbalabi` untuk membuat 100 listing sintetis bernomor. Command memakai ilustrasi proyek, memberi label data demo, dan dapat diulang tanpa menggandakan atau mengembalikan listing yang sudah dihapus. `--count` dapat diisi 1 sampai 100. Command 10 produk `seed_thrift_catalog` tetap tersedia.
 
 Admin juga dapat membuka Django admin > Products > Add 100 Demo Products, memilih username seller aktif, lalu mengonfirmasi. Aksi hanya tersedia bagi staff yang memiliki izin menambah produk, kategori, dan foto, serta memerlukan POST dan CSRF. Pada rilis ini, migrasi `products.0007` mengisi 100 produk untuk akun aktif `danariqbalabi` bila akun tersebut sudah ada di database tujuan. Migrasi tidak membuat akun atau menghapus produk ketika dibalik. Gambar memakai storage produk yang dikonfigurasi; Cloudinary mempertahankannya antar-deploy.
+
+### Foto katalog contoh
+
+Migrasi `products.0008` memperbarui 100 listing contoh milik `danariqbalabi` dengan nama barang tanpa awalan nomor dan 100 foto referensi berbeda sesuai kategori. ID/slug, status penjualan, dan riwayat pesanan tetap dipertahankan. Sumber metadata/foto tercatat di `static/images/demo-catalog/SOURCES.md` dan `products/demo_catalog_photos.json`; hak gambar tetap pada pemiliknya. Ini data demonstrasi, bukan barang nyata yang dijual. Tombol admin memakai foto terbaru; CLI dapat memakai `--natural-photos`.

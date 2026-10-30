@@ -25,6 +25,12 @@ class HundredDemoProductsTests(TestCase):
         assets.mkdir(parents=True)
         for filename in {row[6] for row in BASE_CATALOG}:
             Image.new('RGB', (4, 4), 'green').save(assets / filename)
+        import json
+        natural = assets / 'demo-catalog'
+        natural.mkdir()
+        rows = json.loads(Path(__file__).with_name('demo_catalog_photos.json').read_text(encoding='utf-8'))
+        for row in rows:
+            Image.new('RGB', (4, 4), 'green').save(natural / row['image'])
         self.enterContext(override_settings(BASE_DIR=self.base, MEDIA_ROOT=self.base / 'media'))
         self.seller = get_user_model().objects.create_user('danariqbalabi', 'demo-seller@example.test')
 
@@ -165,3 +171,37 @@ class HundredDemoProductsTests(TestCase):
         self.assertEqual(strict.post(url, {'username': self.seller.username, 'acknowledge': 'on'}).status_code, 403)
         self.assertEqual(strict.put(url).status_code, 403)
         self.assertEqual(Product.objects.count(), 0)
+
+
+    def test_natural_refresh_uses_100_distinct_names_and_preserves_history_and_status(self):
+        from products.demo_catalog_v2 import refresh_demo_catalog
+        self.seed()
+        ids = set(Product.all_objects.values_list('pk', flat=True))
+        product = Product.objects.first()
+        product.status = 'sold'
+        product.save()
+        deleted = Product.objects.exclude(pk=product.pk).first()
+        deleted.soft_delete()
+        count = refresh_demo_catalog(get_user_model(), Category, Product, ProductImage, self.seller.username)
+        self.assertEqual(count, 100)
+        self.assertEqual(set(Product.all_objects.values_list('pk', flat=True)), ids)
+        self.assertFalse(Product.all_objects.filter(title__startswith='Demo Thrift').exists())
+        self.assertEqual(Product.all_objects.values('title').distinct().count(), 100)
+        self.assertEqual(ProductImage.objects.values('image').distinct().count(), 100)
+        product.refresh_from_db()
+        deleted.refresh_from_db()
+        self.assertEqual(product.status, 'sold')
+        self.assertIsNotNone(deleted.deleted_at)
+        self.assertEqual(refresh_demo_catalog(get_user_model(), Category, Product, ProductImage, self.seller.username), 0)
+
+    def test_real_photo_assets_are_distinct_and_match_the_manifest(self):
+        import hashlib,json
+        folder = Path(__file__).resolve().parent.parent / 'static/images/demo-catalog'
+        rows = json.loads(Path(__file__).with_name('demo_catalog_photos.json').read_text(encoding='utf-8'))
+        hashes = set()
+        for row in rows:
+            content = (folder / row['image']).read_bytes()
+            digest = hashlib.sha256(content).hexdigest()
+            self.assertEqual(digest, row['sha256'])
+            hashes.add(digest)
+        self.assertEqual(len(hashes), 100)
