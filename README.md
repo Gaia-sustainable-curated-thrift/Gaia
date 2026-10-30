@@ -156,3 +156,7 @@ Set `PRODUCTION=True` dan `SECRET_KEY` acak baru (minimal 50 karakter) melalui e
 Mode produksi mematikan debug, mengaktifkan cookie secure, redirect HTTPS, dan HSTS. Proxy PWS harus meneruskan serta menimpa `X-Forwarded-Proto`; jangan mempercayai header langsung dari klien. Jalankan `python manage.py check --deploy` dengan konfigurasi produksi. Media upload harus disajikan oleh server media/proxy pada `/media/` dengan tipe konten gambar dan `X-Content-Type-Options: nosniff`; `DEBUG=False` tidak menggunakan server media pengembangan Django.
 
 Rujukan: [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/).
+
+### Integritas email akun
+
+Email akun nonkosong memiliki unique index `LOWER(TRIM(email))` di database (SQLite/PostgreSQL). Aturan ini berlaku untuk registrasi biasa, Google/allauth, admin, serta penulisan langsung ke model. Akun sistem boleh tidak memiliki email. Sebelum migrasi, jalankan `python manage.py audit_account_emails`; bila ada duplikat lama, selesaikan kepemilikannya dahulu. Migrasi berhenti tanpa menggabungkan atau menghapus akun secara otomatis.

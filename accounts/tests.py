@@ -338,10 +338,8 @@ class FormTests(TestCase):
                 self.assertTrue(form.is_valid(), form.errors)
                 self.assertEqual(form.get_user().pk, self.user.pk)
 
-    def test_login_rejects_wrong_password_unknown_and_ambiguous_email(self):
-        User.objects.create_user('duplicate', 'gaia@example.com', PASSWORD)
-        for identifier, password in [('gaia', 'wrong'), ('missing@example.com', PASSWORD),
-                                     ('gaia@example.com', PASSWORD)]:
+    def test_login_rejects_wrong_password_and_unknown_email(self):
+        for identifier, password in [('gaia', 'wrong'), ('missing@example.com', PASSWORD)]:
             with self.subTest(identifier=identifier):
                 form = EmailAuthenticationForm(data={'username': identifier, 'password': password})
                 self.assertFalse(form.is_valid())
@@ -1140,3 +1138,69 @@ class MyProductsTests(TestCase):
         self.assertNotContains(response, '/static/media/products/')
         self.assertContains(response, '&lt;script&gt;alert(1)&lt;/script&gt;')
         self.assertNotContains(response, self.available.title)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class UniqueAccountEmailTests(TestCase):
+    def data(self, **changes):
+        return {'full_name': 'New Buyer', 'email': 'buyer@example.test',
+                'password1': PASSWORD, 'password2': PASSWORD, **changes}
+
+    def test_two_prevalidated_registrations_cannot_save_the_same_email(self):
+        first = RegisterForm(self.data())
+        second = RegisterForm(self.data(full_name='Other Buyer', email='BUYER@example.test'))
+        self.assertTrue(first.is_valid(), first.errors)
+        self.assertTrue(second.is_valid(), second.errors)
+        first.save()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            second.save()
+        self.assertEqual(User.objects.filter(email__iexact='buyer@example.test').count(), 1)
+
+    def test_database_covers_direct_creates_and_email_updates(self):
+        User.objects.create_user('one', 'one@example.test')
+        for email in ('ONE@example.test', ' one@example.test '):
+            with self.subTest(email=email), self.assertRaises(IntegrityError), transaction.atomic():
+                User.objects.create_user('two', email)
+        other = User.objects.create_user('other', 'other@example.test')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            User.objects.filter(pk=other.pk).update(email='ONE@example.test')
+        User.objects.create_user('without-email-1')
+        User.objects.create_user('without-email-2')
+
+    def test_registration_race_returns_form_error_instead_of_server_error(self):
+        original = RegisterForm.is_valid
+        def competing_registration(form):
+            valid = original(form)
+            User.objects.create_user('winner', 'buyer@example.test')
+            return valid
+        with patch.object(RegisterForm, 'is_valid', competing_registration):
+            response = self.client.post(reverse('register'), self.data())
+        self.assertContains(response, 'already exists')
+        self.assertEqual(User.objects.count(), 1)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertFalse(Profile.objects.exists())
+
+    def test_email_audit_does_not_change_data(self):
+        User.objects.create_user('one', 'one@example.test')
+        output = StringIO()
+        call_command('audit_account_emails', stdout=output)
+        self.assertIn('0 duplicate email group(s)', output.getvalue())
+        self.assertNotIn('one@example.test', output.getvalue())
+        self.assertEqual(User.objects.count(), 1)
+
+    def test_google_signup_race_does_not_create_or_link_a_duplicate(self):
+        from allauth.core.exceptions import ImmediateHttpResponse
+        from allauth.socialaccount.models import SocialAccount, SocialLogin
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from .adapters import SocialAccountAdapter
+        existing = User.objects.create_user('existing', 'buyer@example.test')
+        request = RequestFactory().get('/accounts/google/login/callback/')
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        login = SocialLogin(user=User(username='google-buyer', email='BUYER@example.test'),
+                            account=SocialAccount(provider='google', uid='test-google-id'))
+        with self.assertRaises(ImmediateHttpResponse) as error:
+            SocialAccountAdapter(request).save_user(request, login)
+        self.assertEqual(error.exception.response.url, reverse('login'))
+        self.assertEqual(User.objects.count(), 1)
+        self.assertFalse(SocialAccount.objects.filter(user=existing).exists())

@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
 from django.core import signing
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.core.paginator import Paginator
 from django.db.models.deletion import ProtectedError, RestrictedError
@@ -32,9 +32,18 @@ def register(request):
         return redirect('profile')
     form = RegisterForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        with transaction.atomic():
-            user = form.save()
-            Profile.objects.create(user=user)
+        try:
+            with transaction.atomic():
+                user = form.save()
+                Profile.objects.create(user=user)
+        except IntegrityError:
+            if get_user_model().objects.filter(email__iexact=form.cleaned_data['email']).exists():
+                form.add_error('email', 'An account with this email already exists. Please log in.')
+            elif get_user_model().objects.filter(username__iexact=form.instance.username).exists():
+                form.add_error(None, 'This username was just taken. Please submit the form again.')
+            else:
+                raise
+            return render(request, 'registration/register.html', {'form': form})
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         token = signing.dumps({'user': user.pk, 'email': user.email}, salt='gaia-email')
         link = request.build_absolute_uri(reverse('verify_email', args=[token]))
