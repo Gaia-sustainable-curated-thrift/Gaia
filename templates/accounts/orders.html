@@ -1,7 +1,7 @@
 {% extends 'accounts/layout.html' %}
 {% load static account_tags %}
 {% block account_content %}{% if orders %}
-<p class="list-count">{{ orders|length }} order{{ orders|length|pluralize }} · All statuses
+<p class="list-count">{{ page_obj.paginator.count }} order{{ page_obj.paginator.count|pluralize }} · All statuses
 </p>
 <div class="order-list">{% for order in orders %}
 <article class="card order-card">
@@ -23,4 +23,5 @@
 <p class="muted">Your next pre-loved find will appear here.
 </p><a class="button olive-button" href="/">Back to Home</a>
 </section>{% endif %}
+{% include 'includes/account_pagination.html' with pagination_label='Orders' %}
 {% endblock %}

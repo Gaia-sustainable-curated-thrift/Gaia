@@ -26,6 +26,13 @@
                     Profile
                 </a>
 
+                <a href="{% url 'my_products' %}"
+                   class="{% if active == 'products' %}active{% endif %}"
+                   {% if active == 'products' %}aria-current="page"{% endif %}>
+                    {% include 'includes/icon.html' with name='bag' %}
+                    My Products
+                </a>
+
                 <a href="{% url 'orders' %}"
                    class="{% if active == 'orders' %}active{% endif %}"
                    {% if active == 'orders' %}aria-current="page"{% endif %}>

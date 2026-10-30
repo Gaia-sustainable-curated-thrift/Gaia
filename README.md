@@ -27,24 +27,13 @@ Pembagian tanggung jawab MVP adalah **Danar: User, Kayla: Product, Deva: Chat, S
 
 | No. | Penanggung jawab | Modul | Target pengembangan MVP |
 | --: | ---------------- | ----- | ----------------------- |
-| 1 | **Danar** | **User / Authentication** | Registrasi, login/logout, login Google, pengelolaan profil, hapus akun, verifikasi email, ganti/reset password, serta penyimpanan produk favorit melalui WishlistItem. |
+| 1 | **Danar** | **User / Authentication** | Registrasi, login/logout, profil dan foto profil, keamanan serta penghapusan akun, dan wishlist produk favorit. |
 | 2 | **Kayla** | **Product / Listing** | Pengelolaan listing, foto produk, kategori, harga, kondisi, status ketersediaan, detail produk, serta pencarian/filter dasar untuk menemukan produk. |
 | 3 | **Deva** | **Chat / Messaging** | Percakapan dan pesan antara buyer dan seller untuk membahas produk serta transaksi. |
 | 4 | **Salma** | **Transaksi** | Keranjang, checkout, pembuatan pesanan, alur pembayaran, serta pelacakan status transaksi. |
 | 5 | **Keisha** | **Review & Rating** | Pemberian dan penampilan review/rating setelah transaksi, dengan pembatasan berdasarkan pihak yang bertransaksi. |
 
-Pencarian/filter dasar menjadi bagian pendukung Product, dan keranjang menjadi bagian Transaksi. Keduanya tidak memiliki penanggung jawab modul terpisah. Status implementasi dan integrasi masing-masing modul dijelaskan di bawah.
-
-### Deskripsi Modul User (Danar)
-
-Modul User pada app `accounts` mengelola identitas pengguna, autentikasi, profil pribadi, dan produk favorit. Modul ini mencakup:
-
-- **Registrasi:** pengguna mengisi nama lengkap, email, password, dan konfirmasi password. `RegisterForm` memvalidasi input serta menolak email yang sudah digunakan tanpa membedakan huruf besar/kecil. Username dibuat otomatis dari nama dengan akhiran angka jika sudah terpakai. User dan Profile dibuat dalam satu transaksi database, password disimpan sebagai hash melalui mekanisme Django, lalu aplikasi membuat sesi login dan mencoba mengirim email verifikasi.
-- **Login dan logout:** login menerima email atau username menggunakan autentikasi bawaan Django. Login Google menggunakan `django-allauth` jika kredensial tersedia. Session mengenali pengguna pada request berikutnya; logout melalui POST mengakhiri sesi tanpa menghapus akun. Halaman pribadi dilindungi dengan `login_required`.
-- **Profil:** model `Profile` terhubung satu-ke-satu (`OneToOneField`) dengan User bawaan Django. User menyimpan username, email, nama, dan password hash; Profile menyimpan `avatar`, `phone`, `city`, `country`, serta `email_verified`. Pengguna dapat melihat dan mengubah profilnya sendiri. Email tidak dapat diubah melalui form edit profil. Modul juga menyediakan verifikasi email bertoken yang berlaku 24 jam, ganti password, dan reset password. Verifikasi email belum menjadi syarat untuk login.
-- **WishlistItem:** model ini menyimpan produk favorit dan terhubung banyak-ke-satu (`ForeignKey`) ke User. Field-nya meliputi `product_key`, `title`, `condition`, `price`, `image`, dan `removed`. Pasangan `user` dan `product_key` diberi constraint unik agar satu produk tidak tersimpan ganda untuk pengguna yang sama. Aksi simpan dari modul Product membuat atau memperbarui snapshot produk pada wishlist pengguna. Pengguna hanya dapat melihat dan menghapus item miliknya sendiri. Penghapusan memakai soft delete (`removed=True`), sedangkan ID item terakhir disimpan dalam session agar bisa dikembalikan melalui Undo.
-
-`WishlistItem` menyimpan snapshot informasi produk berdasarkan slug pada `product_key`, bukan ForeignKey langsung ke Product. Perubahan produk tidak otomatis memperbarui seluruh snapshot wishlist. Pengguna dapat menghapus akun melalui Account Settings setelah konfirmasi identitas; penghapusan item wishlist tetap merupakan operasi terpisah dari penghapusan User.
+Pencarian/filter dasar menjadi bagian pendukung Product, dan keranjang menjadi bagian Transaksi. Keduanya tidak memiliki penanggung jawab modul terpisah. Wishlist dasar menjadi bagian modul User. Halaman My Products (Produk Saya) di area akun menampilkan listing milik pengguna dan menghubungkan aksi jual, edit, serta hapus dari modul Product. Semua pengguna terdaftar dapat menjadi seller tanpa pendaftaran peran tambahan. Kelima modul dikembangkan dengan pembatasan akses sesuai peran dan kepemilikan data.
 
 ## User Roles dalam MVP
 
@@ -53,20 +42,6 @@ Modul User pada app `accounts` mengelola identitas pengguna, autentikasi, profil
 | **Guest** | Melihat katalog, mencari produk, dan melihat detail produk; registrasi/login untuk menggunakan fitur akun. |
 | **Registered User** | Dapat berperan sebagai buyer dan seller: mengelola profil/listing sendiri, menyimpan produk ke wishlist, berkomunikasi, bertransaksi, serta memberikan review/rating sesuai ketentuan transaksi. |
 | **Admin** | Mengelola data melalui Django admin untuk mendukung operasional MVP. Dashboard dan moderasi lanjutan bukan bagian target MVP saat ini. |
-
-## Status Implementasi Saat Ini
-
-Status berikut berdasarkan source code pada checkout lokal saat README ini diperbarui (29 Oktober 2026). Ketersediaan di server tetap bergantung pada versi yang dideploy dan konfigurasi environment.
-
-| Modul | Yang sudah tersedia | Yang masih perlu dikembangkan/diselesaikan |
-| ----- | ------------------- | ----------------------------------------- |
-| **User** | Registrasi, login/logout, profil/edit profil, verifikasi email bertoken, ganti/reset password, Google OAuth melalui `django-allauth`, serta tambah/lihat/hapus/undo wishlist melalui `WishlistItem`. | Pengiriman email ke inbox memerlukan SMTP; Google login memerlukan kredensial dan callback yang sesuai. Penghapusan akun tersedia dengan konfirmasi password atau link email untuk akun tanpa password lokal, dan diblokir jika masih ada pesanan aktif. |
-| **Product** | Katalog, detail, kategori, search/filter, pembuatan listing dan upload multi-foto lokal, serta status produk pada model. | Melengkapi alur edit/hapus listing pada UI dan integrasi antarmodul. |
-| **Chat** | Belum ditemukan modul percakapan/pesan di checkout ini. | Model, endpoint, UI percakapan, otorisasi peserta, dan mekanisme pengiriman pesan. |
-| **Transaksi** | Keranjang berbasis session serta tampilan daftar/detail snapshot pesanan (`AccountOrder`) pada halaman akun. | Checkout masih placeholder untuk pengguna yang login; pembuatan pesanan dari checkout, pembayaran, dan pembaruan status transaksi belum terintegrasi. |
-| **Review & Rating** | Detail produk menampilkan nilai rating/jumlah review dari konstanta tampilan. | Model dan alur pemberian review/rating nyata, penyimpanan data, serta validasi kelayakan berdasarkan transaksi. |
-
-Wishlist dasar termasuk dalam modul User yang menjadi tanggung jawab Danar. Modul Product menyediakan aksi untuk menyimpan produk, sedangkan modul User menyimpan data favorit dan menyediakan halaman wishlist, penghapusan, serta undo.
 
 ## API dan Integrasi MVP
 
@@ -106,72 +81,88 @@ Repository secret `PWS_URL` harus berisi URL Git PWS dengan kredensial proyek, d
 
 Untuk merilis perubahan, push atau merge feature branch ke `main`, lalu cek hasil **Push to PWS** di tab Actions. Tidak perlu push PWS manual lagi. Build aplikasi tetap dijalankan oleh PWS setelah menerima push.
 
-## Menjalankan halaman User
+## Teknologi
+
+- **Backend:** Python dan Django.
+- **Frontend:** Django Templates, HTML, CSS, dan JavaScript.
+- **Database:** SQLite untuk pengembangan lokal dan PostgreSQL untuk konfigurasi produksi.
+- **Autentikasi:** Django Authentication dan `django-allauth` untuk Google OAuth.
+- **Gambar:** Pillow dan media storage Django untuk foto profil serta produk.
+- **Deployment:** PWS dengan GitHub Actions.
+
+## Menjalankan Proyek secara Lokal
+
+Jalankan perintah berikut dari folder repository. Contoh menggunakan PowerShell di Windows:
 
 ```powershell
+python -m venv env
+.\env\Scripts\python.exe -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env
+```
+
+Jika `.env` sudah ada, gunakan konfigurasi yang ada tanpa menimpanya. Isi variabel yang diperlukan pada `.env`, lalu jalankan:
+
+```powershell
+$env:PRODUCTION='False'
 .\env\Scripts\python.exe manage.py migrate
 .\env\Scripts\python.exe manage.py runserver
 ```
 
-Buka `/accounts/register/` untuk membuat akun, atau `/accounts/login/` untuk login memakai email (username lama tetap didukung). Setelah login, pengguna masuk ke `/accounts/profile/`.
-
-Halaman yang tersedia:
-
-- `/accounts/profile/` dan `/accounts/profile/edit/`: profil, aktivitas, dan penyimpanan nama, username, telepon, kota, serta negara.
-- `/accounts/orders/` dan `/accounts/orders/<id>/`: daftar/detail pesanan dengan status in transit, completed, atau awaiting payment.
-- `/accounts/wishlist/`: favorit tersimpan, hapus, empty state, dan undo penghapusan terakhir.
-- `/accounts/settings/` dan `/accounts/password/change/`: keamanan akun dan penggantian password tanpa mengakhiri sesi.
-- `/accounts/password/reset/`: email reset, link bertoken, penggantian password, dan konfirmasi selesai.
-- Logout menggunakan dialog konfirmasi dan POST dengan CSRF.
-- `/accounts/delete/`: konfirmasi penghapusan akun permanen. Akun dengan password harus memasukkan password saat ini, mengetik `DELETE`, dan menyetujui dampak penghapusan. Akun Google tanpa password lokal meminta link melalui `/accounts/delete/email/`; link berlaku 15 menit, hanya untuk akun dan sesi browser yang memintanya, dan tetap membutuhkan konfirmasi POST. Resend dibatasi minimal satu menit. Penghapusan diblokir jika masih ada order selain completed. User, Profile, wishlist, listing beserta record terkait, snapshot order, dan koneksi sosial akun dihapus sesuai relasi CASCADE; pengguna kemudian logout. SMTP diperlukan untuk link email di luar pengembangan lokal.
-
-Registrasi mengirim link verifikasi email yang berlaku 24 jam. Status email hanya berubah setelah link valid dibuka; akun Google mengikuti status email terverifikasi dari allauth. Pengguna bisa melengkapi profil sambil menunggu verifikasi.
-
-Untuk pengembangan, email verifikasi/reset dicetak di terminal runserver, bukan dikirim ke inbox. Untuk mengirim email sungguhan, isi konfigurasi SMTP di `.env` sesuai `.env.example`. Tombol Google tampil jika client ID dan secret sudah dikonfigurasi.
-
-Google OAuth di PWS memakai callback `https://danar-iqbal-gaia.pws.cs.ui.ac.id/accounts/google/login/callback/`. Daftarkan URL ini persis, termasuk HTTPS dan slash terakhir, pada **Authorized redirect URIs** client OAuth di Google Cloud. `ACCOUNT_DEFAULT_HTTP_PROTOCOL` default-nya `https` agar callback tetap benar di belakang proxy PWS. Untuk runserver lokal, isi `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http` di `.env` dan daftarkan callback localhost yang dipakai. Kredensial Google perlu tersedia di environment PWS; `.env` lokal tidak ikut deploy.
-
-### Foto profil
-
-Pengguna dapat mengunggah atau mengganti foto melalui **Profile > Edit Profile > Change profile photo**, melihat preview, lalu memilih **Save Changes**. Tanpa foto, avatar menampilkan inisial. Foto tersimpan ditampilkan pada profil, navbar, dan sidebar. Menyimpan perubahan teks tanpa file baru mempertahankan foto sebelumnya.
-
-Server memvalidasi isi gambar dengan Pillow: JPG, PNG atau WebP, maksimal 2 MB dan 4096 piksel per sisi. Foto dikoreksi orientasinya, dipotong persegi 512 x 512, dan disimpan ulang sebagai JPEG tanpa metadata asli. File menggunakan nama acak dalam `media/avatars/`. Foto lama dijadwalkan untuk dihapus setelah transaksi penyimpanan berhasil; foto profil juga dibersihkan setelah penghapusan akun berhasil. Kegagalan cleanup storage dicatat pada log.
-
-Jalankan `python manage.py migrate` untuk menambahkan kolom `Profile.avatar`. Penyimpanan menggunakan media storage Django yang dikonfigurasi di server; PWS perlu direktori/volume media persisten dan konfigurasi penyajian media. Foto upload menggunakan URL media, bukan URL static. Menjalankan deploy ulang saja tidak menjamin persistensi file upload.
-
-### Data demo dan integrasi modul
-
-Akun baru tidak otomatis memiliki order atau wishlist. Untuk melihat state berisi data sesuai referensi, buat akun lokal khusus demo lalu jalankan:
+Buka `http://127.0.0.1:8000/` untuk mengakses aplikasi. Akun dapat dibuat melalui halaman registrasi. Untuk mengakses Django admin, buat superuser:
 
 ```powershell
+.\env\Scripts\python.exe manage.py createsuperuser
+```
+
+### Konfigurasi Integrasi
+
+- **Google login:** isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` pada environment aplikasi. Daftarkan callback `/accounts/google/login/callback/` dengan domain dan protokol yang sesuai pada Google Cloud. Untuk lokal gunakan `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http`; pada PWS gunakan HTTPS.
+- **Email:** default console backend menampilkan email di terminal. Konfigurasikan SMTP melalui variabel pada `.env.example` untuk mengirim email ke inbox.
+- **Media:** foto profil dan produk menggunakan media storage Django. Server deployment perlu menyediakan penyimpanan persisten dan akses URL media agar file tidak hilang saat redeploy.
+- **Rahasia aplikasi:** `.env` lokal tidak ikut dipush ke GitHub. Environment aplikasi PWS dikonfigurasi terpisah dari secret GitHub Actions yang digunakan untuk deploy.
+
+### Data Demo
+
+Command berikut bersifat opsional untuk pengembangan lokal. Gunakan akun demo yang sudah dibuat:
+
+```powershell
+.\env\Scripts\python.exe manage.py seed_products --username <username-akun-demo>
 .\env\Scripts\python.exe manage.py seed_account_demo --username <username-akun-demo>
 ```
 
-Username otomatis dari nama lengkap bisa dilihat pada halaman Profile. Command ini idempotent dan menambahkan tiga order serta satu wishlist ke akun yang dipilih tanpa membuat atau mengubah password. Foto contoh diekstrak dari PNG referensi yang diberikan.
+Data demo membantu memeriksa tampilan katalog dan halaman akun. Data tersebut bukan transaksi, pembayaran, atau review nyata.
 
-`AccountOrder` masih merupakan snapshot baca-saja untuk UI akun dan belum dibuat otomatis dari checkout. `WishlistItem` sudah diisi dari modul Product berdasarkan `product_key`, tetapi tetap menyimpan snapshot informasi produk, bukan relasi ForeignKey langsung ke Product. Pembuatan listing tersedia pada modul Product; checkout/pembayaran terintegrasi belum tersedia. Data demo dapat dikelola lewat Django admin.
+## Pengujian
 
-### Validasi
+Jalankan pemeriksaan Django dan seluruh tes proyek:
 
 ```powershell
+$env:PRODUCTION='False'
 .\env\Scripts\python.exe manage.py check
-.\env\Scripts\python.exe manage.py test accounts
+.\env\Scripts\python.exe manage.py test
 ```
 
-### Unit test dan coverage modul User
-
-Suite pada `accounts/tests.py` mencakup tes lama dan tes tambahan modul User. Tes memakai database pengujian Django dan email in-memory, tanpa menghubungi SMTP atau Google secara langsung. Password hasher cepat hanya digunakan dalam tes, bukan pada konfigurasi aplikasi.
+Untuk menguji app tertentu, tambahkan nama app, misalnya `python manage.py test accounts` atau `python manage.py test products`. Konfigurasi coverage yang tersedia saat ini mengukur app `accounts`, bukan seluruh MVP:
 
 ```powershell
-.\env\Scripts\python.exe -m pip install -r requirements-dev.txt
-$env:PRODUCTION='False'
 .\env\Scripts\python.exe -m coverage run manage.py test accounts
 .\env\Scripts\python.exe -m coverage report
-.\env\Scripts\python.exe -m coverage html
 ```
 
-Konfigurasi `.coveragerc` mengukur line dan branch coverage seluruh package `accounts`, termasuk form, view, model, context processor, template filter, dan command demo. File tes dan migration dikecualikan dari pengukuran. `coverage report` gagal jika coverage gabungan kurang dari 91%. Laporan HTML tersedia di `htmlcov/index.html`. Semua tes modul User dijalankan bersama melalui `python manage.py test accounts`.
+### Konfigurasi keamanan deployment
 
-Hasil pengukuran 29 Oktober 2026 di `C:\Coding\gaia` menggunakan `accounts.tests`: **89 tes lulus, line coverage 100% (417 statement) dan branch coverage 100% (66 cabang)**. Cakupan ini mengukur kode Python milik app `accounts`, bukan kode internal Django/allauth, HTML/CSS, atau keberhasilan integrasi Google/SMTP di server.
+Set `PRODUCTION=True` dan `SECRET_KEY` acak baru (minimal 50 karakter) melalui environment PWS sebelum deploy. Key lama di riwayat repository harus dianggap bocor dan tidak digunakan kembali. Nilai secret tidak boleh dimasukkan ke GitHub atau log. Rotasi key membuat sesi/token lama tidak berlaku.
 
-Tes mencakup akses halaman, login email, registrasi, verifikasi, simpan profil, pembatasan data antar pengguna, wishlist remove/undo, ganti/reset password, token sekali pakai, serta logout POST/CSRF. Layout memakai breakpoint desktop/tablet/mobile dan aset logo dari referensi. Font lokal tersedia pada aset statis, dengan fallback Georgia/Arial sesuai stylesheet.
+Mode produksi mematikan debug, mengaktifkan cookie secure, redirect HTTPS, dan HSTS. Proxy PWS harus meneruskan serta menimpa `X-Forwarded-Proto`; jangan mempercayai header langsung dari klien. Jalankan `python manage.py check --deploy` dengan konfigurasi produksi. PWS memakai endpoint `/media/` aplikasi untuk foto upload yang telah diverifikasi sebagai gambar, dengan tipe konten hasil deteksi dan `X-Content-Type-Options: nosniff`. File HTML/SVG dan path di luar folder gambar ditolak. Foto chat hanya dapat diakses peserta percakapan; jangan memintas pemeriksaan akses ini melalui proxy publik. Endpoint ini tetap bekerja dengan `DEBUG=False`. Penyimpanan media harus persisten antar-deploy.
+
+Rujukan: [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/).
+
+### Integritas email akun
+
+Email akun nonkosong memiliki unique index `LOWER(TRIM(email))` di database (SQLite/PostgreSQL). Aturan ini berlaku untuk registrasi biasa, Google/allauth, admin, serta penulisan langsung ke model. Akun sistem boleh tidak memiliki email. Sebelum migrasi, jalankan `python manage.py audit_account_emails`; bila ada duplikat lama, selesaikan kepemilikannya dahulu. Migrasi berhenti tanpa menggabungkan atau menghapus akun secara otomatis.
+
+### Verifikasi dan identitas akun
+
+Status verifikasi email dibaca dari `allauth.account.EmailAddress` untuk email akun saat ini. Migrasi memindahkan flag verifikasi profil lama tanpa menggabungkan akun. Pengguna dapat meminta ulang tautan melalui Account Settings; tautan berlaku 24 jam dan permintaan dibatasi satu kali per menit per akun, termasuk ketika berpindah browser atau pengiriman gagal. Mode produksi membuat tautan HTTPS meskipun upstream PWS menggunakan HTTP.
+
+Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih oleh pengguna biasa. `GAIA_CARE_USER_ID` dapat menunjuk akun staff aktif yang disiapkan administrator; benturan username dengan akun biasa ditolak, tanpa menaikkan hak akun tersebut. Percakapan support lama yang salah tujuan memerlukan pemeriksaan admin.

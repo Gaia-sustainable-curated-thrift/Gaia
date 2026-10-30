@@ -12,11 +12,21 @@ class ChatError(ValueError):
 
 
 def get_gaia_care_user():
-    username = getattr(settings, 'GAIA_CARE_USERNAME', 'gaiacare')
-    user, created = get_user_model().objects.get_or_create(username=username, defaults={'first_name': 'Gaia Care', 'is_staff': True})
-    if created:
-        user.set_unusable_password()
-        user.save(update_fields=['password'])
+    User = get_user_model()
+    support_id = getattr(settings, 'GAIA_CARE_USER_ID', None)
+    if support_id:
+        try:
+            user = User.objects.get(pk=int(support_id))
+        except (User.DoesNotExist, ValueError, TypeError):
+            raise ChatError('GAIA support is unavailable. Please contact an administrator.')
+    else:
+        username = getattr(settings, 'GAIA_CARE_USERNAME', 'gaiacare')
+        user, _ = User.objects.get_or_create(
+            username=username,
+            defaults={'first_name': 'Gaia Care', 'is_staff': True, 'password': '!'},
+        )
+    if not user.is_staff or not user.is_active:
+        raise ChatError('GAIA support is unavailable. Please contact an administrator.')
     return user
 
 
@@ -70,14 +80,19 @@ def start_support_conversation(user):
         kind=Conversation.Kind.SUPPORT, buyer=user,
         defaults={'seller': gaia_care},
     )
+    if conversation.seller_id != gaia_care.pk:
+        raise ChatError('This support conversation needs administrator review.')
     return conversation
 
 
 def start_order_conversation(order):
+    gaia_care = get_gaia_care_user()
     conversation, _ = Conversation.objects.get_or_create(
         kind=Conversation.Kind.ORDER, order=order,
-        defaults={'buyer': order.user, 'seller': get_gaia_care_user()},
+        defaults={'buyer': order.user, 'seller': gaia_care},
     )
+    if conversation.seller_id != gaia_care.pk:
+        raise ChatError('This support conversation needs administrator review.')
     return conversation
 
 

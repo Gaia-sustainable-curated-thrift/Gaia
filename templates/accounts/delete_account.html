@@ -16,7 +16,7 @@
         <p class="small muted">Your Google account itself will not be deleted.</p>
     </div>
     {% if deletion_blocked %}
-        <div class="deletion-alert" role="alert"><strong>You still have pending orders</strong><p>Complete your awaiting-payment or in-transit orders before deleting your account.</p></div>
+        <div class="deletion-alert" role="alert"><strong>You still have pending orders or sales</strong><p>Complete your awaiting-payment or in-transit purchases and sales before deleting your account. Active sales also need to be completed with your buyer.</p></div>
         <div class="actions"><a class="button" href="{% url 'orders' %}">View Orders</a><a class="text-button" href="{% url 'account_settings' %}">Keep My Account</a></div>
     {% elif has_password or delete_link_valid %}
         {% if not has_password %}<p class="deletion-verified">Email confirmation received. Complete the final step below.</p>{% endif %}
