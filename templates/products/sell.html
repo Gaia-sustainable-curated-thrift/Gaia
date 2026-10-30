@@ -19,11 +19,12 @@
 
         <section class="sell-section">
             <h2 class="sell-label" id="listing-photos-label">Select maximum 5 photos</h2>
-            {% if existing_images %}<p class="sell-photo-note">Existing photos are kept. Add more photos up to five in total.</p>{% endif %}
+            {% if existing_images %}<p class="sell-photo-note">Drag a photo to the left to make it the cover, or use the trash icon to remove it. Changes are applied when you save.</p>{% endif %}
             <div class="sell-photos" data-photos>
                 {% for image in existing_images %}
-                <div class="sell-photo" data-existing-photo>
+                <div class="sell-photo" data-existing-photo data-photo-id="{{ image.pk }}">
                     <img src="{{ image.image.url }}" alt="Existing photo {{ forloop.counter }}">
+                    <button class="sell-photo__remove" type="button" data-remove-existing aria-pressed="false" aria-label="Remove photo {{ forloop.counter }}">{% include 'includes/icon.html' with name='trash' %}</button>
                     {% if image.pk == cover_id %}<span class="sell-photo__cover">Cover</span>{% endif %}
                 </div>
                 {% endfor %}

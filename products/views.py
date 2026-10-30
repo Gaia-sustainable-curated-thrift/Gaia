@@ -11,6 +11,8 @@ Setiap aksi yang ngubah data punya dua jenis jawaban: kalau request-nya AJAX,
 balasannya JSON supaya halaman bisa update tanpa reload; kalau form biasa,
 balasannya redirect plus toast.
 """
+import logging
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
@@ -28,6 +30,8 @@ from . import cart
 from .decorators import owner_required, rate_limit
 from .forms import ProductListingForm
 from .models import Category, Product, ProductImage
+
+logger = logging.getLogger(__name__)
 
 # Urutan tampil departemen dan kategori di tab maupun filter, biar selalu konsisten.
 GENDER_ORDER = ['women', 'men']
@@ -322,22 +326,23 @@ def _listing_form_page(request, product=None):
     """Dipakai bareng oleh "List an item" (product = None) dan "Edit listing"."""
     editing = product is not None
     is_post = request.method == 'POST'
-    existing_images = list(product.images.all()) if editing else []
+    # Cover dulu, lalu sisanya sesuai urutan: persis urutan tampil di halaman edit.
+    existing_images = sorted(product.images.all(), key=lambda i: (not i.is_primary, i.order, i.pk)) if editing else []
     form = ProductListingForm(request.POST if is_post else None, request.FILES if is_post else None, instance=product)
 
     if is_post and form.is_valid():
+        removed_ids = {photo.pk for photo in form.cleaned_data['remove_photos']}
+        kept_images = [image for image in existing_images if image.pk not in removed_ids]
         # Listing dan foto barunya disimpan dalam satu transaksi: berhasil semua, atau batal semua.
         with transaction.atomic():
             product = form.save(commit=False)
             product.seller = request.user
             product.save()
-            # Foto baru ditaruh setelah foto yang sudah ada; untuk listing baru, foto pertama jadi cover.
-            next_order = max((image.order for image in existing_images), default=-1) + 1
-            for index, photo in enumerate(form.cleaned_data['photos']):
-                ProductImage.objects.create(
-                    product=product, image=photo,
-                    is_primary=not existing_images and index == 0, order=next_order + index,
-                )
+            # Foto yang dibuang: barisnya dihapus sekarang, filenya setelah transaksi sukses
+            # (kalau transaksi batal, file jangan sampai ikut hilang).
+            _delete_photos(form.cleaned_data['remove_photos'])
+            new_images = [ProductImage.objects.create(product=product, image=photo) for photo in form.cleaned_data['photos']]
+            _arrange_photos(kept_images, new_images, form.cleaned_data['photo_order'])
 
         message = 'Listing updated.' if editing else 'Listing created.'
         if editing or _is_ajax(request):
@@ -389,24 +394,81 @@ def edit(request, product):
     return _listing_form_page(request, product)
 
 
+def _arrange_photos(kept_images, new_images, order_tokens):
+    """Tentukan urutan akhir semua foto listing. Foto pertama jadi cover.
+
+    order_tokens datang dari halaman (setelah foto di-drag): e<id> untuk foto yang sudah ada,
+    n<k> untuk foto baru ke-k. Foto yang tidak disebut ditaruh di belakang dengan urutan lama
+    (foto lama dulu, lalu foto baru), jadi tanpa token pun hasilnya tetap masuk akal.
+    """
+    by_token = {f'e{image.pk}': image for image in kept_images}
+    by_token.update({f'n{index}': image for index, image in enumerate(new_images)})
+    sequence = []
+    for token in order_tokens:
+        image = by_token.pop(token, None)  # token tak dikenal atau dobel diabaikan
+        if image is not None:
+            sequence.append(image)
+    sequence.extend(by_token.values())
+    for position, image in enumerate(sequence):
+        image.order = position
+        image.is_primary = position == 0
+    ProductImage.objects.bulk_update(sequence, ['order', 'is_primary'])
+
+
+def _delete_photos(photos):
+    """Hapus baris foto dari database, lalu filenya (di folder media atau Cloudinary)
+    setelah transaksi berhasil. Gagal menghapus file cuma dicatat di log, nggak bikin error."""
+    files = [(photo.image.storage, photo.image.name) for photo in photos]
+    for photo in photos:
+        photo.delete()
+
+    def remove_files():
+        for storage, name in files:
+            try:
+                storage.delete(name)
+            except Exception:
+                logger.warning('Gagal menghapus file foto %s', name, exc_info=True)
+
+    transaction.on_commit(remove_files)
+
+
 @login_required
 @require_POST
 @rate_limit('listing-delete', limit=20, window=10 * 60)
 @owner_required()
 def delete_listing(request, product):
+    """Soft delete: listing cuma ditandai terhapus, jadi bisa dipulihkan lewat tombol Undo."""
     product_id = product.pk
-    product.delete()
+    product.soft_delete()
     # Bersihkan juga bag dan data undo di session seller, kalau listing ini masih tercatat di sana.
     cart.remove(request.session, product_id)
     if request.session.get('bag_undo', {}).get('product_id') == product_id:
         request.session.pop('bag_undo')
 
-    toast = _toast('Listing deleted.')
+    undo_url = reverse('products:restore', args=[product.slug])
     if _is_ajax(request):
-        # Hapus dari card produk: card-nya dihapus sendiri oleh JS di halaman.
-        return JsonResponse({'ok': True, 'toast': toast, 'product_id': product_id})
-    request.session['bag_toast'] = toast
+        # Hapus dari card produk: card-nya dihapus sendiri oleh JS di halaman, dan Undo memuat ulang halaman.
+        return JsonResponse({
+            'ok': True,
+            'toast': _toast('Listing deleted.', undo_url=undo_url, undo_reload=True),
+            'product_id': product_id,
+        })
+    request.session['bag_toast'] = _toast('Listing deleted.', undo_url=undo_url)
     return _redirect_back(request, reverse('products:home'))
+
+
+@login_required
+@require_POST
+@rate_limit('listing-restore', limit=20, window=10 * 60)
+@owner_required(lambda: Product.all_objects.filter(deleted_at__isnull=False))
+def restore_listing(request, product):
+    """Undo dari delete_listing: listing muncul lagi di toko, lengkap dengan foto-fotonya."""
+    product.restore()
+    toast = _toast('Listing restored.')
+    if _is_ajax(request):
+        return JsonResponse({'ok': True, 'toast': toast, 'redirect_url': _product_url(product)})
+    request.session['bag_toast'] = toast
+    return redirect(_product_url(product))
 
 
 # ---------------------------------------------------------------------------
