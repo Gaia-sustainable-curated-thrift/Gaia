@@ -154,16 +154,23 @@
     margin: auto auto 0;
 }
 
+/* Extra specificity so page rules that stretch every card button (e.g. the
+   homepage on mobile) don't blow up the square delete button. */
 .product-card .product-card__owner .button {
-    width: auto;
+    min-height: 44px;
     color: var(--canvas);
 }
 
-.product-card .product-card__owner .product-card__edit { flex: 1; }
+.product-card .product-card__owner .button.product-card__edit {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
 
-.product-card .product-card__owner .product-card__delete {
-    flex: 0 0 auto;
-    aspect-ratio: 1;
+.product-card .product-card__owner .button.product-card__delete {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
     padding: 0;
 }
 
@@ -980,11 +987,14 @@
     .product-card__title { font-size: 12px; }
     .product-card__meta,
     .product-card__price { font-size: 12px; }
+    /* Inset card buttons to line up with the 8px-padded text above them. */
     .product-card .button {
-        width: 100%;
+        width: calc(100% - 16px);
         min-height: 44px;
         font-size: 12px;
     }
+    .product-card__owner { width: calc(100% - 16px); gap: 8px; }
+    .product-card__delete .icon { width: 20px; height: 20px; }
 
     .search-empty {
         flex-direction: column;
