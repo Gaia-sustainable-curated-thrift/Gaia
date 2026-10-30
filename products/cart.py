@@ -77,6 +77,10 @@ def items(session):
     if owner_id is not None:
         products = products.exclude(seller_id=owner_id)
     by_id = {str(product.pk): product for product in products}
+    offer_prices = {}
+    if owner_id is not None:
+        from chat.services import accepted_offer_prices
+        offer_prices = accepted_offer_prices(owner_id, ids)
     available = {key: quantity for key, quantity in data.items() if key in by_id}
     if session.get(SESSION_KEY) != available:
         _write(session, available)
@@ -85,10 +89,11 @@ def items(session):
         product = by_id.get(key)
         if not product:
             continue
+        price = min(offer_prices.get(product.pk, product.price), product.price)
         result.append({
             'product': product,
             'quantity': quantity,
-            'line_total': product.price * quantity,
+            'line_total': price * quantity,
         })
     return result
 

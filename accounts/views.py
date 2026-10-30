@@ -166,18 +166,24 @@ def edit_profile(request):
 def orders(request):
     staff = request.user.is_active and request.user.is_staff
     managing = request.GET.get('scope') == 'manage'
+    selling = request.GET.get('scope') == 'sales'
     if managing and not staff:
         raise Http404
     expire_reservations()
-    queryset = AccountOrder.objects.all() if managing else request.user.account_orders.all()
+    if managing:
+        queryset = AccountOrder.objects.all()
+    elif selling:
+        queryset = request.user.sales_orders.all()
+    else:
+        queryset = request.user.account_orders.all()
     queryset = queryset.select_related('transaction_state', 'product_reservation', 'user')
     page = Paginator(queryset.order_by('-date', '-pk'), 12).get_page(request.GET.get('page'))
     for order in page.object_list:
         order.account_display = order_display(order, request.user)
     return render(request, 'accounts/orders.html', account_context(
-        request, 'Manage Orders' if managing else 'Orders',
-        'Verify payments and manage shipping.' if managing else "Track your orders and follow each item's journey.",
-        'orders', orders=page.object_list, page_obj=page, managing_orders=managing,
+        request, 'Manage Orders' if managing else 'My Sales' if selling else 'Orders',
+        'Verify payments and manage shipping.' if managing else 'See which of your listings have been ordered.' if selling else "Track your orders and follow each item's journey.",
+        'orders', orders=page.object_list, page_obj=page, managing_orders=managing, selling_orders=selling,
         can_manage_orders=staff,
     ))
 

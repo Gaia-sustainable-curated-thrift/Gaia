@@ -48,5 +48,5 @@
 </div>
 {% include 'accounts/includes/order_actions.html' %}
 <div class="actions"><a class="button olive-button" href="{% url 'orders' %}{% if managing_orders %}?scope=manage{% endif %}">Back to Orders</a>
-{% if order.user_id == user.pk %}<a class="button secondary" href="{% url 'chat:order' order.pk %}">Tanya soal pesanan ini</a>{% review_order_action order user %}{% endif %}</div>
+{% if order.user_id == user.pk %}{% if order.product and order.seller_id and not order.product.deleted_at %}<form method="post" action="{% url 'chat:start' order.product_id %}">{% csrf_token %}<button class="button secondary" type="submit">Chat Seller</button></form>{% endif %}<a class="button secondary" href="{% url 'chat:order' order.pk %}">Tanya soal pesanan ini</a>{% review_order_action order user %}{% endif %}</div>
 {% endblock %}
