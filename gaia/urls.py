@@ -1,9 +1,8 @@
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import render
 from django.views.generic import RedirectView
+from .media import uploaded_image
 
 
 def not_found(request, exception=None):
@@ -12,6 +11,7 @@ def not_found(request, exception=None):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("media/<path:name>", uploaded_image, name="uploaded_image"),
 
     path(
         "accounts/",
@@ -30,6 +30,3 @@ urlpatterns = [
     path("404/", not_found, name="preview-404"),
     path("", RedirectView.as_view(pattern_name="products:home", permanent=False)),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
