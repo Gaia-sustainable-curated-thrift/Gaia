@@ -230,3 +230,58 @@ class SupportIdentityTests(TestCase):
         Conversation.objects.create(kind='support', buyer=buyer, seller=impostor)
         with self.assertRaises(services.ChatError):
             services.start_support_conversation(buyer)
+
+
+class ChatIntegrationTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user('seller', password='pw')
+        self.buyer = User.objects.create_user('buyer', password='pw')
+        self.product = Product.objects.create(seller=self.seller, title='The Everyday Tote', price=100000)
+        self.convo = services.start_conversation(self.buyer, self.product)
+        self.client.force_login(self.buyer)
+
+    def accept_offer(self, price):
+        offer = services.send_message(self.convo, self.buyer, kind=Message.Kind.OFFER, offer_price=price)
+        services.respond_to_offer(offer, self.seller, accept=True)
+
+    def checkout(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.client.post(reverse('transaction:checkout'), {
+            'recipient': 'Buyer', 'phone': '0812', 'address': 'Jl', 'city': 'Depok', 'postal_code': '16424', 'country': 'Indonesia',
+        })
+        self.client.post(reverse('transaction:payment'), {'payment_method': 'bank_transfer'})
+        self.client.post(reverse('transaction:confirmation'))
+        return AccountOrder.objects.get(user=self.buyer, product=self.product)
+
+    def test_accepted_offer_sets_checkout_price(self):
+        self.accept_offer(80000)
+        self.assertEqual(self.checkout().subtotal, 80000)
+
+    def test_declined_and_other_buyers_offers_keep_list_price(self):
+        offer = services.send_message(self.convo, self.buyer, kind=Message.Kind.OFFER, offer_price=70000)
+        services.respond_to_offer(offer, self.seller, accept=False)
+        other = User.objects.create_user('other', password='pw')
+        other_offer = services.send_message(services.start_conversation(other, self.product), other, kind=Message.Kind.OFFER, offer_price=60000)
+        services.respond_to_offer(other_offer, self.seller, accept=True)
+        self.assertEqual(self.checkout().subtotal, 100000)
+
+    def test_offer_above_list_price_never_raises_the_price(self):
+        self.accept_offer(150000)
+        self.assertEqual(self.checkout().subtotal, 100000)
+
+    def test_soft_deleted_listing_has_no_card_or_new_offers(self):
+        self.product.soft_delete()
+        convo = Conversation.objects.select_related('product').get(pk=self.convo.pk)
+        self.assertIsNone(services.serialize_product(convo.product))
+        response = self.client.post(reverse('chat:api_messages', args=[convo.pk]), {'kind': 'offer', 'offer_price': '1000'})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.client.get(reverse('chat:room', args=[convo.pk])).status_code, 200)
+
+    def test_order_detail_can_chat_seller_and_seller_sees_sale_in_list_only(self):
+        order = self.checkout()
+        self.assertContains(self.client.get(reverse('order_detail', args=[order.pk])), reverse('chat:start', args=[self.product.pk]))
+        self.client.force_login(self.seller)
+        self.assertContains(self.client.get(reverse('orders'), {'scope': 'sales'}), order.number)
+        self.assertNotContains(self.client.get(reverse('orders')), order.number)
+        self.assertNotContains(self.client.get(reverse('orders'), {'scope': 'sales'}), '0812')
+        self.assertEqual(self.client.get(reverse('order_detail', args=[order.pk])).status_code, 404)

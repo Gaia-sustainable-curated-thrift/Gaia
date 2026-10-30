@@ -157,6 +157,18 @@ def respond_to_offer(message, seller, accept):
     return message
 
 
+# Harga offer yang udah diterima seller per produk, dipakai bag dan checkout
+def accepted_offer_prices(buyer_id, product_ids):
+    offers = Message.objects.filter(
+        kind=Message.Kind.OFFER,
+        offer_status=Message.OfferStatus.ACCEPTED,
+        conversation__kind=Conversation.Kind.PRODUCT,
+        conversation__buyer_id=buyer_id,
+        conversation__product_id__in=product_ids,
+    ).order_by('pk').values_list('conversation__product_id', 'offer_price')
+    return dict(offers)
+
+
 # Tandai pesan dari lawan bicara sudah dibaca, jadi tampil Read
 def mark_read(conversation, reader):
     return (

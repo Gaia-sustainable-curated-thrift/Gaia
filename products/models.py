@@ -111,7 +111,7 @@ class Product(models.Model):
     @property
     def is_purchasable(self):
         # Dicek di semua tempat yang bisa membeli, masuk bag, atau masuk wishlist.
-        return self.status == self.Status.AVAILABLE
+        return self.status == self.Status.AVAILABLE and self.deleted_at is None
 
     def __str__(self):
         return self.title

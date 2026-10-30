@@ -342,7 +342,7 @@ def confirmation(request):
                         title=product.title,
                         condition=product.get_condition_display(),
                         image=image.image.url if image else "",
-                        subtotal=product.price * item["quantity"],
+                        subtotal=item["line_total"],
                         shipping=0,
                         recipient=address["recipient"],
                         phone=address["phone"],

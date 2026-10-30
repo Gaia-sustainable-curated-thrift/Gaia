@@ -110,7 +110,7 @@ Modul User menyediakan identitas akun dan area pribadi yang digunakan bersama ol
 | Registrasi, login, permintaan reset password | tersedia | registrasi/login mengarahkan ke profil |
 | Melihat atau mengubah profil | diarahkan ke login | hanya akun sendiri |
 | Melihat wishlist | diarahkan ke login | hanya data milik sendiri |
-| Melihat pesanan | diarahkan ke login | pesanan sendiri; staff aktif dapat mengakses Manage Orders |
+| Melihat pesanan | diarahkan ke login | pesanan sendiri; seller melihat daftar penjualan pada My Sales tanpa detail, kontak, atau alamat buyer; staff aktif dapat mengakses Manage Orders |
 | Menghapus/mengembalikan item wishlist | tidak | hanya item sendiri, melalui POST |
 | Melihat My Products | diarahkan ke login | hanya listing sendiri |
 | Menghapus akun | tidak | akun sendiri setelah konfirmasi dan pemeriksaan pesanan |
@@ -213,8 +213,8 @@ Modul Chat menyediakan percakapan antara buyer dan seller mengenai produk, serta
 - **Ruang chat:** kartu produk atau pesanan sebagai konteks, pemisah tanggal, balon pesan, waktu kirim, serta status **Sent** dan **Read**.
 - **Jenis percakapan:** chat produk antara buyer dan seller, chat support dengan Gaia Care, dan chat pesanan antara pembeli dan Gaia Care. Percakapan yang sudah ada dipakai kembali sehingga tidak terbentuk duplikat.
 - **Jenis pesan:** teks hingga 2.000 karakter, foto, penawaran harga, kartu produk, dan pesan sistem.
-- **Penawaran harga:** buyer mengajukan harga pada chat produk, lalu seller dapat menerima atau menolak selama produk masih tersedia.
-- **Pintu masuk:** ikon chat dengan jumlah pesan belum dibaca pada navbar, menu navigasi, menu **Messages** di area akun, tombol **Chat** pada detail produk, **Contact** pada footer, dan **Tanya soal pesanan ini** pada detail pesanan.
+- **Penawaran harga:** buyer mengajukan harga pada chat produk, lalu seller dapat menerima atau menolak selama produk masih tersedia. Harga yang diterima otomatis dipakai pada bag dan checkout buyer tersebut.
+- **Pintu masuk:** ikon chat dengan jumlah pesan belum dibaca pada navbar, menu navigasi, menu **Messages** di area akun, tombol **Chat** pada detail produk, **Contact** pada footer, dan **Chat Seller** serta **Tanya soal pesanan ini** pada detail pesanan.
 - **Pembaruan otomatis:** ruang chat memeriksa pesan baru, status baca, dan status penawaran setiap 3 detik, sedangkan inbox diperbarui setiap 15 detik.
 - **Waktu lokal:** server mengirim waktu berformat ISO, lalu browser menampilkannya sesuai zona waktu pengguna.
 
@@ -235,7 +235,6 @@ Aturan pengiriman pesan dan penawaran diperiksa pada `chat/services.py`, sehingg
 
 Batas integrasi saat ini:
 
-- Harga dari penawaran yang diterima belum diterapkan otomatis pada checkout modul Transaksi.
 - Pesan sistem sudah tersedia pada service, tetapi belum dipanggil otomatis ketika status pesanan berubah.
 - Pengiriman kartu produk tersedia melalui API, tetapi belum memiliki tombol pada antarmuka.
 - Status online belum tersedia dan jumlah pesan belum dibaca pada navbar diperbarui saat halaman dimuat.
