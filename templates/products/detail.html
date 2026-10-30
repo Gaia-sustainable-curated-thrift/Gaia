@@ -61,7 +61,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
                         <button class="button olive-button pdp-wish{% if wishlist_saved %} is-saved{% endif %}" type="submit" aria-pressed="{{ wishlist_saved|yesno:'true,false' }}">
-                            {% include 'includes/icon.html' with name='heart' %}<span data-wishlist-label>{% if wishlist_saved %}Saved to wishlist{% else %}Save to wishlist{% endif %}</span>
+                            {% if wishlist_saved %}{% include 'includes/icon.html' with name='check' %}{% else %}{% include 'includes/icon.html' with name='heart' %}{% endif %}<span data-wishlist-label>{% if wishlist_saved %}Saved to wishlist{% else %}Save to wishlist{% endif %}</span>
                         </button>
                     </form>
                     {% endif %}

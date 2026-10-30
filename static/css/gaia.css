@@ -1009,7 +1009,7 @@
 }
 
 /* ---------- Product detail ---------- */
-.pdp-main { max-width: 1312px; }
+.pdp-main { max-width: 1312px; padding-top: 40px; }
 .pdp {
     display: grid;
     grid-template-columns: minmax(0, 680fr) minmax(0, 552fr);
@@ -1165,7 +1165,6 @@
 }
 
 .pdp-actions .olive-button { color: var(--canvas); }
-.pdp-wish.is-saved .icon { fill: currentColor; }
 .pdp-actions .pdp-wish.is-saved,
 .pdp-actions .pdp-wish.is-saved:hover {
     background: var(--canvas);
@@ -1314,6 +1313,7 @@
         grid-template-rows: auto;
         gap: 24px;
     }
+    .pdp-main { padding-top: 24px; }
     .pdp-breadcrumb { grid-column: 1; grid-row: auto; order: -1; }
     .pdp-gallery {
         grid-column: 1;

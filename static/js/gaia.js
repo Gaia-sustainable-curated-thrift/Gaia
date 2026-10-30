@@ -334,6 +334,9 @@
                         saved = data.saved;
                         button.classList.toggle('is-saved', saved);
                         button.setAttribute('aria-pressed', saved ? 'true' : 'false');
+                        // Same pressed look as the bag button: outline plus a check mark.
+                        var icon = button.querySelector('use');
+                        if (icon) icon.setAttribute('href', saved ? '#icon-check' : '#icon-heart');
                         form.action = form.getAttribute(saved ? 'data-remove-url' : 'data-add-url');
                         document.querySelectorAll('[data-wishlist-count]').forEach(function (count) {
                             count.textContent = data.saved_count + (data.saved_count === 1
