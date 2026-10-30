@@ -495,10 +495,8 @@ class UserViewTests(TestCase):
         self.assertEqual(Profile.objects.filter(user=self.user).count(), 1)
 
     def test_verification_context_supports_local_and_google_verification(self):
-        profile = Profile.objects.create(user=self.user, email_verified=True)
-        self.assertTrue(self.client.get(reverse('profile')).context['email_verified'])
-        profile.email_verified = False
-        profile.save()
+        profile = Profile.objects.create(user=self.user)
+        self.assertFalse(self.client.get(reverse('profile')).context['email_verified'])
         EmailAddress.objects.create(user=self.user, email=self.user.email, verified=True)
         self.assertTrue(self.client.get(reverse('profile')).context['email_verified'])
 
@@ -1273,3 +1271,66 @@ class SellerAccountDeletionTests(TestCase):
         self.assertIsNone(self.order.seller_id)
         self.assertEqual(self.order.user_id, self.buyer.pk)
         self.assertEqual((self.order.title, self.order.subtotal), ('Sold coat', 100))
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+                   EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class VerificationRecoveryTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('verify-buyer', 'verify@example.test', PASSWORD)
+        Profile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+
+    def test_resend_verifies_the_canonical_address_and_is_idempotent(self):
+        self.assertContains(self.client.get(reverse('account_settings')), 'Resend Verification Email')
+        self.client.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+        link = re.search(r'http://testserver(\S+)', mail.outbox[0].body).group(1)
+        self.client.get(link)
+        self.client.get(link)
+        self.assertEqual(EmailAddress.objects.filter(user=self.user, verified=True).count(), 1)
+        self.assertTrue(self.user.profile.email_verified)
+        self.client.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertNotContains(self.client.get(reverse('account_settings')), 'Resend Verification Email')
+
+    def test_cooldown_cannot_be_bypassed_from_another_browser(self):
+        self.client.post(reverse('resend_verification'))
+        second = Client()
+        second.force_login(self.user)
+        second.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+        from datetime import timedelta
+        from django.utils import timezone
+        Profile.objects.filter(user=self.user).update(verification_sent_at=timezone.now() - timedelta(seconds=61))
+        second.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_failed_delivery_can_be_retried_and_does_not_verify_email(self):
+        with patch('accounts.views.send_mail', return_value=0):
+            self.client.post(reverse('resend_verification'))
+        self.assertFalse(self.user.profile.email_verified)
+        Profile.objects.filter(user=self.user).update(verification_sent_at=None)
+        self.client.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_resend_is_post_only_and_requires_login_and_csrf(self):
+        self.assertEqual(self.client.get(reverse('resend_verification')).status_code, 405)
+        strict = Client(enforce_csrf_checks=True)
+        strict.force_login(self.user)
+        self.assertEqual(strict.post(reverse('resend_verification')).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.post(reverse('resend_verification')).status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(PRODUCTION=True, SECURE_SSL_REDIRECT=False,
+                       ALLOWED_HOSTS=['testserver', 'danar-iqbal-gaia.pws.cs.ui.ac.id'])
+    def test_pws_http_upstream_still_sends_https_link(self):
+        self.client.post(reverse('resend_verification'), HTTP_HOST='danar-iqbal-gaia.pws.cs.ui.ac.id')
+        self.assertIn('https://danar-iqbal-gaia.pws.cs.ui.ac.id/accounts/verify/', mail.outbox[0].body)
+
+    def test_verified_old_address_does_not_verify_a_changed_email(self):
+        EmailAddress.objects.create(user=self.user, email=self.user.email, verified=True)
+        self.user.email = 'changed@example.test'
+        self.user.save()
+        self.assertFalse(self.client.get(reverse('profile')).context['email_verified'])

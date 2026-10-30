@@ -15,6 +15,7 @@ from django.core.paginator import Paginator
 from django.db.models.deletion import ProtectedError, RestrictedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from allauth.account.models import EmailAddress
 from .forms import DeleteAccountForm, ProfileForm, RegisterForm
@@ -23,7 +24,7 @@ from .models import AccountOrder, Profile, WishlistItem
 
 def account_context(request, title, subtitle, active='profile', **extra):
     profile, _ = Profile.objects.get_or_create(user=request.user)
-    verified = profile.email_verified or EmailAddress.objects.filter(user=request.user, email__iexact=request.user.email, verified=True).exists()
+    verified = profile.email_verified
     return {'title': title, 'subtitle': subtitle, 'active': active, 'profile': profile, 'email_verified': verified, **extra}
 
 
@@ -45,14 +46,12 @@ def register(request):
                 raise
             return render(request, 'registration/register.html', {'form': form})
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-        token = signing.dumps({'user': user.pk, 'email': user.email}, salt='gaia-email')
-        link = request.build_absolute_uri(reverse('verify_email', args=[token]))
         try:
-            send_mail('Verify your GAIA email', f'Welcome to GAIA! Verify your email:\n{link}', settings.DEFAULT_FROM_EMAIL, [user.email])
+            _send_verification_email(request, user)
             request.session['verification_email_sent'] = True
         except (SMTPException, OSError):
             request.session['verification_email_sent'] = False
-            messages.error(request, 'Your account was created, but the verification email could not be sent. You can continue to your profile.')
+            messages.error(request, 'Your account was created, but the verification email could not be sent. You can resend it from Account Settings.')
         return redirect('account_created')
     return render(request, 'registration/register.html', {'form': form})
 
@@ -65,13 +64,67 @@ def account_created(request):
 def verify_email(request, token):
     try:
         payload = signing.loads(token, salt='gaia-email', max_age=86400)
-        profile = get_object_or_404(Profile, user_id=payload['user'], user__email=payload['email'])
-        profile.email_verified = True
-        profile.save(update_fields=['email_verified'])
+        with transaction.atomic():
+            profile = get_object_or_404(Profile.objects.select_for_update(), user_id=payload['user'], user__email=payload['email'])
+            email = profile.user.email.strip().lower()
+            address = EmailAddress.objects.filter(user=profile.user, email__iexact=email).first()
+            if address is None:
+                address = EmailAddress.objects.create(
+                    user=profile.user, email=email,
+                    primary=not EmailAddress.objects.filter(user=profile.user, primary=True).exists(),
+                )
+            if not address.set_verified():
+                messages.error(request, 'This email belongs to another verified account. Please contact support.')
+                return redirect('profile')
         messages.success(request, 'Email verified. Your sustainable story starts here.')
-    except signing.BadSignature:
+    except (signing.BadSignature, KeyError, TypeError):
         messages.error(request, 'This verification link is invalid or has expired.')
+    except IntegrityError:
+        messages.error(request, 'This email could not be verified. Please contact support.')
     return redirect('profile')
+
+
+def _send_verification_email(request, user):
+    # Reserve the cooldown in the database, so another browser cannot bypass it.
+    with transaction.atomic():
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile = Profile.objects.select_for_update().get(pk=profile.pk)
+        now = timezone.now()
+        if profile.verification_sent_at and (now - profile.verification_sent_at).total_seconds() < 60:
+            return False
+        profile.verification_sent_at = now
+        profile.save(update_fields=['verification_sent_at'])
+    token = signing.dumps({'user': user.pk, 'email': user.email}, salt='gaia-email')
+    scheme = 'https' if settings.PRODUCTION else request.scheme
+    path = reverse('verify_email', args=[token])
+    link = f'{scheme}://{request.get_host()}{path}'
+    sent = send_mail('Verify your GAIA email', f'Welcome to GAIA! Verify your email:\n{link}', settings.DEFAULT_FROM_EMAIL, [user.email])
+    if not sent:
+        raise OSError('Email delivery not accepted')
+    return True
+
+
+@login_required
+@require_POST
+def resend_verification(request):
+    context = account_context(request, 'Account Settings', '', 'settings')
+    if context['email_verified']:
+        messages.info(request, 'Your email is already verified.')
+    elif not request.user.email:
+        messages.error(request, 'Your account has no email address. Please contact support.')
+    else:
+        try:
+            sent = _send_verification_email(request, request.user)
+        except (SMTPException, OSError):
+            request.session['verification_email_sent'] = False
+            messages.error(request, 'Verification email could not be sent. Please try again after one minute.')
+        else:
+            if sent:
+                request.session['verification_email_sent'] = True
+                messages.success(request, 'Verification email sent. Check your inbox; the link is valid for 24 hours.')
+            else:
+                messages.info(request, 'Please wait one minute before requesting another verification email.')
+    return redirect('account_settings')
 
 
 @login_required

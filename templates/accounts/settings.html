@@ -9,6 +9,7 @@
 <div><strong>Email</strong>
 <p class="muted">{{ user.email|default:'No email added' }}
 </p><small class="olive">{% if email_verified %}Email verified{% else %}Email not verified{% endif %}</small>
+{% if not email_verified and user.email %}<form method="post" action="{% url 'resend_verification' %}">{% csrf_token %}<button class="text-button" type="submit">Resend Verification Email</button></form>{% endif %}
 </div>
 </div>
 <div class="security-row">{% include 'includes/icon.html' with name='lock' %}

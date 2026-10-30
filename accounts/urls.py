@@ -8,6 +8,7 @@ urlpatterns = [
     path('logout/', auth.LogoutView.as_view(), name='logout'),
     path('register/', views.register, name='register'),
     path('created/', views.account_created, name='account_created'),
+    path('verify/resend/', views.resend_verification, name='resend_verification'),
     path('verify/<str:token>/', views.verify_email, name='verify_email'),
     path('profile/', views.profile, name='profile'),
     path('profile/edit/', views.edit_profile, name='edit_profile'),

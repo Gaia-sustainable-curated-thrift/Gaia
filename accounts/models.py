@@ -9,7 +9,12 @@ class Profile(models.Model):
     phone = models.CharField(max_length=30, blank=True)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
-    email_verified = models.BooleanField(default=False)
+    verification_sent_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def email_verified(self):
+        from allauth.account.models import EmailAddress
+        return EmailAddress.objects.filter(user_id=self.user_id, email__iexact=self.user.email, verified=True).exists()
 
 
 class WishlistItem(models.Model):

@@ -160,3 +160,9 @@ Rujukan: [Django deployment checklist](https://docs.djangoproject.com/en/5.2/how
 ### Integritas email akun
 
 Email akun nonkosong memiliki unique index `LOWER(TRIM(email))` di database (SQLite/PostgreSQL). Aturan ini berlaku untuk registrasi biasa, Google/allauth, admin, serta penulisan langsung ke model. Akun sistem boleh tidak memiliki email. Sebelum migrasi, jalankan `python manage.py audit_account_emails`; bila ada duplikat lama, selesaikan kepemilikannya dahulu. Migrasi berhenti tanpa menggabungkan atau menghapus akun secara otomatis.
+
+### Verifikasi dan identitas akun
+
+Status verifikasi email dibaca dari `allauth.account.EmailAddress` untuk email akun saat ini. Migrasi memindahkan flag verifikasi profil lama tanpa menggabungkan akun. Pengguna dapat meminta ulang tautan melalui Account Settings; tautan berlaku 24 jam dan permintaan dibatasi satu kali per menit per akun, termasuk ketika berpindah browser atau pengiriman gagal. Mode produksi membuat tautan HTTPS meskipun upstream PWS menggunakan HTTP.
+
+Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih oleh pengguna biasa. `GAIA_CARE_USER_ID` dapat menunjuk akun staff aktif yang disiapkan administrator; benturan username dengan akun biasa ditolak, tanpa menaikkan hak akun tersebut. Percakapan support lama yang salah tujuan memerlukan pemeriksaan admin.
