@@ -79,6 +79,65 @@ Gaia **tidak memakai dataset publik maupun API data eksternal**. Seluruh data di
 
 Data demo bukan transaksi, pembayaran, atau review nyata.
 
+## Modul User / Authentication (Danar)
+
+Modul User menyediakan identitas akun dan area pribadi yang digunakan bersama oleh modul Product, Chat, Transaksi, serta Review & Rating. Autentikasi menggunakan Django Authentication; Google login menggunakan `django-allauth`.
+
+### Fitur
+
+- **Registrasi dan autentikasi:** membuat akun dengan nama lengkap, email, dan password; login menggunakan email atau username; login Google; serta logout melalui POST dengan konfirmasi.
+- **Profil:** melihat dan mengubah nama, username, nomor telepon, kota, negara, serta foto profil. Email tidak dapat diubah melalui form profil. Foto JPG/PNG/WebP dibatasi 2 MB dan dimensi 4096 piksel per sisi, lalu diproses menjadi gambar persegi 512 x 512 piksel.
+- **Keamanan akun:** verifikasi email dengan tautan 24 jam dan kirim ulang dengan cooldown satu menit per akun; ganti password untuk akun dengan password lokal; serta reset password melalui email. Akun tanpa password lokal mendapat keterangan mengenai external sign-in.
+- **Penghapusan akun:** konfirmasi password untuk akun lokal atau tautan email untuk akun tanpa password lokal, disertai frasa `DELETE` dan persetujuan penghapusan. Akun dengan pesanan pembelian atau penjualan yang belum selesai tidak dapat dihapus.
+- **Wishlist:** melihat produk favorit, menghapus item dengan soft delete, dan mengembalikan penghapusan terakhir melalui undo. Produk berstatus sold disembunyikan dari daftar favorit yang ditampilkan.
+- **Area akun:** ringkasan aktivitas, My Products dengan filter available/sold, serta daftar dan detail My Orders. My Products, My Orders, dan Wishlist menggunakan pagination 12 item per halaman.
+
+### Hak akses dan batas integrasi
+
+| Aksi | Guest | Pengguna login |
+| ---- | ----- | -------------- |
+| Registrasi, login, permintaan reset password | tersedia | registrasi/login mengarahkan ke profil |
+| Melihat atau mengubah profil | diarahkan ke login | hanya akun sendiri |
+| Melihat wishlist dan pesanan | diarahkan ke login | hanya data milik sendiri |
+| Menghapus/mengembalikan item wishlist | tidak | hanya item sendiri, melalui POST |
+| Melihat My Products | diarahkan ke login | hanya listing sendiri |
+| Menghapus akun | tidak | akun sendiri setelah konfirmasi dan pemeriksaan pesanan |
+
+View membatasi akses berdasarkan pengguna login, dan form perubahan data menggunakan CSRF. Keunikan email nonkosong dijamin pada database; username support dicadangkan untuk akun sistem. Status verifikasi email bersumber dari `allauth.account.EmailAddress`.
+
+Halaman akun menjadi pintu masuk ke modul lain: aksi buat/edit/hapus listing ditangani Product, sedangkan checkout, pembayaran, pembatalan, dan perubahan status transaksi menjadi tanggung jawab modul Transaksi. `AccountOrder` saat ini berada di app `accounts` dan digunakan bersama oleh Transaksi, Chat, serta Review & Rating. Menampilkan order di halaman akun tidak berarti modul User memverifikasi pembayaran.
+
+### Peta kode
+
+| File | Isi |
+| ---- | --- |
+| `accounts/models.py` | profil tambahan, snapshot wishlist, dan model pesanan bersama |
+| `accounts/forms.py` | form login, registrasi, edit profil/foto, dan konfirmasi hapus akun |
+| `accounts/views.py`, `accounts/urls.py` | alur akun, verifikasi, wishlist, My Products, dan My Orders |
+| `accounts/adapters.py`, `accounts/identity.py` | penyesuaian allauth dan pemeriksaan username sistem |
+| `accounts/avatars.py`, `accounts/signals.py` | penamaan foto dan pembersihan avatar setelah commit |
+| `accounts/migrations/` | skema akun, integritas email, dan pemindahan status verifikasi lama |
+| `accounts/management/commands/` | audit email duplikat dan data demo akun |
+| `templates/accounts/`, `templates/registration/` | halaman akun, autentikasi, serta template email |
+| `static/js/accounts.js`, `static/css/accounts.css` | interaksi dan styling area akun |
+| `accounts/tests.py` | unit test dan pengujian request untuk alur akun serta pembatasan akses |
+
+### Rute
+
+Semua rute berikut menggunakan awalan `/accounts/`.
+
+| URL | Fungsi |
+| --- | ------ |
+| `register/`, `created/`, `login/`, `logout/` | registrasi, konfirmasi akun, login, dan logout |
+| `google/login/` | masuk melalui Google; callback di `google/login/callback/` |
+| `verify/<token>/`, `verify/resend/` | verifikasi dan kirim ulang email |
+| `profile/`, `profile/edit/`, `settings/` | profil dan pengaturan akun |
+| `password/change/`, `password/reset/` | ganti password dan awal alur reset melalui email |
+| `products/` | My Products |
+| `orders/`, `orders/<pk>/` | daftar dan detail pesanan sendiri |
+| `wishlist/`, `wishlist/<pk>/remove/`, `wishlist/undo/` | daftar favorit, hapus, dan undo |
+| `delete/`, `delete/email/`, `delete/confirm/<token>/` | konfirmasi penghapusan akun |
+
 ## Modul Product (Kayla)
 
 ### Fitur
@@ -260,6 +319,19 @@ python -m coverage report --show-missing
 
 Konfigurasi `.coveragerc` bawaan repository hanya mengukur app `accounts`, jadi perintah di atas memakai opsi sendiri.
 
+### Pengujian modul User
+
+Jalankan tes modul User dan laporan coverage dari root repository:
+
+```bash
+python manage.py test accounts.tests --verbosity 2
+python -m coverage run manage.py test accounts.tests
+python -m coverage report --show-missing
+python -m coverage html
+```
+
+Buka `htmlcov/index.html` untuk melihat baris dan cabang yang tercakup. Tes menggunakan database terpisah, email in-memory, dan mock pada integrasi tertentu. Skenarionya mencakup registrasi/login, validasi input, keunikan email, verifikasi dan kirim ulang email, profil/avatar, ganti/reset password, penghapusan akun, wishlist, My Products, pagination, CSRF, serta akses data antaruser. Persentase coverage harus dibaca dari hasil eksekusi terbaru; angka tersebut tidak membuktikan tampilan browser, Google OAuth, atau pengiriman SMTP nyata sudah diuji.
+
 **Functional test (Playwright):** mensimulasikan pengguna di browser sungguhan, misalnya filter search lewat HTMX, add to bag, wishlist, edit dan hapus listing, serta tampilan di HP.
 
 ```bash
@@ -298,13 +370,29 @@ Kami memakai AI sebagai asisten pemrograman dan menuliskannya secara terbuka di 
 | Alat | Dipakai oleh | Untuk apa |
 | ---- | ------------ | --------- |
 | **Claude Code** (asisten pemrograman dari Anthropic, dijalankan dari terminal/aplikasi desktop) | Kayla, modul Product | Menulis dan merapikan kode, menulis test, menambah animasi, menyusun CI, mereview kode, dan menjelaskan kode. |
+| **OpenAI Codex / ChatGPT** | Danar, modul User / Authentication | Membantu memahami Django dan pembagian modul, menganalisis desain, menyusun dan meninjau implementasi akun, pengujian, integrasi, serta dokumentasi. |
 
 <!-- Anggota lain: tambahkan baris untuk alat AI yang kalian pakai di modul masing-masing. -->
 
 ### Bagian yang dibantu AI (modul Product)
 
+### Bagian yang dibantu AI (modul User)
+
+- Membaca referensi Gaia User dan Gaia Design System, memetakan alur akun, serta menjelaskan penerapannya pada Django Templates, CSS, dan JavaScript.
+- Membantu pengembangan dan peninjauan form, view, model, template, serta pengujian untuk registrasi/login, profil dan avatar, verifikasi email, keamanan dan penghapusan akun, wishlist, My Products, serta tampilan My Orders.
+- Membantu audit akses berdasarkan kepemilikan, validasi input, email duplikat, akun Google tanpa password lokal, tautan email di belakang proxy PWS, dan ketergantungan antar-modul.
+- Menjelaskan unit test dan coverage, menjalankan pemeriksaan lokal, membantu operasi Git yang diminta, serta merapikan dokumentasi modul User.
+
+Rekaman percakapan yang disertakan oleh pengembang: [Percakapan Codex/ChatGPT untuk modul User](https://chatgpt.com/s/cx_6ae4a2e5c8bc81918c1238f575ae4137).
+
 ### Strategi prompt
+
+Untuk modul User, konteks diberikan berupa file proyek, referensi desain, materi tutorial, dan kebutuhan fitur. Permintaan dilakukan bertahap: membaca dan menganalisis terlebih dahulu, menjelaskan pilihan implementasi, lalu melakukan pekerjaan yang diminta. Audit dipersempit ke modul User saat diperlukan, dan temuan dibedakan antara tanggung jawab akun dengan integrasi Product, Transaksi, Chat, serta Review & Rating.
 
 ### Keterbatasan AI yang kami temui
 
+Pada modul User, saran awal AI perlu dicocokkan dengan versi kode terbaru dan pembagian tugas tim. Contohnya, audit sempat mencampur kekurangan akun dengan alur transaksi yang merupakan tanggung jawab modul lain. Coverage 100% juga tidak menjamin semua perilaku benar: audit lanjutan menemukan kasus khusus pada registrasi bersamaan, verifikasi email, akun Google, dan penghapusan akun dengan penjualan aktif. Hasil tes lokal tidak menjadi bukti bahwa konfigurasi OAuth/SMTP di PWS atau seluruh tampilan browser telah berfungsi.
+
 ### Yang dikerjakan atau diperbaiki manual
+
+Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, membahas kelayakan serta pembagian fitur, dan mengoordinasikan integrasi dengan anggota tim. Percakapan juga mencakup peninjauan hasil coverage yang dijalankan pengembang. Bantuan AI mencakup kode dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir terhadap perubahan, kesesuaian dengan tugas, dan perilaku aplikasi tetap menjadi tanggung jawab pengembang modul.
