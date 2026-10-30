@@ -18,7 +18,7 @@ def product_image_storage():
     Saat menjalankan `manage.py test`, Cloudinary sengaja tidak pernah dipakai walaupun
     CLOUDINARY_URL ada di .env: test nggak boleh upload ke akun asli atau butuh internet.
 
-    Foto chat dan foto profil tidak ikut: foto chat harus tetap privat.
+    Foto chat tidak ikut: foto chat harus tetap privat. Avatar memilih storage terpisah di accounts/avatar_storage.py.
     """
     if os.environ.get('CLOUDINARY_URL') and not _is_test_run():
         return _cloudinary_storage()

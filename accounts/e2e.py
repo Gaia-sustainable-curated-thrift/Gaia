@@ -238,3 +238,46 @@ class AccountBrowserTests(StaticLiveServerTestCase):
         page.get_by_role('button', name='Resend Verification Email').click()
         expect(page.locator('main')).to_contain_text('Please wait one minute')
         self.assert_preserved(page)
+
+
+    def test_bag_remove_works_after_login_rotates_csrf(self):
+        from products.models import Product
+        seller = get_user_model().objects.create_user('bag-seller')
+        product = Product.objects.create(seller=seller, title='Bag Test Coat', price=10)
+        page = self.page()
+        page.goto(self.url('login'))
+        token = page.locator('main [name=csrfmiddlewaretoken]').input_value()
+        page.request.post(self.url('products:bag_add', product.slug), form={'csrfmiddlewaretoken': token})
+        page.goto(self.url('login'))
+        page.locator('[name=username]').fill(self.user.email)
+        page.locator('[name=password]').fill('Circular!Fashion2026')
+        page.get_by_role('button', name='Log In', exact=True).click()
+        expect(page).to_have_url(self.url('profile'))
+        page.locator('.gaia-navbar [data-bag-toggle]').click()
+        with page.expect_response(lambda response: reverse('products:bag_set', args=[product.slug]) in response.url) as result:
+            page.locator('#bag-drawer').get_by_role('button', name='Remove Bag Test Coat from bag').click()
+        self.assertEqual(result.value.status, 200)
+        expect(page.locator('#bag-drawer .bag-item')).to_have_count(0)
+
+    def test_back_cancels_pending_navigation_and_ignores_its_response(self):
+        page = self.page(self.user)
+        page.goto(self.url('profile'))
+        self.mark(page)
+        page.get_by_role('link', name='Edit Profile', exact=True).click()
+        expect(page).to_have_url(self.url('edit_profile'))
+        routes = []
+        page.route('**/accounts/settings/', lambda route: routes.append(route))
+        page.locator('main').get_by_role('link', name='Account Settings', exact=True).click()
+        page.wait_for_timeout(150)
+        page.go_back()
+        expect(page).to_have_url(self.url('profile'))
+        expect(page.get_by_role('link', name='Edit Profile', exact=True)).to_be_visible()
+        self.assert_preserved(page)
+        page.wait_for_timeout(200)
+        expect(page).to_have_url(self.url('profile'))
+        for route in routes:
+            try:
+                route.abort()
+            except Exception:
+                pass
+        page.unroute('**/accounts/settings/')

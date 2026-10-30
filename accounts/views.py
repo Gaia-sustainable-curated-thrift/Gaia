@@ -34,7 +34,7 @@ def account_context(request, title, subtitle, active='profile', **extra):
 
 
 def _visible_wishlist_items(user):
-    sold_slugs = Product.objects.filter(status=Product.Status.SOLD).values('slug')
+    sold_slugs = Product.all_objects.filter(Q(status=Product.Status.SOLD) | Q(deleted_at__isnull=False)).values('slug')
     return user.wishlist_items.filter(removed=False).exclude(product_key__in=sold_slugs)
 
 

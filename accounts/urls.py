@@ -2,9 +2,10 @@ from django.contrib.auth import views as auth
 from django.urls import path
 from . import views
 from .forms import EmailAuthenticationForm
+from .throttling import sensitive_rate_limit
 
 urlpatterns = [
-    path('login/', auth.LoginView.as_view(template_name='registration/login.html', authentication_form=EmailAuthenticationForm, redirect_authenticated_user=True), name='login'),
+    path('login/', sensitive_rate_limit('login', 10, 60, 600)(auth.LoginView.as_view(template_name='registration/login.html', authentication_form=EmailAuthenticationForm, redirect_authenticated_user=True)), name='login'),
     path('logout/', auth.LogoutView.as_view(), name='logout'),
     path('register/', views.register, name='register'),
     path('created/', views.account_created, name='account_created'),
@@ -23,7 +24,7 @@ urlpatterns = [
     path('delete/confirm/<str:token>/', views.delete_account, name='delete_account_confirm'),
     path('settings/', views.account_settings, name='account_settings'),
     path('password/change/', views.ChangePasswordView.as_view(), name='password_change'),
-    path('password/reset/', auth.PasswordResetView.as_view(), name='password_reset'),
+    path('password/reset/', sensitive_rate_limit('reset', 3, 20, 3600)(auth.PasswordResetView.as_view()), name='password_reset'),
     path('password/reset/sent/', auth.PasswordResetDoneView.as_view(), name='password_reset_done'),
     path('password/reset/<uidb64>/<token>/', auth.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('password/reset/complete/', auth.PasswordResetCompleteView.as_view(), name='password_reset_complete'),

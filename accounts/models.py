@@ -1,11 +1,12 @@
 from django.conf import settings
 from django.db import models
 from .avatars import avatar_upload_path
+from .avatar_storage import avatar_storage
 
 
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
-    avatar = models.ImageField(upload_to=avatar_upload_path, blank=True)
+    avatar = models.ImageField(upload_to=avatar_upload_path, storage=avatar_storage, blank=True)
     phone = models.CharField(max_length=30, blank=True)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
@@ -64,3 +65,10 @@ class AccountOrder(models.Model):
 
     class Meta:
         ordering = ['-date', '-pk']
+
+
+class AccountRateLimit(models.Model):
+    """Shared authentication throttle buckets; keys contain only SHA-256 digests."""
+    key = models.CharField(max_length=64, primary_key=True)
+    count = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)

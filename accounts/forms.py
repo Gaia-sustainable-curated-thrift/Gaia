@@ -1,4 +1,5 @@
 from io import BytesIO
+import re
 from PIL import Image, ImageOps
 from django import forms
 from django.core.files.base import ContentFile
@@ -77,6 +78,15 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ['avatar', 'full_name', 'username', 'email', 'phone', 'city', 'country']
+
+    def clean_phone(self):
+        value = self.cleaned_data['phone'].strip()
+        if not re.fullmatch(r'\+?[0-9][0-9 ()-]*', value):
+            raise forms.ValidationError('Enter a valid phone number using digits, spaces, brackets or hyphens.')
+        digits = re.sub(r'[^0-9]', '', value)
+        if not 8 <= len(digits) <= 15:
+            raise forms.ValidationError('Phone number must contain 8 to 15 digits.')
+        return ('+' if value.startswith('+') else '') + digits
 
     def clean_avatar(self):
         upload = self.cleaned_data.get('avatar')

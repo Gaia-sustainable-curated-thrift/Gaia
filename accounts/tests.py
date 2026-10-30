@@ -360,7 +360,7 @@ class FormTests(TestCase):
         self.assertEqual(user.email, 'gaia@example.com')
         self.assertEqual(user.profile.city, 'Bandung')
         self.assertEqual(user.profile.country, 'Indonesia')
-        self.assertEqual(user.profile.phone, '+62 81234567890')
+        self.assertEqual(user.profile.phone, '+6281234567890')
 
     def test_profile_commit_false_does_not_persist_either_model(self):
         form = self.profile_form()
@@ -513,7 +513,7 @@ class UserViewTests(TestCase):
         self.assertEqual(self.client.get(reverse('verify_email', args=[token])).status_code, 404)
 
     def test_edit_profile_persists_and_rejects_invalid_input(self):
-        data = {'full_name': 'Updated Owner', 'username': 'updated', 'phone': '+62812',
+        data = {'full_name': 'Updated Owner', 'username': 'updated', 'phone': '+628123456789',
                 'city': 'Bandung', 'country': 'Indonesia'}
         response = self.client.post(reverse('edit_profile'), data)
         self.assertRedirects(response, reverse('profile'))
@@ -1740,7 +1740,7 @@ class RequiredProfileFieldsTests(TestCase):
         self.assertRedirects(response, reverse('profile'))
         self.user.refresh_from_db()
         self.assertEqual((self.user.profile.phone, self.user.profile.city, self.user.profile.country),
-                         ('+62 812 3456 7890', 'Bandung', 'Indonesia'))
+                         ('+6281234567890', 'Bandung', 'Indonesia'))
         self.assertFalse(self.user.profile.avatar)
         self.assertEqual(self.user.email, 'required@example.test')
 
@@ -1804,3 +1804,103 @@ class AccountValidationRegressionTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             b.save()
         self.assertEqual(User.objects.filter(username__iexact='sharedname').count(), 1)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+                   EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class AccountHardeningTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('hardening-owner', 'hardening@example.test', PASSWORD)
+        Profile.objects.create(user=self.user)
+
+    def test_login_aliases_share_a_limit_and_return_retry_after(self):
+        for index in range(10):
+            identifier = self.user.username if index % 2 else self.user.email.upper()
+            self.assertEqual(self.client.post(reverse('login'), {'username': identifier, 'password': 'bad'}).status_code, 200)
+        response = self.client.post(reverse('login'), {'username': self.user.email, 'password': PASSWORD})
+        self.assertEqual(response.status_code, 429)
+        self.assertGreater(int(response['Retry-After']), 0)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import AccountRateLimit
+        AccountRateLimit.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertEqual(self.client.post(reverse('login'), {'username': self.user.email, 'password': PASSWORD}).status_code, 302)
+
+    def test_reset_is_limited_across_browsers_and_unknown_emails_have_the_same_response(self):
+        for email in (self.user.email, 'unknown@example.test'):
+            for _ in range(3):
+                self.assertEqual(Client().post(reverse('password_reset'), {'email': email}).status_code, 302)
+            self.assertEqual(Client().post(reverse('password_reset'), {'email': email.upper()}).status_code, 429)
+        self.assertEqual(len(mail.outbox), 3)
+        from .models import AccountRateLimit
+        keys = list(AccountRateLimit.objects.values_list('key', flat=True))
+        self.assertTrue(all(len(key) == 64 and '@' not in key for key in keys))
+
+    def test_ip_limit_blocks_rotation_of_unknown_usernames(self):
+        for index in range(60):
+            self.client.post(reverse('login'), {'username': f'missing-{index}', 'password': 'bad'})
+        self.assertEqual(self.client.post(reverse('login'), {'username': 'another', 'password': 'bad'}).status_code, 429)
+        self.assertEqual(self.client.get(reverse('login')).status_code, 200)
+
+    def test_phone_validation_and_normalization(self):
+        data = {'full_name': 'Owner', 'username': self.user.username, 'city': 'Depok', 'country': 'Indonesia'}
+        for phone in ('ini bukan nomor', '123', '1234567890123456', '+62<script>', '12+3456789'):
+            form = ProfileForm({**data, 'phone': phone}, instance=self.user)
+            self.assertFalse(form.is_valid())
+            self.assertIn('phone', form.errors)
+        form = ProfileForm({**data, 'phone': '+62 (812) 3456-7890'}, instance=self.user)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['phone'], '+6281234567890')
+
+    def test_soft_deleted_wishlist_items_hide_and_restore_with_the_product(self):
+        from products.models import Product
+        seller = User.objects.create_user('hardening-seller')
+        product = Product.objects.create(seller=seller, title='Hidden Coat', price=1)
+        WishlistItem.objects.create(user=self.user, product_key=product.slug, title=product.title, price=1)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse('wishlist')), 'Hidden Coat')
+        product.soft_delete()
+        self.assertNotContains(self.client.get(reverse('wishlist')), 'Hidden Coat')
+        self.assertEqual(self.client.get(reverse('profile')).context['wishlist_count'], 0)
+        product.restore()
+        self.assertContains(self.client.get(reverse('wishlist')), 'Hidden Coat')
+
+    def test_avatar_storage_preserves_old_paths_and_routes_new_files_to_cloud(self):
+        from unittest.mock import Mock
+        from django.core.files.base import ContentFile
+        from .avatar_storage import PersistentAvatarStorage, PREFIX, avatar_storage
+        storage = PersistentAvatarStorage()
+        remote = Mock()
+        remote.save.return_value = 'media/avatars/new.jpg'
+        remote.url.return_value = 'https://cdn.example.test/avatar.jpg'
+        with patch.object(storage, 'remote', return_value=remote):
+            name = storage.save('avatars/new.jpg', ContentFile(b'photo'))
+            self.assertEqual(name, PREFIX + 'media/avatars/new.jpg')
+            self.assertEqual(storage.url(name), 'https://cdn.example.test/avatar.jpg')
+            storage.delete(name)
+            remote.delete.assert_called_once_with('media/avatars/new.jpg')
+        with patch('accounts.avatar_storage.default_storage') as local:
+            local.url.return_value = '/media/avatars/old.jpg'
+            self.assertEqual(storage.url('avatars/old.jpg'), '/media/avatars/old.jpg')
+            storage.delete('avatars/old.jpg')
+            local.delete.assert_called_once_with('avatars/old.jpg')
+        with patch.dict('os.environ', {'CLOUDINARY_URL': 'fake'}), patch('sys.argv', ['manage.py', 'test']):
+            from django.core.files.storage import default_storage
+            self.assertIs(avatar_storage(), default_storage)
+
+    def test_legacy_avatar_copy_keeps_local_backup_and_is_repeatable(self):
+        import tempfile
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        from .avatar_storage import PREFIX
+        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            name = default_storage.save('avatars/legacy.jpg', ContentFile(b'photo'))
+            Profile.objects.filter(user=self.user).update(avatar=name)
+            with patch.dict('os.environ', {'CLOUDINARY_URL': 'fake'}), patch('accounts.management.commands.persist_avatars.PersistentAvatarStorage') as cls:
+                cls.return_value.save.return_value = PREFIX + 'media/avatars/legacy.jpg'
+                call_command('persist_avatars', stdout=StringIO())
+                call_command('persist_avatars', stdout=StringIO())
+                self.assertEqual(cls.return_value.save.call_count, 1)
+            self.assertTrue(default_storage.exists(name))
+            self.assertTrue(Profile.objects.get(user=self.user).avatar.name.startswith(PREFIX))
