@@ -1,14 +1,15 @@
-"""Views for the product module.
+"""Views untuk modul Product.
 
-The file reads top to bottom in the order a visitor meets the shop:
-    1. small helpers shared by everything below
-    2. browsing: home, listing pages, search and the product detail page
-    3. selling: create, edit and delete a listing (owner only)
-    4. the shopping bag (kept in the session, so guests can use it too)
-    5. the wishlist (logged-in users only)
+Urutan file ini ngikutin alur pengunjung di toko:
+    1. helper kecil yang dipakai bagian-bagian di bawahnya
+    2. browsing: home, halaman listing, search, dan detail produk
+    3. jualan: bikin, edit, dan hapus listing (cuma pemiliknya)
+    4. shopping bag (disimpan di session, jadi tamu juga bisa pakai)
+    5. wishlist (harus login)
 
-Every action that changes something answers in two ways: AJAX requests get JSON
-so the page can update in place, normal form posts get a redirect with a toast.
+Setiap aksi yang ngubah data punya dua jenis jawaban: kalau request-nya AJAX,
+balasannya JSON supaya halaman bisa update tanpa reload; kalau form biasa,
+balasannya redirect plus toast.
 """
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -28,7 +29,7 @@ from .decorators import owner_required, rate_limit
 from .forms import ProductListingForm
 from .models import Category, Product, ProductImage
 
-# Fixed display order for departments and their categories in tabs and filters.
+# Urutan tampil departemen dan kategori di tab maupun filter, biar selalu konsisten.
 GENDER_ORDER = ['women', 'men']
 CATEGORY_NAMES = ['Tops', 'Bottoms', 'Shoes', 'Bags']
 CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
@@ -36,13 +37,14 @@ CONDITION_LABELS = {'signs_of_wear': 'Signs of Wear'}
 
 
 # ---------------------------------------------------------------------------
-# 1. Helpers
+# 1. Helper
 # ---------------------------------------------------------------------------
 
 def available_products():
-    """Listings shoppers can see, with the category and photos loaded up front.
+    """Listing yang masih dijual, lengkap dengan kategori dan fotonya.
 
-    select_related/prefetch_related avoid one extra query per product card.
+    select_related/prefetch_related dipakai supaya kategori dan foto diambil
+    sekaligus, bukan satu query tambahan untuk setiap card produk.
     """
     return (
         Product.objects
@@ -65,17 +67,20 @@ def _product_url(product):
 
 
 def _product_or_home(product):
-    # Sold listings have no public page, so send people home instead.
+    # Listing yang sudah sold nggak punya halaman publik, jadi arahkan ke home aja.
     return _product_url(product) if product.is_purchasable else reverse('products:home')
 
 
 def _toast(text, kind='added', **extra):
-    """The small message shown at the bottom of the page (see showToast in gaia.js)."""
+    """Pesan kecil yang muncul di bawah layar (ditampilkan oleh showToast di gaia.js)."""
     return {'kind': kind, 'text': text, **extra}
 
 
 def _redirect_back(request, fallback):
-    """Go back to the page the form came from (?next=), but only within this site."""
+    """Balik ke halaman asal form (?next=), tapi cuma kalau alamatnya masih di situs ini.
+
+    Ini mencegah open redirect, misalnya ?next=https://situs-jahat.com.
+    """
     target = request.POST.get('next') or request.GET.get('next')
     if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
         return redirect(target)
@@ -83,10 +88,10 @@ def _redirect_back(request, fallback):
 
 
 def department_categories(parent, slug):
-    """The four category tabs for a department, in a fixed order.
+    """Empat tab kategori untuk satu departemen, dengan urutan yang tetap.
 
-    Categories missing from the database still get a placeholder so the tabs
-    never jump around; they simply show an empty state.
+    Kalau kategorinya belum ada di database, tetap dibuatkan placeholder supaya
+    tab-nya nggak loncat-loncat; isinya cuma tampil kosong.
     """
     existing = {category.name.lower(): category for category in parent.children.all()} if parent and parent.pk else {}
     return [
@@ -102,7 +107,7 @@ def department_categories(parent, slug):
 def home(request):
     picked = available_products().order_by('-created_at')[:5]
 
-    # Women and men always appear, even before their categories are seeded.
+    # Tab Women dan Men selalu muncul, walaupun kategorinya belum di-seed.
     stored_parents = {parent.slug: parent for parent in Category.objects.filter(parent__isnull=True)}
     parents = [stored_parents.get(slug) or Category(name=slug.capitalize(), slug=slug) for slug in GENDER_ORDER]
     gender = request.GET.get('gender', 'women')
@@ -124,7 +129,10 @@ def home(request):
 
 
 def listing(request, gender=None):
-    """/shop/women/, /shop/men/ and /picked/ (everything). Category tabs filter in the browser."""
+    """Halaman /shop/women/, /shop/men/, dan /picked/ (semua produk).
+
+    Tab kategorinya (Tops, Bottoms, ...) menyaring card langsung di browser, tanpa request baru.
+    """
     parents = Category.objects.filter(parent__isnull=True)
     products = available_products()
 
@@ -167,7 +175,7 @@ def listing(request, gender=None):
 
 
 def _apply_search_filters(products, price_from, price_to, genders, categories, conditions):
-    # Price boxes are free text, so only whole numbers are used.
+    # Kolom harga itu input bebas, jadi cuma angka bulat yang dipakai; selain itu diabaikan.
     if price_from.isascii() and price_from.isdigit():
         products = products.filter(price__gte=int(price_from))
     if price_to.isascii() and price_to.isdigit():
@@ -182,10 +190,10 @@ def _apply_search_filters(products, price_from, price_to, genders, categories, c
 
 
 def _search_facets(matches, genders, categories, conditions):
-    """Checkbox options for the filter panel, each with how many matches it has.
+    """Pilihan checkbox di panel filter, masing-masing dengan jumlah produknya.
 
-    Counts come from all matches for the search term, not the filtered list, so
-    ticking a box never makes the other options disappear.
+    Jumlahnya dihitung dari semua hasil kata kunci, bukan dari hasil yang sudah
+    difilter, supaya opsi lain nggak tiba-tiba hilang waktu satu checkbox dicentang.
     """
     gender_options = [
         {
@@ -200,7 +208,7 @@ def _search_facets(matches, genders, categories, conditions):
         )
     ]
 
-    # "Tops" exists under both Women and Men; show it once.
+    # "Tops" ada di Women dan Men, jadi cukup ditampilkan sekali.
     category_options = []
     seen = set()
     child_categories = sorted(
@@ -235,7 +243,7 @@ def search(request):
         request.session['bag_toast'] = _toast('Enter a search term.', kind='error')
         return redirect('products:home')
 
-    # Everything that matches the search term, before any filter is applied.
+    # Semua produk yang cocok sama kata kunci, sebelum filter apa pun diterapkan.
     matches = available_products().select_related('category__parent').filter(
         Q(title__icontains=q)
         | Q(description__icontains=q)
@@ -254,14 +262,14 @@ def search(request):
     result_count = products.count()
     gender_options, category_options, condition_options = _search_facets(matches, genders, categories, conditions)
 
-    # The filter form uses HTMX (see search.html): it asks for this same page and
-    # swaps in only the results and the count, so no special response is needed.
+    # Form filter pakai HTMX (lihat search.html): dia minta halaman yang sama ini, lalu
+    # cuma bagian hasil dan jumlahnya yang diganti, jadi view-nya nggak perlu dibedakan.
     return render(request, 'products/search.html', {
         'q': q,
         'products': products[:60],
         'result_count': result_count,
-        # Keep the filter panel while the term itself matches something, so
-        # filtering down to zero results never hides the way back.
+        # Panel filter tetap ditampilkan selama kata kuncinya ada hasil, supaya kalau
+        # filternya bikin hasil jadi kosong, user masih bisa balik ngubah filter.
         'has_matches': result_count > 0 or matches.exists(),
         'price_from': price_from,
         'price_to': price_to,
@@ -278,18 +286,18 @@ def detail(request, slug):
         .prefetch_related('images'),
         slug=slug,
     )
-    # Sold listings leave the shop, but their owner can still open, edit or delete them.
+    # Listing sold hilang dari toko, tapi pemiliknya masih bisa buka, edit, atau hapus.
     if not product.is_purchasable and not _is_own_listing(request, product):
         raise Http404('Listing is no longer available')
 
-    # Cover photo first, then the rest in their saved order.
+    # Foto cover ditaruh paling depan, sisanya sesuai urutan yang disimpan.
     images = list(product.images.all())
     primary = product.primary_image
     if primary in images:
         images.remove(primary)
         images.insert(0, primary)
 
-    # "Also see": other listings from the same category, or anything if it has none.
+    # "Also see": produk lain dari kategori yang sama; kalau nggak ada, tampilkan produk apa aja.
     related = available_products().exclude(pk=product.pk)
     if product.category_id:
         same_category = related.filter(category=product.category)
@@ -307,23 +315,23 @@ def detail(request, slug):
 
 
 # ---------------------------------------------------------------------------
-# 3. Selling: create, edit and delete a listing
+# 3. Jualan: bikin, edit, dan hapus listing
 # ---------------------------------------------------------------------------
 
 def _listing_form_page(request, product=None):
-    """Shared by "List an item" (product is None) and "Edit listing"."""
+    """Dipakai bareng oleh "List an item" (product = None) dan "Edit listing"."""
     editing = product is not None
     is_post = request.method == 'POST'
     existing_images = list(product.images.all()) if editing else []
     form = ProductListingForm(request.POST if is_post else None, request.FILES if is_post else None, instance=product)
 
     if is_post and form.is_valid():
-        # Save the listing and its new photos together: either all of it is stored or none.
+        # Listing dan foto barunya disimpan dalam satu transaksi: berhasil semua, atau batal semua.
         with transaction.atomic():
             product = form.save(commit=False)
             product.seller = request.user
             product.save()
-            # New photos go after the existing ones; a brand-new listing's first photo becomes the cover.
+            # Foto baru ditaruh setelah foto yang sudah ada; untuk listing baru, foto pertama jadi cover.
             next_order = max((image.order for image in existing_images), default=-1) + 1
             for index, photo in enumerate(form.cleaned_data['photos']):
                 ProductImage.objects.create(
@@ -335,7 +343,7 @@ def _listing_form_page(request, product=None):
         if editing or _is_ajax(request):
             request.session['bag_toast'] = _toast(message)
         if _is_ajax(request):
-            # The sell form is sent with fetch(); gaia.js follows redirect_url.
+            # Form jual dikirim pakai fetch(); JS-nya yang nanti pindah ke redirect_url.
             return JsonResponse({
                 'ok': True,
                 'product_id': product.pk,
@@ -345,7 +353,7 @@ def _listing_form_page(request, product=None):
         return redirect(_product_url(product))
 
     if is_post and _is_ajax(request):
-        # Validation errors go back as JSON so the form can show them without reloading.
+        # Error validasi dikirim balik sebagai JSON supaya form bisa menampilkannya tanpa reload.
         return JsonResponse({
             'ok': False,
             'errors': {field: list(messages) for field, messages in form.errors.items()},
@@ -377,7 +385,7 @@ def sell(request):
 @rate_limit('listing-edit', limit=30, window=10 * 60)
 @owner_required(lambda: Product.objects.select_related('category__parent').prefetch_related('images'))
 def edit(request, product):
-    # owner_required already looked the listing up and checked it belongs to this user.
+    # owner_required sudah ngambil listing-nya dan memastikan ini milik user yang login.
     return _listing_form_page(request, product)
 
 
@@ -388,14 +396,14 @@ def edit(request, product):
 def delete_listing(request, product):
     product_id = product.pk
     product.delete()
-    # Clean up the seller's own session in case the listing was still mentioned there.
+    # Bersihkan juga bag dan data undo di session seller, kalau listing ini masih tercatat di sana.
     cart.remove(request.session, product_id)
     if request.session.get('bag_undo', {}).get('product_id') == product_id:
         request.session.pop('bag_undo')
 
     toast = _toast('Listing deleted.')
     if _is_ajax(request):
-        # Deleting from a product card: gaia.js removes the card itself.
+        # Hapus dari card produk: card-nya dihapus sendiri oleh JS di halaman.
         return JsonResponse({'ok': True, 'toast': toast, 'product_id': product_id})
     request.session['bag_toast'] = toast
     return _redirect_back(request, reverse('products:home'))
@@ -406,8 +414,8 @@ def delete_listing(request, product):
 # ---------------------------------------------------------------------------
 
 def _bag_json(request, *, toast=None, open_drawer=False, status=200):
-    """What every bag action returns to gaia.js: the new count, which listings are
-    in the bag (so each "Add to bag" button can update) and the redrawn drawer."""
+    """Jawaban semua aksi bag untuk JS: jumlah item terbaru, daftar produk yang ada
+    di bag (supaya tiap tombol "Add to bag" bisa ikut berubah), dan isi drawer yang baru."""
     items = cart.items(request.session)
     context = {
         'bag_items': items,
@@ -421,7 +429,7 @@ def _bag_json(request, *, toast=None, open_drawer=False, status=200):
         'bag_count': context['bag_count'],
         'bag_slugs': [item['product'].slug for item in items],
         'drawer': render_to_string('includes/bag_drawer_body.html', context, request=request),
-        # The "Item removed / Undo" bar lives inside the drawer HTML, not in a toast.
+        # Notifikasi "Item removed / Undo" sudah ada di dalam HTML drawer, jadi bukan toast.
         'toast': toast if toast and toast.get('kind') in ('added', 'error') else None,
         'open': open_drawer,
     }, status=status)
@@ -437,7 +445,7 @@ def _bag_error(request, text, fallback, *, open_drawer=False, status=409):
 
 
 def _bag_done(request, toast, fallback, *, open_drawer=False):
-    """Successful bag action: JSON for AJAX, otherwise a redirect with the toast."""
+    """Aksi bag yang berhasil: JSON untuk AJAX, kalau bukan AJAX redirect plus toast."""
     if _is_ajax(request):
         return _bag_json(request, toast=toast, open_drawer=open_drawer)
     request.session['bag_toast'] = toast
@@ -464,7 +472,7 @@ def bag_add(request, slug):
 @require_POST
 @rate_limit('bag', limit=60, window=60)
 def bag_remove(request, slug):
-    """Pressing "Added to bag" again takes the item back out."""
+    """Dipanggil waktu tombol "Added to bag" dipencet lagi, buat ngeluarin item dari bag."""
     product = get_object_or_404(Product, slug=slug)
     in_bag = cart.quantity_for(request.session, product.pk) > 0
     cart.remove(request.session, product.pk)
@@ -475,7 +483,7 @@ def bag_remove(request, slug):
 @require_POST
 @rate_limit('bag', limit=60, window=60)
 def bag_set(request, slug):
-    """Used by the drawer: quantity 0 removes the item and offers Undo."""
+    """Dipakai di drawer bag: quantity 0 artinya item dihapus, lalu muncul tombol Undo."""
     product = get_object_or_404(Product, slug=slug)
     try:
         quantity = int(request.POST.get('quantity', ''))
@@ -494,7 +502,7 @@ def bag_set(request, slug):
         previous = cart.quantity_for(request.session, product.pk)
         cart.remove(request.session, product.pk)
         if previous:
-            # Remember what was removed so the Undo button can put it back.
+            # Simpan item yang barusan dihapus supaya tombol Undo bisa mengembalikannya.
             request.session['bag_undo'] = {'product_id': product.pk, 'quantity': previous}
             toast = _toast('Item removed', kind='removed', undo=True)
     else:
@@ -524,7 +532,7 @@ def bag_undo(request):
 # ---------------------------------------------------------------------------
 
 def _wish_login_required(request, product):
-    # Guests are sent to log in and come back to the product page afterwards.
+    # Tamu diarahkan ke login dulu, lalu balik lagi ke halaman produk setelahnya.
     login_response = redirect_to_login(_product_url(product), settings.LOGIN_URL)
     if _is_ajax(request):
         return JsonResponse({'ok': False, 'login_url': login_response.url}, status=401)
@@ -556,8 +564,8 @@ def wish_add(request, slug):
         request.session['bag_toast'] = toast
         return redirect(_product_url(product))
 
-    # The wishlist keeps a snapshot (title, price, photo) so it still reads well
-    # if the listing changes later. Saving again simply restores a removed item.
+    # Wishlist menyimpan salinan judul, harga, dan foto, jadi tetap rapi walaupun listing-nya
+    # berubah nanti. Kalau item yang pernah dihapus disimpan lagi, datanya cukup dipulihkan.
     image = product.primary_image
     WishlistItem.objects.update_or_create(
         user=request.user,
@@ -581,7 +589,7 @@ def wish_remove(request, slug):
     if not request.user.is_authenticated:
         return _wish_login_required(request, product)
 
-    # Marked as removed rather than deleted, which is what the account page's Undo relies on.
+    # Ditandai removed, bukan dihapus dari database, karena tombol Undo di halaman akun butuh data ini.
     WishlistItem.objects.filter(user=request.user, product_key=product.slug, removed=False).update(removed=True)
     toast = _toast(f'Removed “{product.title}” from wishlist', icon='heart')
     return _wish_response(request, product, saved=False, toast=toast)
