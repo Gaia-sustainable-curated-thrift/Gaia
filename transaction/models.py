@@ -32,6 +32,9 @@ class ProductReservation(models.Model):
 class TransactionOrderState(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
+        PAID = "paid", "Paid"
+        IN_TRANSIT = "in_transit", "In Transit"
+        COMPLETED = "completed", "Completed"
         CANCELLED = "cancelled", "Cancelled"
         EXPIRED = "expired", "Expired"
 
@@ -40,13 +43,11 @@ class TransactionOrderState(models.Model):
         on_delete=models.CASCADE,
         related_name="transaction_state",
     )
-
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
         default=Status.ACTIVE,
     )
-
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

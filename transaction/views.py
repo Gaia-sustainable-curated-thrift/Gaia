@@ -1,7 +1,9 @@
+
 import uuid
 from datetime import timedelta
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
 from django.db import transaction as db_transaction
@@ -17,30 +19,92 @@ from .forms import PaymentMethodForm, ShippingAddressForm
 from .models import ProductReservation, TransactionOrderState
 
 
+# =========================================================
+# HELPER
+# =========================================================
+
+def get_order_state(order):
+    state, _ = TransactionOrderState.objects.get_or_create(
+        order=order
+    )
+    return state
+
+
+def expire_reservations():
+    expired_reservations = ProductReservation.objects.filter(
+        expires_at__lte=timezone.now()
+    ).select_related("order")
+
+    for reservation in expired_reservations:
+        with db_transaction.atomic():
+            order = AccountOrder.objects.select_for_update().filter(
+                pk=reservation.order_id
+            ).first()
+
+            if not order:
+                reservation.delete()
+                continue
+
+            state = get_order_state(order)
+
+            if (
+                state.status == TransactionOrderState.Status.ACTIVE
+                and order.status == AccountOrder.Status.AWAITING_PAYMENT
+            ):
+                state.status = TransactionOrderState.Status.EXPIRED
+                state.save()
+
+                reservation.delete()
+
+            elif state.status in (
+                TransactionOrderState.Status.CANCELLED,
+                TransactionOrderState.Status.EXPIRED,
+            ):
+                reservation.delete()
+
+
+# =========================================================
+# CHECKOUT
+# =========================================================
+
 @login_required
 def checkout(request):
-    expire_reservations();
+    expire_reservations()
+
     cart_items = cart.items(request.session)
-    if any(item["quantity"] != 1 for item in cart_items):
-        messages.error(
-            request,
-            "Each thrift product can only be purchased once."
-        )
-    return redirect("transaction:checkout")
 
     if not cart_items:
         messages.info(request, "Your bag is empty.")
         return redirect("products:home")
 
-    if any(not item["product"].is_purchasable for item in cart_items):
+    product_ids = [
+        item["product"].pk for item in cart_items
+    ]
+
+    if (
+        any(item["quantity"] != 1 for item in cart_items)
+        or len(product_ids) != len(set(product_ids))
+    ):
+        messages.error(
+            request,
+            "Each thrift product can only be purchased once."
+        )
+        return redirect("products:home")
+
+    if any(
+        not item["product"].is_purchasable
+        for item in cart_items
+    ):
         messages.warning(
             request,
             "Some items in your bag are no longer available."
         )
         return redirect("products:home")
 
-    # Mulai checkout baru.
-    request.session.pop("transaction_completed_orders", None)
+    request.session.pop(
+        "transaction_completed_orders",
+        None,
+    )
 
     if request.method == "POST":
         address_form = ShippingAddressForm(request.POST)
@@ -50,10 +114,14 @@ def checkout(request):
                 address_form.cleaned_data
             )
             request.session.modified = True
+
             return redirect("transaction:shipping")
+
     else:
         address_form = ShippingAddressForm(
-            initial=request.session.get("transaction_address", {})
+            initial=request.session.get(
+                "transaction_address", {}
+            )
         )
 
     return render(
@@ -67,16 +135,20 @@ def checkout(request):
     )
 
 
+# =========================================================
+# SHIPPING
+# =========================================================
+
 @login_required
 def shipping(request):
-    # Ambil alamat yang sebelumnya disimpan di session.
-    saved_address = request.session.get("transaction_address", {})
+    saved_address = request.session.get(
+        "transaction_address", {}
+    )
 
     if request.method == "POST":
         address_form = ShippingAddressForm(request.POST)
 
         if address_form.is_valid():
-            # Simpan alamat yang sudah diperbarui.
             request.session["transaction_address"] = (
                 address_form.cleaned_data
             )
@@ -86,9 +158,10 @@ def shipping(request):
                 request,
                 "Shipping address updated successfully."
             )
+
             return redirect("transaction:payment")
+
     else:
-        # Isi form dengan alamat sebelumnya agar bisa diedit.
         address_form = ShippingAddressForm(
             initial=saved_address
         )
@@ -102,6 +175,10 @@ def shipping(request):
         },
     )
 
+
+# =========================================================
+# PAYMENT METHOD
+# =========================================================
 
 @login_required
 def payment(request):
@@ -124,7 +201,9 @@ def payment(request):
                 payment_form.cleaned_data["payment_method"]
             )
             request.session.modified = True
+
             return redirect("transaction:confirmation")
+
     else:
         payment_form = PaymentMethodForm(
             initial={
@@ -144,9 +223,12 @@ def payment(request):
     )
 
 
+# =========================================================
+# ORDER CONFIRMATION / CREATE ORDER
+# =========================================================
+
 @login_required
 def confirmation(request):
-    # Jika pesanan sudah dibuat, refresh tidak membuat pesanan baru.
     completed_ids = request.session.get(
         "transaction_completed_orders"
     )
@@ -155,7 +237,9 @@ def confirmation(request):
         orders = AccountOrder.objects.filter(
             user=request.user,
             pk__in=completed_ids,
-        ).select_related("transaction_state").order_by("pk")
+        ).select_related(
+            "transaction_state"
+        ).order_by("pk")
 
         return render(
             request,
@@ -177,13 +261,22 @@ def confirmation(request):
         )
         return redirect("transaction:checkout")
 
-    
     if request.method == "POST":
         created_orders = []
 
         product_ids = [
             item["product"].pk for item in cart_items
         ]
+
+        if (
+            any(item["quantity"] != 1 for item in cart_items)
+            or len(product_ids) != len(set(product_ids))
+        ):
+            messages.error(
+                request,
+                "Each thrift product can only be purchased once."
+            )
+            return redirect("transaction:checkout")
 
         try:
             with db_transaction.atomic():
@@ -194,7 +287,7 @@ def confirmation(request):
                     )
                 }
 
-                # Validasi produk dan reservasi yang masih aktif.
+                # Validasi seluruh produk terlebih dahulu.
                 for item in cart_items:
                     product = products.get(item["product"].pk)
 
@@ -210,23 +303,28 @@ def confirmation(request):
                         product=product
                     ).first()
 
-                    if reservation:
-                        if not reservation.is_expired:
-                            messages.error(
-                                request,
-                                "A product in your bag is currently reserved."
-                            )
-                            return redirect("transaction:checkout")
+                    if reservation and not reservation.is_expired:
+                        messages.error(
+                            request,
+                            "A product in your bag is currently reserved."
+                        )
+                        return redirect("transaction:checkout")
 
-                        # Hapus reservasi yang sudah kedaluwarsa.
-                        reservation.delete()
+                # Hapus reservasi lama yang sudah kedaluwarsa.
+                ProductReservation.objects.filter(
+                    product_id__in=product_ids,
+                    expires_at__lte=timezone.now(),
+                ).delete()
 
                 batch = uuid.uuid4().hex[:10].upper()
+
                 payment_labels = dict(
                     PaymentMethodForm.PAYMENT_CHOICES
                 )
 
-                for index, item in enumerate(cart_items, start=1):
+                for index, item in enumerate(
+                    cart_items, start=1
+                ):
                     product = products[item["product"].pk]
                     image = product.primary_image
 
@@ -250,16 +348,18 @@ def confirmation(request):
                         ),
                         payment_method=payment_labels[payment_method],
                     )
+
                     TransactionOrderState.objects.create(
                         order=order,
                         status=TransactionOrderState.Status.ACTIVE,
                     )
 
-                    # Reservasi produk selama 15 menit.
                     ProductReservation.objects.create(
                         product=product,
                         order=order,
-                        expires_at=timezone.now() + timedelta(minutes=15),
+                        expires_at=(
+                            timezone.now() + timedelta(minutes=15)
+                        ),
                     )
 
                     created_orders.append(order)
@@ -299,7 +399,6 @@ def confirmation(request):
 @login_required
 @require_POST
 def place_order(request):
-    # Form konfirmasi dikirim ke view confirmation.
     return redirect("transaction:confirmation")
 
 
@@ -314,12 +413,13 @@ def cancel_order(request, order_id):
             user=request.user,
         )
 
-        order_state, _ = TransactionOrderState.objects.get_or_create(
-            order=order
-        )
+        state = get_order_state(order)
 
-        if order_state.status != TransactionOrderState.Status.ACTIVE:
-            messages.warning(request, "This order is no longer active.")
+        if state.status != TransactionOrderState.Status.ACTIVE:
+            messages.warning(
+                request,
+                "This order is no longer active."
+            )
             return redirect("transaction:confirmation")
 
         if order.status != AccountOrder.Status.AWAITING_PAYMENT:
@@ -329,33 +429,128 @@ def cancel_order(request, order_id):
             )
             return redirect("transaction:confirmation")
 
-        order_state.status = TransactionOrderState.Status.CANCELLED
-        order_state.save()
+        state.status = TransactionOrderState.Status.CANCELLED
+        state.save()
 
-        # Lepaskan reservasi produk.
-        ProductReservation.objects.filter(order=order).delete()
+        ProductReservation.objects.filter(
+            order=order
+        ).delete()
 
-    messages.success(request, "Your order has been cancelled.")
+    messages.success(
+        request,
+        "Your order has been cancelled."
+    )
+
     return redirect("transaction:confirmation")
 
-def expire_reservations():
-    expired_reservations = ProductReservation.objects.filter(
-        expires_at__lte=timezone.now()
-    ).select_related("order")
 
-    for reservation in expired_reservations:
-        with db_transaction.atomic():
-            order = AccountOrder.objects.select_for_update().get(
-                pk=reservation.order_id
+@staff_member_required
+@require_POST
+def confirm_payment(request, order_id):
+    with db_transaction.atomic():
+        order = get_object_or_404(
+            AccountOrder.objects.select_for_update(),
+            pk=order_id,
+        )
+
+        state = get_order_state(order)
+
+        if (
+            order.status != AccountOrder.Status.AWAITING_PAYMENT
+            or state.status != TransactionOrderState.Status.ACTIVE
+        ):
+            messages.error(
+                request,
+                "Order cannot be marked as paid."
             )
+            return redirect("transaction:confirmation")
 
-            state, _ = TransactionOrderState.objects.get_or_create(
+        reservation = ProductReservation.objects.filter(
+            order=order
+        ).first()
+
+        if not reservation or reservation.is_expired:
+            state.status = TransactionOrderState.Status.EXPIRED
+            state.save()
+
+            ProductReservation.objects.filter(
                 order=order
+            ).delete()
+
+            messages.error(
+                request,
+                "Payment period has expired."
             )
+            return redirect("transaction:confirmation")
 
-            if state.status == TransactionOrderState.Status.ACTIVE:
-                if order.status == AccountOrder.Status.AWAITING_PAYMENT:
-                    state.status = TransactionOrderState.Status.EXPIRED
-                    state.save()
+        state.status = TransactionOrderState.Status.PAID
+        state.save()
 
-            reservation.delete()
+    messages.success(request, "Payment confirmed.")
+
+    return redirect("transaction:confirmation")
+
+
+@staff_member_required
+@require_POST
+def ship_order(request, order_id):
+    with db_transaction.atomic():
+        order = get_object_or_404(
+            AccountOrder.objects.select_for_update(),
+            pk=order_id,
+        )
+
+        state = get_order_state(order)
+
+        if state.status != TransactionOrderState.Status.PAID:
+            messages.error(
+                request,
+                "Order has not been paid."
+            )
+            return redirect("transaction:confirmation")
+
+        order.status = AccountOrder.Status.IN_TRANSIT
+        order.save(update_fields=["status"])
+
+        state.status = TransactionOrderState.Status.IN_TRANSIT
+        state.save()
+
+    messages.success(request, "Order marked as shipped.")
+
+    return redirect("transaction:confirmation")
+
+
+@login_required
+@require_POST
+def complete_order(request, order_id):
+    with db_transaction.atomic():
+        order = get_object_or_404(
+            AccountOrder.objects.select_for_update(),
+            pk=order_id,
+            user=request.user,
+        )
+
+        state = get_order_state(order)
+
+        if (
+            order.status != AccountOrder.Status.IN_TRANSIT
+            or state.status != TransactionOrderState.Status.IN_TRANSIT
+        ):
+            messages.error(
+                request,
+                "Order cannot be completed yet."
+            )
+            return redirect("transaction:confirmation")
+
+        order.status = AccountOrder.Status.COMPLETED
+        order.save(update_fields=["status"])
+
+        state.status = TransactionOrderState.Status.COMPLETED
+        state.save()
+
+    messages.success(
+        request,
+        "Order completed. You can now submit a review."
+    )
+
+    return redirect("transaction:confirmation")

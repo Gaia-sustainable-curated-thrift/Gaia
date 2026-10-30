@@ -15,4 +15,19 @@ urlpatterns = [
         views.cancel_order,
         name="cancel_order",
     ),
+    path(
+    "orders/<int:order_id>/confirm-payment/",
+    views.confirm_payment,
+    name="confirm_payment",
+),
+path(
+    "orders/<int:order_id>/ship/",
+    views.ship_order,
+    name="ship_order",
+),
+path(
+    "orders/<int:order_id>/complete/",
+    views.complete_order,
+    name="complete_order",
+),
 ]
