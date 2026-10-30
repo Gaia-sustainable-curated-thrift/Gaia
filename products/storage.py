@@ -21,7 +21,19 @@ def product_image_storage():
     Foto chat dan foto profil tidak ikut: foto chat harus tetap privat.
     """
     if os.environ.get('CLOUDINARY_URL') and not _is_test_run():
-        # Di-import di sini karena library-nya langsung error kalau diimpor tanpa kredensial.
-        from cloudinary_storage.storage import MediaCloudinaryStorage
-        return MediaCloudinaryStorage()
+        return _cloudinary_storage()
     return default_storage
+
+
+def _cloudinary_storage():
+    # Di-import di sini karena library-nya langsung error kalau diimpor tanpa kredensial.
+    from cloudinary_storage.storage import MediaCloudinaryStorage
+
+    class ProductPhotoStorage(MediaCloudinaryStorage):
+        def delete(self, name):
+            # Cloudinary menghapus berdasarkan public_id: pakai awalan "media/" dan tanpa
+            # ekstensi. Nama di database bisa berupa 'products/2026/10/foto.jpg' (foto lama)
+            # atau 'media/products/2026/10/foto_ab12' (upload baru), jadi diseragamkan dulu.
+            return super().delete(os.path.splitext(self._prepend_prefix(name))[0])
+
+    return ProductPhotoStorage()

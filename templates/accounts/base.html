@@ -1,13 +1,13 @@
-{% load static %}<!DOCTYPE html>
+{% load static asset_version %}<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>
 {% block title %}{{ title|default:"My Account" }}
 {% endblock %} · GAIA</title><link rel="stylesheet" href="{% static 'css/accounts.css' %}"><script src="{% static 'js/accounts.js' %}" defer></script>
 <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
     <script src="{% static 'js/navigation.js' %}" defer></script>
-<link rel="stylesheet" href="{% static 'css/gaia.css' %}">
-<link rel="stylesheet" href="{% static 'css/navbar.css' %}">
-    <script src="{% static 'js/gaia.js' %}" defer></script>
+<link rel="stylesheet" href="{% versioned_static 'css/gaia.css' %}">
+<link rel="stylesheet" href="{% versioned_static 'css/navbar.css' %}">
+    <script src="{% versioned_static 'js/gaia.js' %}" defer></script>
 {% block extra_css %}{% endblock %}
 </head>
 <body id="top">

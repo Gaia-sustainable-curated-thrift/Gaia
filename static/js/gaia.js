@@ -124,12 +124,23 @@
         el.className = 'toast toast--' + toast.kind;
         el.setAttribute('role', toast.kind === 'error' ? 'alert' : 'status');
         el.setAttribute('data-toast', '');
-        el.setAttribute('data-toast-duration', '4000');
+        // A toast with an Undo button stays longer, so there is time to press it.
+        var duration = toast.undo_url ? 8000 : 4000;
+        el.setAttribute('data-toast-duration', String(duration));
 
         var text = document.createElement('span');
         text.className = 'toast__text';
         text.textContent = toast.text;
         el.appendChild(text);
+
+        if (toast.undo_url) {
+            var undo = document.createElement('button');
+            undo.type = 'button';
+            undo.className = 'toast__undo';
+            undo.textContent = 'Undo';
+            undo.addEventListener('click', function () { runUndo(toast, undo); });
+            el.appendChild(undo);
+        }
 
         if (toast.icon) {
             var icon = document.createElement('span');
@@ -149,7 +160,32 @@
         } else {
             document.body.appendChild(el);
         }
-        dismissToast(el, 4000);
+        dismissToast(el, duration);
+    }
+
+    // Undo on a toast (for example after deleting a listing): ask the server to restore it,
+    // then reload the page, or go to the restored listing when the page can't show it again.
+    function runUndo(toast, button) {
+        var field = document.querySelector('[name=csrfmiddlewaretoken]');
+        var cookie = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        button.disabled = true;
+        fetch(toast.undo_url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': field ? field.value : (cookie ? decodeURIComponent(cookie[1]) : '')
+            },
+            credentials: 'same-origin'
+        }).then(function (response) {
+            return response.json();
+        }).then(function (data) {
+            if (!data || data.ok !== true) throw new Error('Undo refused');
+            if (toast.undo_reload) window.location.reload();
+            else window.location.assign(data.redirect_url);
+        }).catch(function () {
+            button.disabled = false;
+            showToast({ kind: 'error', text: 'Could not undo this. Please try again.' });
+        });
     }
 
     function prefersReducedMotion() {

@@ -2273,3 +2273,58 @@
 @media (prefers-reduced-motion: reduce) { .search-results { transition: none; } }
 .product-card.is-removing { opacity: 0; transform: scale(0.94); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; }
 @media (prefers-reduced-motion: reduce) { .product-card.is-removing { transition: none; } }
+
+/* Undo button inside a toast (e.g. after deleting a listing). */
+.toast__undo-form { display: contents; }
+.toast__undo {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--wine);
+    text-decoration: underline;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.toast__undo:disabled { opacity: 0.5; cursor: progress; }
+@media (max-width: 640px) { .toast__undo { font-size: 12px; } }
+
+/* Saved photo marked for removal in the edit form (applied when the listing is saved). */
+.sell-photo[hidden] { display: none; }
+.sell-photo.is-removed > img { opacity: 0.3; filter: grayscale(1); }
+.sell-photo.is-removed .sell-photo__cover { display: none; }
+.sell-photo img { transition: opacity 200ms ease, filter 200ms ease; }
+.sell-photo__remove { transition: background-color 160ms ease, transform 120ms ease; }
+.sell-photo__remove:hover { background: var(--canvas); }
+.sell-photo__remove:active { transform: scale(0.92); }
+@media (prefers-reduced-motion: reduce) {
+    .sell-photo img,
+    .sell-photo__remove { transition: none; }
+}
+
+/* Photos can be dragged to reorder them; the first one is the cover. */
+.sell-photo { cursor: grab; user-select: none; -webkit-user-select: none; }
+.sell-photo img { pointer-events: none; -webkit-user-drag: none; }
+.sell-photo:focus-visible { outline: 3px solid var(--wine); outline-offset: 3px; }
+.sell-photo.is-dragging {
+    z-index: 20;
+    cursor: grabbing;
+    opacity: 0.92;
+    box-shadow: 0 16px 40px rgba(37, 39, 16, 0.28);
+    transition: none;
+}
+.sell-photo.drop-before::after,
+.sell-photo.drop-after::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    width: 6px;
+    border-radius: 6px;
+    background: var(--wine);
+    z-index: 10;
+}
+.sell-photo.drop-before::after { left: 4px; }
+.sell-photo.drop-after::after { right: 4px; }
