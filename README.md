@@ -2,33 +2,22 @@
 
 **Gaia** adalah platform marketplace thrifting untuk membeli dan menjual pakaian bekas layak pakai. Melalui konsep **circular fashion**, Gaia ingin memberikan pakaian kesempatan kedua sekaligus mengurangi limbah *fast fashion*.
 
-| | |
+| Informasi | Keterangan |
 | --- | --- |
 | **Aplikasi (deployed)** | https://danar-iqbal-gaia.pws.cs.ui.ac.id |
 | **Desain** | [Gaia di Figma](https://www.figma.com/design/gTTsLkfL1qaaPdEomnRfKf/Gaia?node-id=1-4&t=S3z03qUIKvsz1lNL-1) |
 | **Deployment** | PWS, otomatis lewat GitHub Actions setelah semua test lulus |
 
-## Tampilan Aplikasi
+## Daftar Isi
 
-| Beranda (desktop) | Beranda (mobile) |
-| :---: | :---: |
-| ![Beranda desktop](docs/screenshots/home-desktop.jpg) | ![Beranda mobile](docs/screenshots/home-mobile.jpg) |
-
-| Halaman listing | Search dengan filter |
-| :---: | :---: |
-| ![Listing](docs/screenshots/listing.jpg) | ![Search dan filter](docs/screenshots/search-filter.jpg) |
-
-| Detail produk (pembeli) | Shopping bag |
-| :---: | :---: |
-| ![Detail produk](docs/screenshots/product-detail.jpg) | ![Shopping bag](docs/screenshots/bag-drawer.jpg) |
-
-| Detail produk (pemilik listing) | Form jual / edit |
-| :---: | :---: |
-| ![Detail untuk pemilik](docs/screenshots/product-owner.jpg) | ![Form jual](docs/screenshots/sell-form.jpg) |
-
-| Card produk milik sendiri di mobile |
-| :---: |
-| ![Card pemilik di mobile](docs/screenshots/cards-owner-mobile.jpg) |
+- [Fokus MVP](#fokus-pengembangan-mvp) dan [pembagian modul](#cakupan-mvp-dan-pembagian-modul)
+- Modul: [User](#modul-user--authentication-danar), [Product](#modul-product-kayla), [Chat](#modul-chat-deva), [Transaksi](#modul-transaksi-salma), [Review & Rating](#modul-review--rating-keisha)
+- [API dan integrasi](#api-dan-integrasi-mvp)
+- [Menjalankan proyek lokal](#menjalankan-proyek-secara-lokal)
+- [Pengujian](#pengujian)
+- [Deployment PWS](#auto-deploy-ke-pws) dan [keamanan](#keamanan-dan-konfigurasi-deployment)
+- [Pengembangan setelah MVP](#pengembangan-setelah-mvp)
+- [AI disclosure](#pernyataan-penggunaan-ai-ai-disclosure)
 
 ## Fokus Pengembangan: MVP
 
@@ -38,9 +27,8 @@ Pembagian tanggung jawab MVP adalah **Danar: User, Kayla: Product, Deva: Chat, S
 
 **Fitur selain kelima modul tersebut berada di luar cakupan pengembangan MVP.** Pengembangan fitur tambahan baru dilakukan setelah seluruh modul MVP selesai dikembangkan, terintegrasi, diuji, dan berjalan dengan baik. Fitur tambahan yang sudah terdapat pada kode tetap dapat dipertahankan, tetapi bukan prioritas penyelesaian tahap MVP.
 
----
-
 ## Anggota Kelompok
+
 | No. | Nama                | NPM          |
 | --: | ------------------- | ------------ |
 |   1 | **Danar Iqbal Abi Zaidan Suharso** | `2506534371` |
@@ -67,17 +55,40 @@ Pencarian/filter dasar menjadi bagian pendukung Product, dan keranjang menjadi b
 | ---- | ------------------------- |
 | **Guest** | Melihat katalog, mencari produk, dan melihat detail produk; registrasi/login untuk menggunakan fitur akun. |
 | **Registered User** | Dapat berperan sebagai buyer dan seller: mengelola profil/listing sendiri, menyimpan produk ke wishlist, berkomunikasi, bertransaksi, serta memberikan review/rating sesuai ketentuan transaksi. |
-| **Admin** | Mengelola data melalui Django admin untuk mendukung operasional MVP. Dashboard dan moderasi lanjutan bukan bagian target MVP saat ini. |
+| **Admin** | Mengelola data melalui Django admin dan memverifikasi pembayaran/pengiriman melalui Manage Orders. Dashboard dan moderasi lanjutan bukan bagian target MVP saat ini. |
+
+## Tampilan Aplikasi
+
+| Beranda (desktop) | Beranda (mobile) |
+| :---: | :---: |
+| ![Beranda desktop](docs/screenshots/home-desktop.jpg) | ![Beranda mobile](docs/screenshots/home-mobile.jpg) |
+
+| Halaman listing | Search dengan filter |
+| :---: | :---: |
+| ![Listing](docs/screenshots/listing.jpg) | ![Search dan filter](docs/screenshots/search-filter.jpg) |
+
+| Detail produk (pembeli) | Shopping bag |
+| :---: | :---: |
+| ![Detail produk](docs/screenshots/product-detail.jpg) | ![Shopping bag](docs/screenshots/bag-drawer.jpg) |
+
+| Detail produk (pemilik listing) | Form jual / edit |
+| :---: | :---: |
+| ![Detail untuk pemilik](docs/screenshots/product-owner.jpg) | ![Form jual](docs/screenshots/sell-form.jpg) |
+
+| Card produk milik sendiri di mobile |
+| :---: |
+| ![Card pemilik di mobile](docs/screenshots/cards-owner-mobile.jpg) |
 
 ## Sumber Data (Dataset)
 
-Gaia **tidak memakai dataset publik maupun API data eksternal**. Seluruh data dibuat oleh tim:
+Katalog Gaia tidak diambil dari dataset publik atau API katalog eksternal. Data pengembangan berasal dari listing yang dibuat tim dan fixture demo:
 
-- **Katalog produk:** listing yang diunggah anggota tim lewat form jual (foto, judul, harga, kondisi, kategori), ditambah data contoh dari `seed_products` (4 produk dan 10 kategori Women/Men x Tops, Bottoms, Shoes, Bags).
-- **Akun, order, dan wishlist demo:** `seed_account_demo`.
-- **Review demo:** `seed_reviews` (review sintetis untuk seller demo).
+- **Katalog dasar:** `seed_products` menambahkan 4 produk contoh dan 10 kategori (Women/Men beserta Tops, Bottoms, Shoes, dan Bags).
+- **Katalog thrift tambahan:** `seed_thrift_catalog` menambahkan 10 listing sintetis dengan aset ilustrasi yang sudah ada di repository. Command dapat diulang tanpa menggandakan listing yang sama untuk seller yang sama.
+- **Akun:** dibuat melalui registrasi atau login Google. `seed_account_demo` menambahkan snapshot order dan wishlist ke akun demo yang sudah ada; command ini tidak membuat kredensial akun.
+- **Review demo:** `seed_reviews` membuat review sintetis untuk kebutuhan pengujian tampilan.
 
-Data demo bukan transaksi, pembayaran, atau review nyata.
+Data demo bukan penawaran barang, pembayaran, transaksi, atau review nyata. Google OAuth dan Cloudinary merupakan integrasi autentikasi/penyimpanan, bukan sumber dataset katalog.
 
 ## Modul User / Authentication (Danar)
 
@@ -98,7 +109,8 @@ Modul User menyediakan identitas akun dan area pribadi yang digunakan bersama ol
 | ---- | ----- | -------------- |
 | Registrasi, login, permintaan reset password | tersedia | registrasi/login mengarahkan ke profil |
 | Melihat atau mengubah profil | diarahkan ke login | hanya akun sendiri |
-| Melihat wishlist dan pesanan | diarahkan ke login | hanya data milik sendiri |
+| Melihat wishlist | diarahkan ke login | hanya data milik sendiri |
+| Melihat pesanan | diarahkan ke login | pesanan sendiri; staff aktif dapat mengakses Manage Orders |
 | Menghapus/mengembalikan item wishlist | tidak | hanya item sendiri, melalui POST |
 | Melihat My Products | diarahkan ke login | hanya listing sendiri |
 | Menghapus akun | tidak | akun sendiri setelah konfirmasi dan pemeriksaan pesanan |
@@ -113,7 +125,7 @@ Halaman akun menjadi pintu masuk ke modul lain: aksi buat/edit/hapus listing dit
 | ---- | --- |
 | `accounts/models.py` | profil tambahan, snapshot wishlist, dan model pesanan bersama |
 | `accounts/forms.py` | form login, registrasi, edit profil/foto, dan konfirmasi hapus akun |
-| `accounts/views.py`, `accounts/urls.py` | alur akun, verifikasi, wishlist, My Products, dan My Orders |
+| `accounts/views.py`, `accounts/urls.py`, `accounts/order_display.py` | alur akun, verifikasi, wishlist, My Products, serta tampilan status My Orders |
 | `accounts/adapters.py`, `accounts/identity.py` | penyesuaian allauth dan pemeriksaan username sistem |
 | `accounts/avatars.py`, `accounts/signals.py` | penamaan foto dan pembersihan avatar setelah commit |
 | `accounts/migrations/` | skema akun, integritas email, dan pemindahan status verifikasi lama |
@@ -135,12 +147,14 @@ Semua rute berikut menggunakan awalan `/accounts/`.
 | `password/change/`, `password/reset/` | ganti password dan awal alur reset melalui email |
 | `products/` | My Products |
 | `orders/`, `orders/<pk>/` | daftar dan detail pesanan sendiri |
+| `orders/?scope=manage` | daftar pesanan untuk staff aktif yang memverifikasi pembayaran dan pengiriman |
 | `wishlist/`, `wishlist/<pk>/remove/`, `wishlist/undo/` | daftar favorit, hapus, dan undo |
 | `delete/`, `delete/email/`, `delete/confirm/<token>/` | konfirmasi penghapusan akun |
 
 ## Modul Product (Kayla)
 
 ### Fitur
+
 - **Katalog:** beranda, halaman per departemen (Women/Men), halaman "Picked For You", tab kategori yang menyaring card tanpa reload.
 - **Search dan filter:** cari berdasarkan judul, deskripsi, tag, atau kategori; filter harga, gender, kategori, dan kondisi. Filter memakai **HTMX**, jadi hasil dan jumlahnya berganti tanpa reload dan URL tetap bisa dibagikan.
 - **Detail produk:** galeri foto dengan zoom, info seller beserta rating dari review, dan rekomendasi "Also see".
@@ -149,6 +163,7 @@ Semua rute berikut menggunakan awalan `/accounts/`.
 - **Microinteraction:** foto produk "terbang" ke bag, ledakan hati kecil di wishlist, transisi foto dari card ke halaman detail, tab yang bergeser, drawer yang meluncur, navbar yang menyembunyikan diri saat scroll. Semua mati otomatis kalau pengguna mengaktifkan *reduce motion*.
 
 ### Hak akses dan keamanan
+
 | Aksi | Guest | Registered User | Pemilik listing |
 | ---- | :---: | :---: | :---: |
 | Lihat katalog, search, detail | ya | ya | ya |
@@ -163,6 +178,7 @@ Semua rute berikut menggunakan awalan `/accounts/`.
 - Seller, slug, dan status tidak ada di form, jadi tidak bisa diubah dengan memanipulasi request. Parameter `?next=` hanya diterima kalau mengarah ke situs ini.
 
 ### Peta kode
+
 | File | Isi |
 | ---- | --- |
 | `products/models.py` | `Category`, `Product`, `ProductImage` |
@@ -177,66 +193,67 @@ Semua rute berikut menggunakan awalan `/accounts/`.
 | `products/tests.py`, `test_*.py`, `e2e.py` | unit test dan functional test Playwright |
 
 ### Rute
+
 | URL | Fungsi |
 | --- | ------ |
-| `/products/`, `/products/shop/<women\|men>/`, `/products/picked/` | beranda dan listing |
+| `/products/`, `/products/shop/<gender>/`, `/products/picked/` | beranda dan listing; `gender` bernilai `women` atau `men` |
 | `/products/search/?q=` | search dan filter |
 | `/products/<slug>/` | detail produk |
 | `/products/sell/`, `/products/<slug>/edit/`, `/products/<slug>/delete/` | jual, edit, hapus (login, hanya pemilik) |
-| `/products/bag/add/`, `bag/remove/`, `bag/set/`, `bag/undo/` | shopping bag |
-| `/products/wishlist/add/`, `wishlist/remove/` | wishlist |
+| `/products/bag/add/<slug>/`, `bag/remove/<slug>/`, `bag/set/<slug>/`, `bag/undo/` | shopping bag |
+| `/products/wishlist/add/<slug>/`, `wishlist/remove/<slug>/` | wishlist |
+
+## Modul Chat (Deva)
+
+- Inbox dan ruang percakapan untuk buyer?seller, bantuan Gaia Care, serta pertanyaan terkait pesanan.
+- Pesan teks, gambar, berbagi produk, penawaran harga, status baca, dan penghitung pesan belum dibaca. Penawaran dapat diterima/ditolak oleh seller; harga hasil penawaran belum diterapkan otomatis pada checkout.
+- Akses percakapan dibatasi ke peserta. Akun support harus merupakan akun staff aktif yang dipercaya aplikasi.
+- Pembaruan percakapan menggunakan polling endpoint JSON internal, bukan Django Channels/WebSocket.
+
+Kode utama berada di `chat/models.py`, `chat/services.py`, `chat/views.py`, serta template dan JavaScript chat. Rute utamanya `/chat/`, `/chat/<pk>/`, `/chat/support/`, `/chat/order/<order_id>/`, dan `/chat/api/...`.
+
+## Modul Transaksi (Salma)
+
+- Checkout dari shopping bag: alamat penerima, metode pembayaran, konfirmasi pesanan, dan reservasi produk selama 15 menit.
+- Satu listing thrift mewakili satu barang. Reservasi mencegah checkout ganda pada barang yang sama; pesanan batal/kedaluwarsa melepas reservasi yang masih terkait dengan pesanan tersebut.
+- Status transaksi mencakup active/awaiting payment, paid, in transit, completed, cancelled, dan expired. Riwayat pesanan tetap tersedia setelah pembatalan.
+- Pembayaran diverifikasi manual oleh staff aktif. Buyer dapat membatalkan pesanan yang belum terverifikasi dan mengonfirmasi penerimaan setelah barang dikirim. Seluruh aksi perubahan status menggunakan POST dan CSRF.
+
+Kode utama berada di `transaction/models.py`, `transaction/forms.py`, `transaction/views.py`, dan `transaction/urls.py`. Model pesanan bersama `AccountOrder` berada di `accounts/models.py`.
+
+| Rute | Fungsi |
+| --- | --- |
+| `/transaction/checkout/`, `shipping/`, `payment/`, `confirmation/` | alur checkout dan ringkasan pesanan |
+| `/transaction/orders/<order_id>/cancel/` | pembatalan oleh pemilik pesanan |
+| `/transaction/orders/<order_id>/confirm-payment/` | verifikasi pembayaran oleh staff aktif |
+| `/transaction/orders/<order_id>/ship/` | staff mengisi kurir/resi dan menandai pengiriman |
+| `/transaction/orders/<order_id>/complete/` | buyer mengonfirmasi barang diterima |
+
+### Integrasi My Orders
+
+My Orders membaca `TransactionOrderState` dari modul Transaksi agar status Paid, Cancelled, dan Expired tidak ditampilkan sebagai Awaiting payment. Buyer bisa membatalkan pesanan yang belum terverifikasi, lalu mengonfirmasi penerimaan setelah barang dikirim. Konfirmasi pembayaran hanya tersedia bagi akun staff aktif melalui Orders > Manage Orders; buyer tidak dapat menandai dirinya sudah lunas. Staff mengisi kurir dan nomor resi sebelum menandai pengiriman. Pembayaran belum terhubung ke gateway otomatis.
+
+Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Reservasi pesanan batal/kedaluwarsa dilepas hanya jika masih milik pesanan tersebut. Riwayat tetap terlihat, dan pesanan cancelled/expired tidak memblokir penghapusan akun. Snapshot lama tanpa state transaksi tetap dapat dibaca. Integrasi ini memerlukan migrasi app `transaction` sampai `0003_sync_order_state_choices`.
+
+## Modul Review & Rating (Keisha)
+
+- Review dan rating seller dikaitkan dengan pesanan yang sudah completed. Aksi memberi review tersedia dari detail My Orders ketika pengguna memenuhi syarat.
+- Pengguna dapat melihat ringkasan rating seller dan menyaring review berdasarkan bintang. Pemilik review dapat mengedit atau menghapus review miliknya.
+- Fitur pendukung meliputi penandaan helpful, balasan seller, dan pelaporan review dengan pemeriksaan akses pada backend.
+
+Kode utama berada di `reviews/models.py`, `reviews/forms.py`, `reviews/views.py`, dan template tag pada `reviews/templatetags/`. Rute utama meliputi `/reviews/account/`, `/reviews/seller/<seller_id>/`, serta `/reviews/order/<order_id>/create/`.
 
 ## API dan Integrasi MVP
 
-Integrasi berikut mendukung modul User, Product, Transaksi, dan Chat dalam MVP. Statusnya membedakan integrasi yang sudah tersedia dari opsi yang masih direncanakan.
+Tabel berikut mencatat integrasi yang tersedia pada kode MVP. Nilai environment menentukan apakah layanan tersebut aktif pada suatu deployment.
 
 | API / teknologi | Status di kode saat ini | Pemakaian / tindak lanjut |
 | --------------- | ----------------------- | ------------------------ |
 | **Google OAuth 2.0 melalui `django-allauth`** | **Sudah terintegrasi** pada modul User. | Login Google menggunakan client ID/secret dari environment dan callback `/accounts/google/login/callback/`. Operasionalnya memerlukan konfigurasi Google Cloud dan PWS. |
 | **Cloudinary (penyimpanan foto produk)** | **Kode tersedia**, aktif kalau variabel `CLOUDINARY_URL` diisi. Tanpa itu foto disimpan di folder `media/` seperti biasa. | Foto produk disimpan di Cloudinary supaya tidak hilang saat PWS membangun ulang aplikasi. Foto chat tetap di server agar privat. Ini layanan penyimpanan, bukan sumber data. |
 | **Email Django / SMTP** | **Alur email tersedia**, default masih console backend. Ini mekanisme pengiriman email, bukan public API yang sudah terhubung ke vendor tertentu. | Email verifikasi/reset dicetak di terminal pada konfigurasi default. SMTP harus dikonfigurasi agar email benar-benar dikirim ke inbox. |
-| **Midtrans / Xendit API** | **Belum digunakan**. | Opsi integrasi pembayaran untuk modul Transaksi. Provider dan penggunaan sandbox/mock perlu ditentukan saat alur transaksi dikembangkan; belum ada request gateway, callback/webhook, atau mock payment API. |
-| **Django Channels / WebSocket** | **Belum digunakan**. Channels/WebSocket adalah teknologi komunikasi, bukan public API eksternal. | Opsi implementasi chat real-time; transport pesan belum ditentukan dan belum tersedia pada checkout ini. |
 
-Data dari `seed_products`/`seed_account_demo`, snapshot order, dan konstanta rating merupakan data awal/demo, **bukan bukti integrasi API eksternal atau mock API pembayaran**. Endpoint aplikasi sendiri juga berbeda dari layanan pihak ketiga pada tabel di atas.
-
-## Pengembangan Setelah MVP
-
-Setelah User, Product, Chat, Transaksi, dan Review & Rating selesai serta terintegrasi dengan baik, tim dapat melanjutkan:
-
-- Community / Social Feed dan interaksi sosial.
-- Outfit Generator dan rekomendasi berbasis AI.
-- Wishlist lanjutan dan notifikasi favorit; wishlist dasar sudah termasuk dalam modul User pada MVP.
-- Dashboard khusus, statistik, moderasi, dan pelaporan lanjutan.
-- Peta/autocomplete alamat, Lemari pribadi, serta fitur pencarian, nego, dan notifikasi lanjutan di luar kebutuhan dasar MVP.
-- Integrasi tambahan seperti penyimpanan cloud untuk seluruh jenis media sesuai kebutuhan operasional.
-
-Fitur-fitur tersebut bukan komitmen deliverable MVP dan tidak menjadi fokus pembagian tugas tahap pertama.
-
----
-
-**Gaia — A circular fashion marketplace where every piece gets a second chance.**
-
-## Alur Kerja Git
-
-- **Branch per orang dan per fitur**, misalnya `feat/products` atau `feat/chat`; tidak ada yang commit langsung ke `main`.
-- **Conventional commits:** `feat:`, `fix:`, `test:`, `ci:`, `refactor:`, `docs:`, dengan pesan yang menjelaskan perubahan.
-- **Pull request ke `main`**, ditinjau teman satu tim sebelum di-merge. Konflik diselesaikan dengan merge `main` ke branch fitur dulu, lalu dites ulang.
-- **GitHub Actions** menjalankan seluruh test pada setiap pull request; deploy ke PWS hanya berjalan kalau test lulus dan perubahan sudah masuk `main`.
-
-## Auto deploy ke PWS
-
-Workflow `.github/workflows/deploy.yml` terdiri dari tiga job:
-
-1. **Run tests**: cek tidak ada migrasi yang tertinggal, jalankan seluruh unit test, dan tampilkan laporan coverage.
-2. **Run browser tests**: jalankan functional test Playwright (`products.e2e`, `reviews.e2e`) di Chromium.
-3. **Deploy Gaia to PWS**: berjalan hanya untuk push/merge ke `main`, dan hanya kalau dua job di atas lulus. Commit dikirim ke branch `master` PWS Gaia.
-
-Dua job pertama juga berjalan di setiap pull request ke `main`. Deploy bisa dijalankan manual dari tab **Actions > Push to PWS > Run workflow**, dengan branch `main`.
-
-Repository secret `PWS_URL` harus berisi URL Git PWS dengan kredensial proyek, dikelola melalui **Settings > Secrets and variables > Actions**. Jangan masukkan kredensial ke file repository. Workflow memakai `actions/checkout@v7`, mengambil seluruh riwayat Git untuk deploy, dan mengantre deployment agar tidak bertabrakan. Push tidak memakai force; riwayat PWS yang berbeda perlu disinkronkan sebelum deployment bisa lanjut.
-
-Untuk merilis perubahan, push atau merge feature branch ke `main`, lalu cek hasil **Push to PWS** di tab Actions. Tidak perlu push PWS manual lagi. Build aplikasi tetap dijalankan oleh PWS setelah menerima push.
+Endpoint JSON chat dan aksi aplikasi merupakan API internal. Pembayaran saat ini menggunakan verifikasi manual; belum ada integrasi gateway pembayaran, callback/webhook, atau mock payment API. Data seed dan snapshot demo bukan bukti keberhasilan integrasi layanan eksternal.
 
 ## Teknologi
 
@@ -257,7 +274,7 @@ Jalankan perintah berikut dari folder repository.
 ```powershell
 python -m venv env
 .\env\Scripts\python.exe -m pip install -r requirements-dev.txt
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
 Jika `.env` sudah ada, gunakan konfigurasi yang ada tanpa menimpanya. Isi variabel yang diperlukan pada `.env` (terutama `SECRET_KEY`, supaya sesi login tidak hilang setiap server restart), lalu jalankan:
@@ -294,6 +311,7 @@ Command berikut bersifat opsional untuk pengembangan lokal. Gunakan akun demo ya
 
 ```bash
 python manage.py seed_products --username <username-akun-demo>
+python manage.py seed_thrift_catalog --username <username-akun-demo>
 python manage.py seed_account_demo --username <username-akun-demo>
 python manage.py seed_reviews --username <username-akun-demo>
 ```
@@ -310,7 +328,7 @@ python manage.py makemigrations --check --dry-run
 python manage.py test
 ```
 
-Untuk menguji satu app, tambahkan namanya, misalnya `python manage.py test products`. Coverage modul Product (sekitar 99%, `views.py` dan `forms.py` 100%):
+Untuk menguji satu app, tambahkan namanya, misalnya `python manage.py test products`. Untuk mengukur coverage modul Product secara terpisah:
 
 ```bash
 python -m coverage run --branch --source=products --omit='products/test*.py,products/e2e.py,products/migrations/*' manage.py test products
@@ -342,6 +360,27 @@ python manage.py test products.e2e reviews.e2e --noinput
 
 Kalau Chrome atau Edge sudah terpasang, set `GAIA_TEST_BROWSER` ke lokasi file aplikasinya agar tidak perlu mengunduh Chromium.
 
+## Alur Kerja Git
+
+- **Branch per orang dan per fitur**, misalnya `feat/products` atau `feat/chat`; tidak ada yang commit langsung ke `main`.
+- **Conventional commits:** `feat:`, `fix:`, `test:`, `ci:`, `refactor:`, `docs:`, dengan pesan yang menjelaskan perubahan.
+- **Pull request ke `main`**, ditinjau teman satu tim sebelum di-merge. Konflik diselesaikan dengan merge `main` ke branch fitur dulu, lalu dites ulang.
+- **GitHub Actions** menjalankan seluruh test pada setiap pull request; deploy ke PWS hanya berjalan kalau test lulus dan perubahan sudah masuk `main`.
+
+## Auto deploy ke PWS
+
+Workflow `.github/workflows/deploy.yml` terdiri dari tiga job:
+
+1. **Run tests**: cek tidak ada migrasi yang tertinggal, jalankan seluruh unit test, dan tampilkan laporan coverage.
+2. **Run browser tests**: jalankan functional test Playwright (`products.e2e`, `reviews.e2e`) di Chromium.
+3. **Deploy Gaia to PWS**: berjalan hanya untuk push/merge ke `main`, dan hanya kalau dua job di atas lulus. Commit dikirim ke branch `master` PWS Gaia.
+
+Dua job pertama juga berjalan di setiap pull request ke `main`. Deploy bisa dijalankan manual dari tab **Actions > Push to PWS > Run workflow**, dengan branch `main`.
+
+Repository secret `PWS_URL` harus berisi URL Git PWS dengan kredensial proyek, dikelola melalui **Settings > Secrets and variables > Actions**. Jangan masukkan kredensial ke file repository. Workflow memakai `actions/checkout@v7`, mengambil seluruh riwayat Git untuk deploy, dan mengantre deployment agar tidak bertabrakan. Push tidak memakai force; riwayat PWS yang berbeda perlu disinkronkan sebelum deployment bisa lanjut.
+
+Untuk merilis perubahan, push atau merge feature branch ke `main`, lalu cek hasil **Push to PWS** di tab Actions. Tidak perlu push PWS manual lagi. Build aplikasi tetap dijalankan oleh PWS setelah menerima push.
+
 ## Keamanan dan Konfigurasi Deployment
 
 ### Konfigurasi keamanan deployment
@@ -362,8 +401,60 @@ Status verifikasi email dibaca dari `allauth.account.EmailAddress` untuk email a
 
 Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih oleh pengguna biasa. `GAIA_CARE_USER_ID` dapat menunjuk akun staff aktif yang disiapkan administrator; benturan username dengan akun biasa ditolak, tanpa menaikkan hak akun tersebut. Percakapan support lama yang salah tujuan memerlukan pemeriksaan admin.
 
-### Integrasi My Orders dan Transaksi
+## Pengembangan Setelah MVP
 
-My Orders membaca `TransactionOrderState` dari modul Transaksi agar status Paid, Cancelled, dan Expired tidak ditampilkan sebagai Awaiting payment. Buyer bisa membatalkan pesanan yang belum terverifikasi, lalu mengonfirmasi penerimaan setelah barang dikirim. Konfirmasi pembayaran hanya tersedia bagi akun staff aktif melalui Orders > Manage Orders; buyer tidak dapat menandai dirinya sudah lunas. Staff mengisi kurir dan nomor resi sebelum menandai pengiriman. Pembayaran belum terhubung ke gateway otomatis.
+Setelah User, Product, Chat, Transaksi, dan Review & Rating selesai serta terintegrasi dengan baik, tim dapat melanjutkan:
 
-Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Reservasi pesanan batal/kedaluwarsa dilepas hanya jika masih milik pesanan tersebut. Riwayat tetap terlihat, dan pesanan cancelled/expired tidak memblokir penghapusan akun. Snapshot lama tanpa state transaksi tetap dapat dibaca. Integrasi ini memerlukan migrasi app `transaction` sampai `0003_sync_order_state_choices`.
+- Community / Social Feed dan interaksi sosial.
+- Outfit Generator dan rekomendasi berbasis AI.
+- Wishlist lanjutan dan notifikasi favorit; wishlist dasar sudah termasuk dalam modul User pada MVP.
+- Dashboard khusus, statistik, moderasi, dan pelaporan lanjutan.
+- Peta/autocomplete alamat, Lemari pribadi, serta fitur pencarian, nego, dan notifikasi lanjutan di luar kebutuhan dasar MVP.
+- Gateway pembayaran otomatis dan teknologi komunikasi real-time tambahan bila dibutuhkan.
+- Penyimpanan cloud/persisten untuk jenis media yang belum menggunakannya, sesuai kebutuhan operasional.
+
+Fitur-fitur tersebut bukan komitmen deliverable MVP dan tidak menjadi fokus pembagian tugas tahap pertama.
+
+---
+
+## Pernyataan Penggunaan AI (AI Disclosure)
+
+Tim menggunakan AI sebagai asisten pemrograman dan mencatat penggunaannya secara terbuka. Bantuan mencakup penulisan kode, pengujian, dokumentasi, dan operasi pengembangan sesuai instruksi anggota tim. Penentuan kebutuhan, peninjauan hasil, serta tanggung jawab atas perubahan tetap berada pada pengembang masing-masing modul.
+
+### Alat dan cakupan bantuan
+
+| Alat | Dipakai oleh | Untuk apa |
+| --- | --- | --- |
+| **Claude Code** (asisten pemrograman dari Anthropic, dijalankan dari terminal/aplikasi desktop) | Kayla, modul Product | Menulis dan merapikan kode, menulis test, menambah animasi, menyusun CI, mereview kode, dan menjelaskan kode. |
+| **OpenAI Codex / ChatGPT** | Danar, modul User / Authentication | Membantu memahami Django dan pembagian modul, menganalisis desain, menyusun dan meninjau implementasi akun, pengujian, integrasi, serta dokumentasi. |
+
+### Bantuan AI untuk Product (Kayla)
+
+Catatan penggunaan Claude Code mencakup penulisan dan perapian kode, penulisan test, penambahan animasi, penyusunan CI, review kode, serta penjelasan kode. Rincian strategi prompt, keterbatasan, dan pekerjaan manual modul Product belum diisi pada catatan sumber.
+
+### Bantuan AI untuk User (Danar)
+
+- Membaca referensi Gaia User dan Gaia Design System, memetakan alur akun, serta menjelaskan penerapannya pada Django Templates, CSS, dan JavaScript.
+- Membantu pengembangan dan peninjauan form, view, model, template, serta pengujian untuk registrasi/login, profil dan avatar, verifikasi email, keamanan dan penghapusan akun, wishlist, My Products, serta tampilan My Orders.
+- Membantu audit akses berdasarkan kepemilikan, validasi input, email duplikat, akun Google tanpa password lokal, tautan email di belakang proxy PWS, dan ketergantungan antar-modul.
+- Menjelaskan unit test dan coverage, menjalankan pemeriksaan lokal, membantu operasi Git yang diminta, serta merapikan dokumentasi modul User.
+
+Rekaman percakapan yang disertakan oleh pengembang: [Percakapan Codex/ChatGPT untuk modul User](https://chatgpt.com/s/cx_6ae4a2e5c8bc81918c1238f575ae4137).
+
+### Strategi prompt
+
+Untuk modul User, konteks diberikan berupa file proyek, referensi desain, materi tutorial, dan kebutuhan fitur. Permintaan dilakukan bertahap: membaca dan menganalisis terlebih dahulu, menjelaskan pilihan implementasi, lalu melakukan pekerjaan yang diminta. Audit dipersempit ke modul User saat diperlukan, dan temuan dibedakan antara tanggung jawab akun dengan integrasi Product, Transaksi, Chat, serta Review & Rating.
+
+### Keterbatasan AI yang ditemui
+
+Pada modul User, saran awal AI perlu dicocokkan dengan versi kode terbaru dan pembagian tugas tim. Contohnya, audit sempat mencampur kekurangan akun dengan alur transaksi yang merupakan tanggung jawab modul lain. Coverage 100% juga tidak menjamin semua perilaku benar: audit lanjutan menemukan kasus khusus pada registrasi bersamaan, verifikasi email, akun Google, dan penghapusan akun dengan penjualan aktif. Hasil tes lokal tidak menjadi bukti bahwa konfigurasi OAuth/SMTP di PWS atau seluruh tampilan browser telah berfungsi.
+
+### Peran pengembang dan pemeriksaan hasil
+
+Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, membahas kelayakan serta pembagian fitur, dan mengoordinasikan integrasi dengan anggota tim. Percakapan juga mencakup peninjauan hasil coverage yang dijalankan pengembang. Bantuan AI mencakup kode dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir terhadap perubahan, kesesuaian dengan tugas, dan perilaku aplikasi tetap menjadi tanggung jawab pengembang modul.
+
+<!-- Anggota lain dapat menambahkan disclosure berdasarkan penggunaan AI yang benar-benar dilakukan pada modul masing-masing. -->
+
+---
+
+**Gaia — A circular fashion marketplace where every piece gets a second chance.**
