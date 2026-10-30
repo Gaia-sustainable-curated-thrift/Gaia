@@ -1,0 +1,16 @@
+<dialog class="pdp-delete-dialog" id="{{ dialog_id }}" aria-labelledby="{{ dialog_id }}-title" aria-describedby="{{ dialog_id }}-description">
+    <div class="dialog-content">
+        <h2 id="{{ dialog_id }}-title">Delete this listing?</h2>
+        <p id="{{ dialog_id }}-description">&ldquo;{{ product.title }}&rdquo; will be permanently removed from the catalog.</p>
+        <div class="actions">
+            <form method="dialog">
+                <button class="button secondary" type="submit" autofocus>Cancel</button>
+            </form>
+            <form method="post" action="{% url 'products:delete' product.slug %}">
+                {% csrf_token %}
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+                <button class="button" type="submit">Delete listing</button>
+            </form>
+        </div>
+    </div>
+</dialog>

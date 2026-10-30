@@ -322,7 +322,7 @@ def delete_listing(request, slug):
     if request.session.get('bag_undo', {}).get('product_id') == product_id:
         request.session.pop('bag_undo')
     request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing deleted.'}
-    return redirect('products:home')
+    return _redirect_back(request, reverse('products:home'))
 
 
 def _product_url(product):
@@ -352,6 +352,7 @@ def _bag_json(request, *, toast=None, open_drawer=False, status=200):
     return JsonResponse({
         'ok': status < 400,
         'bag_count': context['bag_count'],
+        'bag_slugs': [item['product'].slug for item in items],
         'drawer': render_to_string('includes/bag_drawer_body.html', context, request=request),
         'toast': toast if toast and toast.get('kind') in ('added', 'error') else None,
         'open': open_drawer,
@@ -389,6 +390,22 @@ def bag_add(request, slug):
         return _bag_json(request, toast=toast)
     request.session['bag_toast'] = toast
     return _redirect_back(request, _product_url(product))
+
+
+@require_POST
+def bag_remove(request, slug):
+    product = get_object_or_404(Product, slug=slug)
+    in_bag = cart.quantity_for(request.session, product.pk) > 0
+    cart.remove(request.session, product.pk)
+    toast = {
+        'kind': 'added',
+        'text': f'Removed \u201c{product.title}\u201d from bag' if in_bag else 'This item is not in your bag.',
+        'icon': True,
+    }
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast)
+    request.session['bag_toast'] = toast
+    return _redirect_back(request, _product_url(product) if product.is_purchasable else reverse('products:home'))
 
 
 @require_POST
@@ -449,14 +466,30 @@ def bag_undo(request):
     return _redirect_back(request, reverse('products:home'))
 
 
+def _wish_login_required(request, product):
+    login_response = redirect_to_login(_product_url(product), settings.LOGIN_URL)
+    if _is_ajax(request):
+        return JsonResponse({'ok': False, 'login_url': login_response.url}, status=401)
+    return login_response
+
+
+def _wish_response(request, product, *, saved, toast):
+    if _is_ajax(request):
+        return JsonResponse({
+            'ok': True,
+            'saved': saved,
+            'toast': toast,
+            'saved_count': WishlistItem.objects.filter(product_key=product.slug, removed=False).count(),
+        })
+    request.session['bag_toast'] = toast
+    return _redirect_back(request, _product_url(product))
+
+
 @require_POST
 def wish_add(request, slug):
     product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
     if not request.user.is_authenticated:
-        login_response = redirect_to_login(_product_url(product), settings.LOGIN_URL)
-        if _is_ajax(request):
-            return JsonResponse({'ok': False, 'login_url': login_response.url}, status=401)
-        return login_response
+        return _wish_login_required(request, product)
 
     image = product.primary_image
     WishlistItem.objects.update_or_create(
@@ -475,11 +508,19 @@ def wish_add(request, slug):
         'text': f'Saved \u201c{product.title}\u201d to wishlist',
         'icon': 'heart',
     }
-    if _is_ajax(request):
-        return JsonResponse({
-            'ok': True,
-            'toast': toast,
-            'saved_count': WishlistItem.objects.filter(product_key=product.slug, removed=False).count(),
-        })
-    request.session['bag_toast'] = toast
-    return _redirect_back(request, _product_url(product))
+    return _wish_response(request, product, saved=True, toast=toast)
+
+
+@require_POST
+def wish_remove(request, slug):
+    product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
+    if not request.user.is_authenticated:
+        return _wish_login_required(request, product)
+
+    WishlistItem.objects.filter(user=request.user, product_key=product.slug, removed=False).update(removed=True)
+    toast = {
+        'kind': 'added',
+        'text': f'Removed \u201c{product.title}\u201d from wishlist',
+        'icon': 'heart',
+    }
+    return _wish_response(request, product, saved=False, toast=toast)

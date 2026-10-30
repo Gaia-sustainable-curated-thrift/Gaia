@@ -137,6 +137,38 @@
     color: var(--wine-light);
 }
 
+/* Pressed state: the listing is already in the bag; pressing again removes it. */
+.button.is-active,
+.button.is-active:hover,
+.product-card .button.is-active,
+.pdp-actions .button.is-active {
+    background: var(--canvas);
+    color: var(--wine);
+    box-shadow: inset 0 0 0 2px var(--wine);
+}
+
+.product-card__owner {
+    display: flex;
+    gap: 8px;
+    width: calc(100% - 18px);
+    margin: auto auto 0;
+}
+
+.product-card .product-card__owner .button {
+    width: auto;
+    color: var(--canvas);
+}
+
+.product-card .product-card__owner .product-card__edit { flex: 1; }
+
+.product-card .product-card__owner .product-card__delete {
+    flex: 0 0 auto;
+    aspect-ratio: 1;
+    padding: 0;
+}
+
+.product-card__delete .icon { width: 24px; height: 24px; }
+
 /* ---------- Badge ---------- */
 .badge {
     position: absolute;
@@ -1111,6 +1143,14 @@
 
 .pdp-actions .olive-button { color: var(--canvas); }
 .pdp-wish.is-saved .icon { fill: currentColor; }
+.pdp-actions .pdp-wish.is-saved,
+.pdp-actions .pdp-wish.is-saved:hover {
+    background: var(--canvas);
+    color: var(--olive);
+    box-shadow: inset 0 0 0 2px var(--olive);
+}
+.pdp-actions .pdp-delete,
+.pdp-actions .pdp-edit { margin-left: 0; color: var(--canvas); }
 [data-wishlist-form][aria-busy="true"] .pdp-wish { cursor: progress; opacity: 0.7; }
 
 .pdp-actions .icon { width: 32px; height: 32px; }
@@ -1214,6 +1254,17 @@
 .pdp-delete { color: var(--wine); }
 .pdp-delete-dialog h2 { font-family: "EB Garamond", Georgia, serif; font-size: 32px; line-height: 1.2; color: var(--olive-dark); margin: 0 0 16px; }
 .pdp-delete-dialog .actions { gap: 12px; }
+/* The dialog can sit inside page sections (e.g. the homepage) whose own .button
+   rules would otherwise restyle it; pin the base button look here. */
+.pdp-delete-dialog .actions .button {
+    width: auto;
+    min-height: 48px;
+    padding: 12px 24px;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #fff;
+}
+.pdp-delete-dialog .actions .button.secondary { color: var(--ink); }
 
 .pdp-also { margin-top: 72px; }
 

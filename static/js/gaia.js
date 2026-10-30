@@ -218,11 +218,29 @@
         dismissToast(el, 4000);
     }
 
+    // Every add-to-bag button on the page mirrors whether its listing is in the bag;
+    // pressing an added one removes it again.
+    function syncBagButtons(slugs) {
+        document.querySelectorAll('[data-bag-form]').forEach(function (form) {
+            var inBag = slugs.indexOf(form.getAttribute('data-bag-form')) !== -1;
+            var button = form.querySelector('button[type="submit"]');
+            var label = form.querySelector('[data-bag-label]');
+            form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
+            if (button) {
+                button.classList.toggle('is-active', inBag);
+                button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
+                var icon = button.querySelector('use');
+                if (icon) icon.setAttribute('href', inBag ? '#icon-check' : '#icon-bag');
+            }
+            if (label) label.textContent = inBag ? 'Added to bag' : 'Add to bag';
+        });
+    }
+
     function initBagForms() {
         var requestPending = false;
         document.addEventListener('submit', function (event) {
             var form = event.target;
-            if (!form.matches('form[action]') || !/\/bag\/(add|set|undo)\//.test(new URL(form.action).pathname)) return;
+            if (!form.matches('form[action]') || !/\/bag\/(add|remove|set|undo)\//.test(new URL(form.action).pathname)) return;
             if (typeof window.fetch !== 'function') return;
 
             event.preventDefault();
@@ -253,6 +271,7 @@
                 document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
                     toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' item' + (data.bag_count === 1 ? '' : 's'));
                 });
+                if (Array.isArray(data.bag_slugs)) syncBagButtons(data.bag_slugs);
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showToast(data.toast);
             }).catch(function () {
@@ -280,7 +299,7 @@
                 if (pending) return;
                 pending = true;
                 button.disabled = true;
-                label.textContent = 'Menyimpan…';
+                label.textContent = saved ? 'Menghapus…' : 'Menyimpan…';
                 form.setAttribute('aria-busy', 'true');
 
                 fetch(form.action, {
@@ -303,9 +322,11 @@
                         if (target.origin !== window.location.origin) throw new Error('Unexpected login redirect');
                         navigating = true;
                         window.location.assign(target.href);
-                    } else if (data.ok === true && data.toast && typeof data.saved_count === 'number') {
-                        saved = true;
-                        button.classList.add('is-saved');
+                    } else if (data.ok === true && data.toast && typeof data.saved_count === 'number' && typeof data.saved === 'boolean') {
+                        saved = data.saved;
+                        button.classList.toggle('is-saved', saved);
+                        button.setAttribute('aria-pressed', saved ? 'true' : 'false');
+                        form.action = form.getAttribute(saved ? 'data-remove-url' : 'data-add-url');
                         document.querySelectorAll('[data-wishlist-count]').forEach(function (count) {
                             count.textContent = data.saved_count + (data.saved_count === 1
                                 ? ' person has saved this' : ' people have saved this');
@@ -315,7 +336,7 @@
                         throw new Error('Invalid wishlist response');
                     }
                 }).catch(function () {
-                    showToast({ kind: 'error', text: 'Could not confirm whether this item was saved. Please try again.' });
+                    showToast({ kind: 'error', text: 'Could not update your wishlist. Please try again.' });
                 }).finally(function () {
                     if (!navigating) {
                         pending = false;
@@ -547,18 +568,19 @@
     }
 
     function initListingDelete() {
-        var dialog = document.getElementById('delete-listing-dialog');
-        var toggle = document.querySelector('[data-delete-listing]');
-        if (!dialog || !toggle) return;
-        toggle.addEventListener('click', function () {
-            if (!dialog.open) dialog.showModal();
-            toggle.setAttribute('aria-expanded', 'true');
-        });
-        dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
-        dialog.addEventListener('click', function (event) {
-            if (event.target !== dialog) return;
-            var bounds = dialog.getBoundingClientRect();
-            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+        document.querySelectorAll('[data-delete-listing]').forEach(function (toggle) {
+            var dialog = document.getElementById(toggle.getAttribute('aria-controls'));
+            if (!dialog) return;
+            toggle.addEventListener('click', function () {
+                if (!dialog.open) dialog.showModal();
+                toggle.setAttribute('aria-expanded', 'true');
+            });
+            dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
+            dialog.addEventListener('click', function (event) {
+                if (event.target !== dialog) return;
+                var bounds = dialog.getBoundingClientRect();
+                if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+            });
         });
     }
 
