@@ -147,7 +147,8 @@ def edit_profile(request):
 
 @login_required
 def orders(request):
-    return render(request, 'accounts/orders.html', account_context(request, 'Orders', "Track your orders and follow each item's journey.", 'orders', orders=request.user.account_orders.all()))
+    page = Paginator(request.user.account_orders.order_by('-date', '-pk'), 12).get_page(request.GET.get('page'))
+    return render(request, 'accounts/orders.html', account_context(request, 'Orders', "Track your orders and follow each item's journey.", 'orders', orders=page.object_list, page_obj=page))
 
 
 @login_required
@@ -158,7 +159,15 @@ def order_detail(request, pk):
 
 @login_required
 def wishlist(request):
-    return render(request, 'accounts/wishlist.html', account_context(request, 'Wishlist', 'Save your favorites and give them a new story.', 'wishlist', items=request.user.wishlist_items.filter(removed=False), undo_id=request.session.get('wishlist_undo')))
+    page = Paginator(request.user.wishlist_items.filter(removed=False).order_by('-pk'), 12).get_page(request.GET.get('page'))
+    return render(request, 'accounts/wishlist.html', account_context(request, 'Wishlist', 'Save your favorites and give them a new story.', 'wishlist', items=page.object_list, page_obj=page, undo_id=request.session.get('wishlist_undo')))
+
+
+def _wishlist_page_redirect(request):
+    page = request.POST.get('page', '')
+    if page.isdecimal() and 0 < len(page) < 8 and int(page) > 0:
+        return redirect(f"{reverse('wishlist')}?page={int(page)}")
+    return redirect('wishlist')
 
 
 @login_required
@@ -169,7 +178,7 @@ def wishlist_remove(request, pk):
     item.save(update_fields=['removed'])
     request.session['wishlist_undo'] = item.pk
     messages.success(request, 'Item removed from your wishlist.')
-    return redirect('wishlist')
+    return _wishlist_page_redirect(request)
 
 
 @login_required
@@ -179,7 +188,7 @@ def wishlist_undo(request):
     if pk:
         WishlistItem.objects.filter(pk=pk, user=request.user, removed=True).update(removed=False)
         messages.success(request, 'Item restored to your wishlist.')
-    return redirect('wishlist')
+    return _wishlist_page_redirect(request)
 
 
 @login_required

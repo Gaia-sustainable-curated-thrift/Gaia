@@ -1383,3 +1383,55 @@ class AccountProductImageTests(SimpleTestCase):
             html = render_to_string('includes/product_image.html', {'item': {'image': source, 'title': 'Coat'}})
             self.assertIn('No product photo', html)
             self.assertNotIn('<img', html)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class AccountPaginationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('paged-owner')
+        cls.other = User.objects.create_user('paged-other')
+        for user in (cls.user, cls.other):
+            AccountOrder.objects.bulk_create([
+                AccountOrder(user=user, number=f'PAGE-{user.pk}-{i}', date=date.today(), status='completed',
+                             title=f'Order {user.pk}-{i}', subtotal=10, recipient='Owner', address='Jakarta')
+                for i in range(25)])
+            WishlistItem.objects.bulk_create([
+                WishlistItem(user=user, product_key=f'page-{i}', title=f'Item {user.pk}-{i}', price=10)
+                for i in range(25)])
+        WishlistItem.objects.create(user=cls.user, product_key='hidden', title='Hidden removed item', price=1, removed=True)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_owned_lists_are_bounded_stable_and_keep_total_counts(self):
+        for name, key in [('orders', 'orders'), ('wishlist', 'items')]:
+            with self.subTest(name=name):
+                seen = set()
+                for number, expected in [(1, 12), (2, 12), (3, 1)]:
+                    response = self.client.get(reverse(name), {'page': number})
+                    rows = list(response.context[key])
+                    self.assertEqual(len(rows), expected)
+                    self.assertEqual(response.context['page_obj'].paginator.count, 25)
+                    self.assertTrue(all(row.user_id == self.user.pk for row in rows))
+                    ids = {row.pk for row in rows}
+                    self.assertFalse(ids & seen)
+                    seen |= ids
+                    self.assertContains(response, f'Page {number} of 3')
+                    self.assertNotContains(response, 'Hidden removed item')
+                self.assertEqual(len(seen), 25)
+
+    def test_invalid_and_out_of_range_page_numbers_are_safe(self):
+        for name in ('orders', 'wishlist'):
+            for value, expected in [('invalid', 1), ('999', 3)]:
+                response = self.client.get(reverse(name), {'page': value})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context['page_obj'].number, expected)
+
+    def test_remove_and_undo_keep_the_wishlist_page(self):
+        item = self.user.wishlist_items.filter(removed=False).order_by('-pk')[12]
+        response = self.client.post(reverse('wishlist_remove', args=[item.pk]), {'page': '2'})
+        self.assertRedirects(response, reverse('wishlist') + '?page=2')
+        response = self.client.post(reverse('wishlist_undo'), {'page': '2'})
+        self.assertRedirects(response, reverse('wishlist') + '?page=2')
+        self.assertFalse(WishlistItem.objects.get(pk=item.pk).removed)
