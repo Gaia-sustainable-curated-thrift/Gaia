@@ -362,37 +362,8 @@ Status verifikasi email dibaca dari `allauth.account.EmailAddress` untuk email a
 
 Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih oleh pengguna biasa. `GAIA_CARE_USER_ID` dapat menunjuk akun staff aktif yang disiapkan administrator; benturan username dengan akun biasa ditolak, tanpa menaikkan hak akun tersebut. Percakapan support lama yang salah tujuan memerlukan pemeriksaan admin.
 
-## Pernyataan Penggunaan AI (AI Disclosure)
+### Integrasi My Orders dan Transaksi
 
-Kami memakai AI sebagai asisten pemrograman dan menuliskannya secara terbuka di sini. Keputusan produk, pengecekan hasil, dan semua commit serta merge dilakukan oleh anggota tim.
+My Orders membaca `TransactionOrderState` dari modul Transaksi agar status Paid, Cancelled, dan Expired tidak ditampilkan sebagai Awaiting payment. Buyer bisa membatalkan pesanan yang belum terverifikasi, lalu mengonfirmasi penerimaan setelah barang dikirim. Konfirmasi pembayaran hanya tersedia bagi akun staff aktif melalui Orders > Manage Orders; buyer tidak dapat menandai dirinya sudah lunas. Staff mengisi kurir dan nomor resi sebelum menandai pengiriman. Pembayaran belum terhubung ke gateway otomatis.
 
-### Alat yang dipakai
-| Alat | Dipakai oleh | Untuk apa |
-| ---- | ------------ | --------- |
-| **Claude Code** (asisten pemrograman dari Anthropic, dijalankan dari terminal/aplikasi desktop) | Kayla, modul Product | Menulis dan merapikan kode, menulis test, menambah animasi, menyusun CI, mereview kode, dan menjelaskan kode. |
-| **OpenAI Codex / ChatGPT** | Danar, modul User / Authentication | Membantu memahami Django dan pembagian modul, menganalisis desain, menyusun dan meninjau implementasi akun, pengujian, integrasi, serta dokumentasi. |
-
-<!-- Anggota lain: tambahkan baris untuk alat AI yang kalian pakai di modul masing-masing. -->
-
-### Bagian yang dibantu AI (modul Product)
-
-### Bagian yang dibantu AI (modul User)
-
-- Membaca referensi Gaia User dan Gaia Design System, memetakan alur akun, serta menjelaskan penerapannya pada Django Templates, CSS, dan JavaScript.
-- Membantu pengembangan dan peninjauan form, view, model, template, serta pengujian untuk registrasi/login, profil dan avatar, verifikasi email, keamanan dan penghapusan akun, wishlist, My Products, serta tampilan My Orders.
-- Membantu audit akses berdasarkan kepemilikan, validasi input, email duplikat, akun Google tanpa password lokal, tautan email di belakang proxy PWS, dan ketergantungan antar-modul.
-- Menjelaskan unit test dan coverage, menjalankan pemeriksaan lokal, membantu operasi Git yang diminta, serta merapikan dokumentasi modul User.
-
-Rekaman percakapan yang disertakan oleh pengembang: [Percakapan Codex/ChatGPT untuk modul User](https://chatgpt.com/s/cx_6ae4a2e5c8bc81918c1238f575ae4137).
-
-### Strategi prompt
-
-Untuk modul User, konteks diberikan berupa file proyek, referensi desain, materi tutorial, dan kebutuhan fitur. Permintaan dilakukan bertahap: membaca dan menganalisis terlebih dahulu, menjelaskan pilihan implementasi, lalu melakukan pekerjaan yang diminta. Audit dipersempit ke modul User saat diperlukan, dan temuan dibedakan antara tanggung jawab akun dengan integrasi Product, Transaksi, Chat, serta Review & Rating.
-
-### Keterbatasan AI yang kami temui
-
-Pada modul User, saran awal AI perlu dicocokkan dengan versi kode terbaru dan pembagian tugas tim. Contohnya, audit sempat mencampur kekurangan akun dengan alur transaksi yang merupakan tanggung jawab modul lain. Coverage 100% juga tidak menjamin semua perilaku benar: audit lanjutan menemukan kasus khusus pada registrasi bersamaan, verifikasi email, akun Google, dan penghapusan akun dengan penjualan aktif. Hasil tes lokal tidak menjadi bukti bahwa konfigurasi OAuth/SMTP di PWS atau seluruh tampilan browser telah berfungsi.
-
-### Yang dikerjakan atau diperbaiki manual
-
-Untuk modul User, Danar menentukan kebutuhan, memberikan referensi dan konteks, membahas kelayakan serta pembagian fitur, dan mengoordinasikan integrasi dengan anggota tim. Percakapan juga mencakup peninjauan hasil coverage yang dijalankan pengembang. Bantuan AI mencakup kode dan dokumentasi; tidak seluruh implementasi diklaim ditulis manual. Pemeriksaan akhir terhadap perubahan, kesesuaian dengan tugas, dan perilaku aplikasi tetap menjadi tanggung jawab pengembang modul.
+Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Reservasi pesanan batal/kedaluwarsa dilepas hanya jika masih milik pesanan tersebut. Riwayat tetap terlihat, dan pesanan cancelled/expired tidak memblokir penghapusan akun. Snapshot lama tanpa state transaksi tetap dapat dibaca. Integrasi ini memerlukan migrasi app `transaction` sampai `0003_sync_order_state_choices`.

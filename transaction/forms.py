@@ -52,3 +52,8 @@ class PaymentMethodForm(forms.Form):
         widget=forms.RadioSelect,
         label="Choose payment method",
     )
+
+
+class OrderShippingForm(forms.Form):
+    courier = forms.CharField(max_length=80, label='Courier')
+    tracking_number = forms.CharField(max_length=100, label='Tracking number')
