@@ -367,3 +367,9 @@ Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih 
 My Orders membaca `TransactionOrderState` dari modul Transaksi agar status Paid, Cancelled, dan Expired tidak ditampilkan sebagai Awaiting payment. Buyer bisa membatalkan pesanan yang belum terverifikasi, lalu mengonfirmasi penerimaan setelah barang dikirim. Konfirmasi pembayaran hanya tersedia bagi akun staff aktif melalui Orders > Manage Orders; buyer tidak dapat menandai dirinya sudah lunas. Staff mengisi kurir dan nomor resi sebelum menandai pengiriman. Pembayaran belum terhubung ke gateway otomatis.
 
 Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Reservasi pesanan batal/kedaluwarsa dilepas hanya jika masih milik pesanan tersebut. Riwayat tetap terlihat, dan pesanan cancelled/expired tidak memblokir penghapusan akun. Snapshot lama tanpa state transaksi tetap dapat dibaca. Integrasi ini memerlukan migrasi app `transaction` sampai `0003_sync_order_state_choices`.
+
+### Katalog demo 100 produk
+
+Jalankan `python manage.py seed_demo_products --username danariqbalabi` untuk membuat 100 listing sintetis bernomor. Command memakai ilustrasi proyek, memberi label data demo, dan dapat diulang tanpa menggandakan atau mengembalikan listing yang sudah dihapus. `--count` dapat diisi 1 sampai 100. Command 10 produk `seed_thrift_catalog` tetap tersedia.
+
+Admin juga dapat membuka Django admin > Products > Add 100 Demo Products, memilih username seller aktif, lalu mengonfirmasi. Aksi hanya tersedia bagi staff yang memiliki izin menambah produk, kategori, dan foto, serta memerlukan POST dan CSRF. Pada rilis ini, migrasi `products.0007` mengisi 100 produk untuk akun aktif `danariqbalabi` bila akun tersebut sudah ada di database tujuan. Migrasi tidak membuat akun atau menghapus produk ketika dibalik. Gambar memakai storage produk yang dikonfigurasi; Cloudinary mempertahankannya antar-deploy.

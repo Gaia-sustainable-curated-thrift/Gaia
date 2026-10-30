@@ -1,0 +1,7 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> &rsaquo; <a href="{% url 'admin:products_product_changelist' %}">Products</a> &rsaquo; Add 100 Demo Products</div>{% endblock %}
+{% block content %}<div id="content-main">
+<p>Create up to 100 numbered demo listings for an existing seller, with project illustrations, sample prices, and demo labels. Running this again preserves existing products, edits, sold items, and deleted listings.</p>
+<p>This action adds products to the database of this deployment. It does not create a seller account or overwrite real listings.</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<div class="submit-row"><input type="submit" value="Add 100 Demo Products" class="default"> <a href="{% url 'admin:products_product_changelist' %}">Cancel</a></div></form>
+</div>{% endblock %}
