@@ -71,6 +71,8 @@
                         Cancelled
                     {% elif order.transaction_state.status == "expired" %}
                         Expired
+                    {% elif order.transaction_state.status == "paid" %}
+                        Payment confirmed
                     {% else %}
                         {{ order.get_status_display }}
                     {% endif %}

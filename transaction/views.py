@@ -15,7 +15,7 @@ from accounts.models import AccountOrder
 from products import cart
 from products.models import Product
 
-from .forms import PaymentMethodForm, ShippingAddressForm
+from .forms import OrderShippingForm, PaymentMethodForm, ShippingAddressForm
 from .models import ProductReservation, TransactionOrderState
 
 
@@ -24,43 +24,47 @@ from .models import ProductReservation, TransactionOrderState
 # =========================================================
 
 def get_order_state(order):
+    legacy_status = {
+        AccountOrder.Status.IN_TRANSIT: TransactionOrderState.Status.IN_TRANSIT,
+        AccountOrder.Status.COMPLETED: TransactionOrderState.Status.COMPLETED,
+    }.get(order.status, TransactionOrderState.Status.ACTIVE)
     state, _ = TransactionOrderState.objects.get_or_create(
-        order=order
+        order=order, defaults={'status': legacy_status},
     )
     return state
 
 
+def release_order_reservation(order):
+    # Only release the reservation belonging to this order, never a newer buyer's.
+    reservation = ProductReservation.objects.filter(order=order).first()
+    if reservation is None:
+        return
+    product = Product.objects.select_for_update().filter(pk=reservation.product_id).first()
+    if product is not None and product.status == Product.Status.SOLD:
+        product.status = Product.Status.AVAILABLE
+        product.save(update_fields=['status'])
+    reservation.delete()
+
+
 def expire_reservations():
-    expired_reservations = ProductReservation.objects.filter(
+    expired_ids = list(ProductReservation.objects.filter(
         expires_at__lte=timezone.now()
-    ).select_related("order")
-
-    for reservation in expired_reservations:
+    ).values_list('order_id', flat=True))
+    for order_id in expired_ids:
         with db_transaction.atomic():
-            order = AccountOrder.objects.select_for_update().filter(
-                pk=reservation.order_id
-            ).first()
-
-            if not order:
-                reservation.delete()
+            order = AccountOrder.objects.select_for_update().filter(pk=order_id).first()
+            if order is None:
                 continue
-
+            reservation = ProductReservation.objects.filter(order=order).first()
+            if reservation is None or not reservation.is_expired:
+                continue
             state = get_order_state(order)
-
-            if (
-                state.status == TransactionOrderState.Status.ACTIVE
-                and order.status == AccountOrder.Status.AWAITING_PAYMENT
-            ):
+            if state.status == TransactionOrderState.Status.ACTIVE and order.status == AccountOrder.Status.AWAITING_PAYMENT:
                 state.status = TransactionOrderState.Status.EXPIRED
-                state.save()
-
-                reservation.delete()
-
-            elif state.status in (
-                TransactionOrderState.Status.CANCELLED,
-                TransactionOrderState.Status.EXPIRED,
-            ):
-                reservation.delete()
+                state.save(update_fields=['status', 'updated_at'])
+                release_order_reservation(order)
+            elif state.status in (TransactionOrderState.Status.CANCELLED, TransactionOrderState.Status.EXPIRED):
+                release_order_reservation(order)
 
 
 # =========================================================
@@ -419,28 +423,33 @@ def cancel_order(request, order_id):
                 request,
                 "This order is no longer active."
             )
-            return redirect("transaction:confirmation")
+            return redirect("order_detail", pk=order.pk)
 
         if order.status != AccountOrder.Status.AWAITING_PAYMENT:
             messages.warning(
                 request,
                 "Only orders awaiting payment can be cancelled."
             )
-            return redirect("transaction:confirmation")
+            return redirect("order_detail", pk=order.pk)
+
+        reservation = ProductReservation.objects.filter(order=order).first()
+        if reservation is not None and reservation.is_expired:
+            state.status = TransactionOrderState.Status.EXPIRED
+            state.save(update_fields=['status', 'updated_at'])
+            release_order_reservation(order)
+            messages.warning(request, 'Payment period has expired.')
+            return redirect('order_detail', pk=order.pk)
 
         state.status = TransactionOrderState.Status.CANCELLED
-        state.save()
-
-        ProductReservation.objects.filter(
-            order=order
-        ).delete()
+        state.save(update_fields=['status', 'updated_at'])
+        release_order_reservation(order)
 
     messages.success(
         request,
         "Your order has been cancelled."
     )
 
-    return redirect("transaction:confirmation")
+    return redirect("order_detail", pk=order.pk)
 
 
 @staff_member_required
@@ -462,7 +471,7 @@ def confirm_payment(request, order_id):
                 request,
                 "Order cannot be marked as paid."
             )
-            return redirect("transaction:confirmation")
+            return redirect("order_detail", pk=order.pk)
 
         reservation = ProductReservation.objects.filter(
             order=order
@@ -472,22 +481,20 @@ def confirm_payment(request, order_id):
             state.status = TransactionOrderState.Status.EXPIRED
             state.save()
 
-            ProductReservation.objects.filter(
-                order=order
-            ).delete()
+            release_order_reservation(order)
 
             messages.error(
                 request,
                 "Payment period has expired."
             )
-            return redirect("transaction:confirmation")
+            return redirect("order_detail", pk=order.pk)
 
         state.status = TransactionOrderState.Status.PAID
         state.save()
 
     messages.success(request, "Payment confirmed.")
 
-    return redirect("transaction:confirmation")
+    return redirect("order_detail", pk=order.pk)
 
 
 @staff_member_required
@@ -506,17 +513,23 @@ def ship_order(request, order_id):
                 request,
                 "Order has not been paid."
             )
-            return redirect("transaction:confirmation")
+            return redirect("order_detail", pk=order.pk)
 
+        shipping_form = OrderShippingForm(request.POST)
+        if not shipping_form.is_valid():
+            messages.error(request, 'Enter a courier and tracking number before marking this order as shipped.')
+            return redirect('order_detail', pk=order.pk)
+        order.courier = shipping_form.cleaned_data['courier']
+        order.tracking_number = shipping_form.cleaned_data['tracking_number']
         order.status = AccountOrder.Status.IN_TRANSIT
-        order.save(update_fields=["status"])
+        order.save(update_fields=['courier', 'tracking_number', 'status'])
 
         state.status = TransactionOrderState.Status.IN_TRANSIT
         state.save()
 
     messages.success(request, "Order marked as shipped.")
 
-    return redirect("transaction:confirmation")
+    return redirect("order_detail", pk=order.pk)
 
 
 @login_required
@@ -539,7 +552,7 @@ def complete_order(request, order_id):
                 request,
                 "Order cannot be completed yet."
             )
-            return redirect("transaction:confirmation")
+            return redirect("order_detail", pk=order.pk)
 
         order.status = AccountOrder.Status.COMPLETED
         order.save(update_fields=["status"])
@@ -552,4 +565,4 @@ def complete_order(request, order_id):
         "Order completed. You can now submit a review."
     )
 
-    return redirect("transaction:confirmation")
+    return redirect("order_detail", pk=order.pk)

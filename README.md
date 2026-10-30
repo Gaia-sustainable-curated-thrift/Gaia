@@ -166,3 +166,9 @@ Email akun nonkosong memiliki unique index `LOWER(TRIM(email))` di database (SQL
 Status verifikasi email dibaca dari `allauth.account.EmailAddress` untuk email akun saat ini. Migrasi memindahkan flag verifikasi profil lama tanpa menggabungkan akun. Pengguna dapat meminta ulang tautan melalui Account Settings; tautan berlaku 24 jam dan permintaan dibatasi satu kali per menit per akun, termasuk ketika berpindah browser atau pengiriman gagal. Mode produksi membuat tautan HTTPS meskipun upstream PWS menggunakan HTTP.
 
 Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih oleh pengguna biasa. `GAIA_CARE_USER_ID` dapat menunjuk akun staff aktif yang disiapkan administrator; benturan username dengan akun biasa ditolak, tanpa menaikkan hak akun tersebut. Percakapan support lama yang salah tujuan memerlukan pemeriksaan admin.
+
+### Integrasi My Orders dan Transaksi
+
+My Orders membaca `TransactionOrderState` dari modul Transaksi agar status Paid, Cancelled, dan Expired tidak ditampilkan sebagai Awaiting payment. Buyer bisa membatalkan pesanan yang belum terverifikasi, lalu mengonfirmasi penerimaan setelah barang dikirim. Konfirmasi pembayaran hanya tersedia bagi akun staff aktif melalui Orders > Manage Orders; buyer tidak dapat menandai dirinya sudah lunas. Staff mengisi kurir dan nomor resi sebelum menandai pengiriman. Pembayaran belum terhubung ke gateway otomatis.
+
+Aksi memakai endpoint POST milik `transaction` dan kembali ke detail pesanan. Reservasi pesanan batal/kedaluwarsa dilepas hanya jika masih milik pesanan tersebut. Riwayat tetap terlihat, dan pesanan cancelled/expired tidak memblokir penghapusan akun. Snapshot lama tanpa state transaksi tetap dapat dibaca. Integrasi ini memerlukan migrasi app `transaction` sampai `0003_sync_order_state_choices`.

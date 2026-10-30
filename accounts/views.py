@@ -14,6 +14,10 @@ from django.db.models import Count, Q
 from django.core.paginator import Paginator
 from django.db.models.deletion import ProtectedError, RestrictedError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import Http404
+from transaction.models import TransactionOrderState
+from transaction.views import expire_reservations
+from .order_display import order_display
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
@@ -153,14 +157,39 @@ def edit_profile(request):
 
 @login_required
 def orders(request):
-    page = Paginator(request.user.account_orders.order_by('-date', '-pk'), 12).get_page(request.GET.get('page'))
-    return render(request, 'accounts/orders.html', account_context(request, 'Orders', "Track your orders and follow each item's journey.", 'orders', orders=page.object_list, page_obj=page))
+    staff = request.user.is_active and request.user.is_staff
+    managing = request.GET.get('scope') == 'manage'
+    if managing and not staff:
+        raise Http404
+    expire_reservations()
+    queryset = AccountOrder.objects.all() if managing else request.user.account_orders.all()
+    queryset = queryset.select_related('transaction_state', 'product_reservation', 'user')
+    page = Paginator(queryset.order_by('-date', '-pk'), 12).get_page(request.GET.get('page'))
+    for order in page.object_list:
+        order.account_display = order_display(order, request.user)
+    return render(request, 'accounts/orders.html', account_context(
+        request, 'Manage Orders' if managing else 'Orders',
+        'Verify payments and manage shipping.' if managing else "Track your orders and follow each item's journey.",
+        'orders', orders=page.object_list, page_obj=page, managing_orders=managing,
+        can_manage_orders=staff,
+    ))
 
 
 @login_required
 def order_detail(request, pk):
-    order = get_object_or_404(AccountOrder, pk=pk, user=request.user)
-    return render(request, 'accounts/order_detail.html', account_context(request, 'Order Details', f'Details and delivery status for order #{order.number}.', 'orders', order=order))
+    staff = request.user.is_active and request.user.is_staff
+    queryset = AccountOrder.objects.select_related('transaction_state', 'product_reservation', 'user')
+    if not staff:
+        queryset = queryset.filter(user=request.user)
+    order = get_object_or_404(queryset, pk=pk)
+    expire_reservations()
+    # Expiry may have changed the transaction state since the first read.
+    order = queryset.get(pk=pk)
+    return render(request, 'accounts/order_detail.html', account_context(
+        request, 'Order Details', f'Details and delivery status for order #{order.number}.',
+        'orders', order=order, order_ui=order_display(order, request.user),
+        managing_orders=staff and order.user_id != request.user.pk,
+    ))
 
 
 @login_required
@@ -227,8 +256,11 @@ DELETE_LINK_SECONDS = 900
 
 
 def _deletion_blocked(user):
-    return (user.account_orders.exclude(status=AccountOrder.Status.COMPLETED).exists()
-            or user.sales_orders.exclude(status=AccountOrder.Status.COMPLETED).exists())
+    terminal = (TransactionOrderState.Status.CANCELLED, TransactionOrderState.Status.EXPIRED)
+    return (user.account_orders.exclude(status=AccountOrder.Status.COMPLETED)
+            .exclude(transaction_state__status__in=terminal).exists()
+            or user.sales_orders.exclude(status=AccountOrder.Status.COMPLETED)
+            .exclude(transaction_state__status__in=terminal).exists())
 
 
 def _deletion_link_valid(request, token):
