@@ -3,7 +3,7 @@ import re
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .models import Category, Product
+from .models import Category, Product, ProductImage
 
 
 MAX_PHOTOS = 5
@@ -73,6 +73,23 @@ class ProductListingForm(forms.ModelForm):
         error_messages={'invalid_choice': 'Choose a valid condition.'},
     )
     photos = ListingPhotosField(required=False)
+    # Id foto lama yang mau dibuang saat disimpan. Pilihannya dibatasi ke foto milik listing ini
+    # (lihat __init__), jadi foto listing orang lain nggak bisa dihapus lewat form ini.
+    remove_photos = forms.ModelMultipleChoiceField(
+        queryset=ProductImage.objects.none(),
+        required=False,
+        widget=forms.MultipleHiddenInput,
+        error_messages={
+            'invalid_choice': 'Choose valid photos to remove.',
+            'invalid_pk_value': 'Choose valid photos to remove.',
+            'invalid_list': 'Choose valid photos to remove.',
+        },
+    )
+
+    # Urutan akhir foto yang dipertahankan, dikirim oleh halaman setelah foto di-drag. Isinya
+    # token dipisah koma: e<id> = foto yang sudah tersimpan, n<k> = foto baru ke-k (urutan upload).
+    # Foto pertama jadi cover. Kalau kosong atau ada foto yang tidak disebut, urutan lama dipakai.
+    photo_order = forms.CharField(required=False, widget=forms.HiddenInput)
 
     class Meta:
         model = Product
@@ -90,13 +107,31 @@ class ProductListingForm(forms.ModelForm):
         # Listing wajib masuk sub-kategori seperti "Women · Tops", nggak boleh langsung "Women".
         self.fields['category'].required = True
         self.fields['category'].queryset = Category.objects.filter(parent__isnull=False).select_related('parent')
+        if self.instance.pk:
+            self.fields['remove_photos'].queryset = self.instance.images.all()
 
     def clean_condition(self):
         return self.cleaned_data['condition'] or Product.Condition.GOOD
 
-    def clean_photos(self):
-        # Waktu edit, foto baru ditambahkan ke foto yang sudah ada, jadi yang dicek totalnya.
-        photos = self.cleaned_data['photos']
-        if self.instance.pk and photos and self.instance.images.count() + len(photos) > MAX_PHOTOS:
-            raise ValidationError(f'A listing can have maximum {MAX_PHOTOS} photos in total.', code='too_many_photos')
-        return photos
+    def clean_photo_order(self):
+        tokens = [token for token in self.cleaned_data['photo_order'].split(',') if token]
+        if not all(re.fullmatch(r'[en][0-9]{1,9}', token) for token in tokens):
+            raise ValidationError('Invalid photo order.', code='invalid_photo_order')
+        return tokens
+
+    def clean(self):
+        # Waktu edit, yang dicek adalah total foto setelah perubahan: foto lama dikurangi yang
+        # dibuang, ditambah foto baru. Makanya dicek di sini, setelah semua field selesai divalidasi.
+        # Semua foto boleh dibuang, jadi listing boleh berakhir tanpa foto.
+        cleaned = super().clean()
+        if self.instance.pk:
+            total = (
+                self.instance.images.count()
+                - len(cleaned.get('remove_photos') or [])
+                + len(cleaned.get('photos') or [])
+            )
+            if total > MAX_PHOTOS:
+                self.add_error('photos', ValidationError(
+                    f'A listing can have maximum {MAX_PHOTOS} photos in total.', code='too_many_photos',
+                ))
+        return cleaned

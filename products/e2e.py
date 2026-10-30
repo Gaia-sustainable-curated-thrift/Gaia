@@ -3,8 +3,11 @@
 Install reviews/requirements-dev.txt first. Chromium is used, or GAIA_TEST_BROWSER can
 point to a locally installed Chrome/Edge executable. No real database is used.
 """
+import io
 import os
+import re
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -13,8 +16,10 @@ from django.core.cache import cache
 from django.test import Client, override_settings
 from django.urls import reverse
 
+from PIL import Image
+
 from accounts.models import WishlistItem
-from .models import Category, Product
+from .models import Category, Product, ProductImage
 
 try:
     from playwright.sync_api import expect, sync_playwright
@@ -166,3 +171,114 @@ class ProductBrowserTests(StaticLiveServerTestCase):
             self.assertGreaterEqual(box["x"], card_box["x"])
             self.assertLessEqual(box["x"] + box["width"], card_box["x"] + card_box["width"])
         self.assertEqual(page.evaluate("document.documentElement.scrollWidth"), 375)
+
+    def test_seller_removes_a_saved_photo_and_the_cover_moves_on(self):
+        ProductImage.objects.create(product=self.coat, image="products/e2e-cover.png", is_primary=True, order=0)
+        second = ProductImage.objects.create(product=self.coat, image="products/e2e-second.png", order=1)
+        page = self.page(self.seller)
+        page.goto(self.url("products:edit", self.coat.slug))
+        tiles = page.locator("[data-existing-photo]")
+        expect(tiles).to_have_count(2)
+        expect(tiles.nth(0).locator(".sell-photo__cover")).to_be_visible()
+
+        tiles.nth(0).get_by_role("button", name="Remove photo 1", exact=True).click()
+        expect(tiles.nth(0)).to_have_class(re.compile("is-removed"))
+        expect(tiles.nth(1).locator(".sell-photo__cover")).to_be_visible()
+
+        # Changed my mind: pressing it again puts the photo back.
+        tiles.nth(0).get_by_role("button", name="Restore photo 1", exact=True).click()
+        expect(tiles.nth(0)).not_to_have_class(re.compile("is-removed"))
+        expect(tiles.nth(0).locator(".sell-photo__cover")).to_be_visible()
+
+        tiles.nth(0).get_by_role("button", name="Remove photo 1", exact=True).click()
+        page.get_by_role("button", name="Save changes").click()
+        page.wait_for_url(self.url("products:detail", self.coat.slug))
+        self.assertEqual(list(self.coat.images.values_list("pk", flat=True)), [second.pk])
+        self.assertTrue(self.coat.images.get().is_primary)
+
+    def test_even_the_only_photo_can_be_removed(self):
+        only = ProductImage.objects.create(product=self.coat, image="products/e2e-only.png", is_primary=True, order=0)
+        page = self.page(self.seller)
+        page.goto(self.url("products:edit", self.coat.slug))
+        page.get_by_role("button", name="Remove photo 1", exact=True).click()
+        expect(page.locator("[data-existing-photo]")).to_have_class(re.compile("is-removed"))
+        page.get_by_role("button", name="Save changes").click()
+        page.wait_for_url(self.url("products:detail", self.coat.slug))
+        self.assertFalse(ProductImage.objects.filter(pk=only.pk).exists())
+
+    def test_removing_an_unsaved_photo_leaves_the_saved_photo_alone_and_the_saved_one_can_go_too(self):
+        saved = ProductImage.objects.create(product=self.coat, image="products/e2e-saved.png", is_primary=True, order=0)
+        buffer = io.BytesIO()
+        Image.new("RGB", (30, 30), "green").save(buffer, "PNG")
+        page = self.page(self.seller)
+        page.goto(self.url("products:edit", self.coat.slug))
+        page.locator("[data-photo-input]").set_input_files(
+            [{"name": "fresh.png", "mimeType": "image/png", "buffer": buffer.getvalue()}],
+        )
+        tiles = page.locator(".sell-photos .sell-photo")
+        expect(tiles).to_have_count(2)
+
+        # Drop the unsaved one: the saved photo must still be there and still removable.
+        tiles.nth(1).get_by_role("button", name="Remove photo", exact=True).click()
+        expect(tiles).to_have_count(1)
+        saved_trash = page.get_by_role("button", name="Remove photo 1", exact=True)
+        saved_trash.click()
+        expect(page.locator("[data-existing-photo]")).to_have_class(re.compile("is-removed"))
+        expect(page.locator("input[name=remove_photos]")).to_have_count(1)
+        page.get_by_role("button", name="Save changes").click()
+        page.wait_for_url(self.url("products:detail", self.coat.slug))
+        self.assertFalse(ProductImage.objects.filter(pk=saved.pk).exists())
+        self.assertEqual(self.coat.images.count(), 0)
+
+    def test_a_photo_dragged_to_the_left_becomes_the_cover(self):
+        first = ProductImage.objects.create(product=self.coat, image="products/e2e-first.png", is_primary=True, order=0)
+        second = ProductImage.objects.create(product=self.coat, image="products/e2e-second.png", order=1)
+        third = ProductImage.objects.create(product=self.coat, image="products/e2e-third.png", order=2)
+        page = self.page(self.seller)
+        page.goto(self.url("products:edit", self.coat.slug))
+        tiles = page.locator("[data-existing-photo]")
+        expect(tiles.nth(0).locator(".sell-photo__cover")).to_be_visible()
+
+        # Press on the third photo, drag it over the left half of the first one and let go.
+        source = tiles.nth(2).bounding_box()
+        target = tiles.nth(0).bounding_box()
+        page.mouse.move(source["x"] + source["width"] / 2, source["y"] + source["height"] / 2)
+        page.mouse.down()
+        page.mouse.move(target["x"] + 20, target["y"] + target["height"] / 2, steps=12)
+        expect(tiles.nth(0)).to_have_class(re.compile("drop-before"))
+        page.mouse.up()
+
+        ids = page.evaluate("[...document.querySelectorAll('[data-existing-photo]')].map(t => t.dataset.photoId)")
+        self.assertEqual(ids, [str(third.pk), str(first.pk), str(second.pk)])
+        expect(tiles.nth(0).locator(".sell-photo__cover")).to_be_visible()
+        expect(page.locator(".sell-photo__cover")).to_have_count(1)
+
+        page.get_by_role("button", name="Save changes").click()
+        page.wait_for_url(self.url("products:detail", self.coat.slug))
+        self.assertEqual(list(self.coat.images.order_by("order").values_list("pk", flat=True)), [third.pk, first.pk, second.pk])
+        self.assertEqual(self.coat.primary_image.pk, third.pk)
+
+    def test_a_photo_can_be_moved_with_the_arrow_keys(self):
+        first = ProductImage.objects.create(product=self.coat, image="products/e2e-a.png", is_primary=True, order=0)
+        second = ProductImage.objects.create(product=self.coat, image="products/e2e-b.png", order=1)
+        page = self.page(self.seller)
+        page.goto(self.url("products:edit", self.coat.slug))
+        tiles = page.locator("[data-existing-photo]")
+        tiles.nth(1).focus()
+        page.keyboard.press("ArrowLeft")
+        ids = page.evaluate("[...document.querySelectorAll('[data-existing-photo]')].map(t => t.dataset.photoId)")
+        self.assertEqual(ids, [str(second.pk), str(first.pk)])
+        expect(tiles.nth(0).locator(".sell-photo__cover")).to_be_visible()
+
+    def test_a_deleted_listing_can_be_brought_back_with_undo(self):
+        page = self.page(self.seller)
+        page.goto(self.url("products:picked"))
+        card = page.locator(".product-card", has_text="Wool Coat")
+        card.get_by_role("button", name="Delete Wool Coat").click()
+        page.locator(f"#delete-listing-{self.coat.slug}").get_by_role("button", name="Delete listing").click()
+        expect(card).to_have_count(0)
+        self.assertIsNotNone(Product.all_objects.get(pk=self.coat.pk).deleted_at)
+
+        page.locator(".toast").get_by_role("button", name="Undo").click()
+        expect(page.locator(".product-card", has_text="Wool Coat")).to_have_count(1)
+        self.assertIsNone(Product.all_objects.get(pk=self.coat.pk).deleted_at)

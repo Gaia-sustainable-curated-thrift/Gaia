@@ -97,7 +97,7 @@ Modul User menyediakan identitas akun dan area pribadi yang digunakan bersama ol
 ### Fitur
 
 - **Registrasi dan autentikasi:** membuat akun dengan nama lengkap, email, dan password; login menggunakan email atau username; login Google; serta logout melalui POST dengan konfirmasi.
-- **Profil:** melihat dan mengubah nama, username, nomor telepon, kota, negara, serta foto profil. Email tidak dapat diubah melalui form profil. Foto JPG/PNG/WebP dibatasi 2 MB dan dimensi 4096 piksel per sisi, lalu diproses menjadi gambar persegi 512 x 512 piksel.
+- **Profil:** melihat dan mengubah nama, username, nomor telepon, kota, negara, serta foto profil. Nama, username, nomor telepon, kota, dan negara wajib diisi saat menyimpan perubahan profil; foto profil opsional. Email tidak dapat diubah melalui form profil. Foto JPG/PNG/WebP dibatasi 2 MB dan dimensi 4096 piksel per sisi, lalu diproses menjadi gambar persegi 512 x 512 piksel.
 - **Keamanan akun:** verifikasi email dengan tautan 24 jam dan kirim ulang dengan cooldown satu menit per akun; ganti password untuk akun dengan password lokal; serta reset password melalui email. Akun tanpa password lokal mendapat keterangan mengenai external sign-in.
 - **Penghapusan akun:** konfirmasi password untuk akun lokal atau tautan email untuk akun tanpa password lokal, disertai frasa `DELETE` dan persetujuan penghapusan. Akun dengan pesanan pembelian atau penjualan yang belum selesai tidak dapat dihapus.
 - **Wishlist:** melihat produk favorit, menghapus item dengan soft delete, dan mengembalikan penghapusan terakhir melalui undo. Produk berstatus sold disembunyikan dari daftar favorit yang ditampilkan.
@@ -317,6 +317,12 @@ python manage.py seed_reviews --username <username-akun-demo>
 ```
 
 Data demo membantu memeriksa tampilan katalog dan halaman akun. Data tersebut bukan transaksi, pembayaran, atau review nyata.
+
+### Katalog demo 100 produk
+
+Jalankan `python manage.py seed_demo_products --username danariqbalabi` untuk membuat 100 listing sintetis bernomor. Command memakai ilustrasi proyek, memberi label data demo, dan dapat diulang tanpa menggandakan atau mengembalikan listing yang sudah dihapus. `--count` dapat diisi 1 sampai 100. Command 10 produk `seed_thrift_catalog` tetap tersedia.
+
+Admin juga dapat membuka Django admin > Products > Add 100 Demo Products, memilih username seller aktif, lalu mengonfirmasi. Aksi hanya tersedia bagi staff yang memiliki izin menambah produk, kategori, dan foto, serta memerlukan POST dan CSRF. Pada rilis ini, migrasi `products.0007` mengisi 100 produk untuk akun aktif `danariqbalabi` bila akun tersebut sudah ada di database tujuan. Migrasi tidak membuat akun atau menghapus produk ketika dibalik. Gambar memakai storage produk yang dikonfigurasi; Cloudinary mempertahankannya antar-deploy.
 
 ## Pengujian
 

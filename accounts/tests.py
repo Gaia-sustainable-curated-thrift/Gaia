@@ -877,7 +877,7 @@ class AvatarTests(TestCase):
         self.user = User.objects.create_user('avatar-owner', 'avatar@example.com', PASSWORD, first_name='Avatar')
         Profile.objects.create(user=self.user)
         self.client.force_login(self.user)
-        self.data = {'full_name': 'Avatar Owner', 'username': 'avatar-owner', 'phone': '', 'city': 'Jakarta', 'country': 'Indonesia'}
+        self.data = {'full_name': 'Avatar Owner', 'username': 'avatar-owner', 'phone': '+6281234567890', 'city': 'Jakarta', 'country': 'Indonesia'}
 
     def image(self, filename='photo.png', format='PNG', size=(100, 80)):
         from PIL import Image
@@ -1700,3 +1700,56 @@ class MyOrdersTransactionIntegrationTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, 'completed')
         self.assertContains(self.client.get(reverse('order_detail', args=[order.pk])), 'Review Seller')
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class RequiredProfileFieldsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('required-profile', 'required@example.test', PASSWORD, first_name='Before')
+        Profile.objects.create(user=self.user, phone='+628111111111', city='Jakarta', country='Indonesia')
+        self.client.force_login(self.user)
+        self.data = {'full_name': 'Updated Owner', 'username': 'updated-profile',
+                     'phone': '+62 812 3456 7890', 'city': 'Bandung', 'country': 'Indonesia'}
+
+    def test_all_editable_text_fields_reject_missing_blank_and_whitespace(self):
+        for field in ('full_name', 'username', 'phone', 'city', 'country'):
+            for value in (None, '', '   '):
+                with self.subTest(field=field, value=value):
+                    data = self.data.copy()
+                    if value is None:
+                        data.pop(field)
+                    else:
+                        data[field] = value
+                    form = ProfileForm(data, instance=User.objects.get(pk=self.user.pk))
+                    self.assertFalse(form.is_valid())
+                    self.assertEqual(form.errors.as_data()[field][0].code, 'required')
+
+    def test_missing_contact_details_do_not_partially_save_the_user_or_profile(self):
+        for field in ('phone', 'city', 'country'):
+            data = {**self.data, field: '   '}
+            response = self.client.post(reverse('edit_profile'), data)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(field, response.context['form'].errors)
+            self.user.refresh_from_db()
+            self.assertEqual((self.user.first_name, self.user.username), ('Before', 'required-profile'))
+            self.assertEqual((self.user.profile.phone, self.user.profile.city, self.user.profile.country),
+                             ('+628111111111', 'Jakarta', 'Indonesia'))
+
+    def test_complete_profile_saves_without_requiring_an_avatar_or_editable_email(self):
+        response = self.client.post(reverse('edit_profile'), self.data)
+        self.assertRedirects(response, reverse('profile'))
+        self.user.refresh_from_db()
+        self.assertEqual((self.user.profile.phone, self.user.profile.city, self.user.profile.country),
+                         ('+62 812 3456 7890', 'Bandung', 'Indonesia'))
+        self.assertFalse(self.user.profile.avatar)
+        self.assertEqual(self.user.email, 'required@example.test')
+
+    def test_page_explains_required_fields_and_browser_validation_matches_backend(self):
+        response = self.client.get(reverse('edit_profile'))
+        self.assertContains(response, 'Fields marked * are required')
+        self.assertContains(response, 'Change profile photo (optional)')
+        form = response.context['form']
+        for name in ('full_name', 'username', 'phone', 'city', 'country'):
+            self.assertIn(' required', str(form[name]))
+        self.assertNotIn('required', str(form['avatar']))
+        self.assertTrue(form.fields['email'].disabled)

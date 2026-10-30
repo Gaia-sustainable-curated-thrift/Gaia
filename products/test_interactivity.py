@@ -60,7 +60,12 @@ class AjaxDeleteTests(TestCase):
             reverse('products:delete', args=[self.product.slug]), HTTP_X_REQUESTED_WITH='XMLHttpRequest',
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {'ok': True, 'toast': {'kind': 'added', 'text': 'Listing deleted.'}, 'product_id': self.product.pk})
+        undo_url = reverse('products:restore', args=[self.product.slug])
+        self.assertEqual(response.json(), {
+            'ok': True,
+            'toast': {'kind': 'added', 'text': 'Listing deleted.', 'undo_url': undo_url, 'undo_reload': True},
+            'product_id': self.product.pk,
+        })
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
         self.assertNotIn('bag_toast', self.client.session)
 
