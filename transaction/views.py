@@ -21,6 +21,12 @@ from .models import ProductReservation, TransactionOrderState
 def checkout(request):
     expire_reservations();
     cart_items = cart.items(request.session)
+    if any(item["quantity"] != 1 for item in cart_items):
+        messages.error(
+            request,
+            "Each thrift product can only be purchased once."
+        )
+    return redirect("transaction:checkout")
 
     if not cart_items:
         messages.info(request, "Your bag is empty.")
