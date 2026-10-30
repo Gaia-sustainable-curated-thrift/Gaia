@@ -38,7 +38,7 @@
 </section>
 <section class="card activity">
 <h2>My Activity
-</h2><a href="{% url 'orders' %}">{% include 'includes/icon.html' with name='bag' %}<span><strong>{{ order_count|stringformat:'02d' }}</strong><small>Orders</small></span></a><a href="{% url 'wishlist' %}">{% include 'includes/icon.html' with name='heart' %}<span><strong>{{ wishlist_count|stringformat:'02d' }}</strong><small>Wishlist items</small></span></a>
+</h2><a href="{% url 'my_products' %}">{% include 'includes/icon.html' with name='bag' %}<span><strong>{{ listing_count|stringformat:'02d' }}</strong><small>My products</small></span></a><a href="{% url 'orders' %}">{% include 'includes/icon.html' with name='bag' %}<span><strong>{{ order_count|stringformat:'02d' }}</strong><small>Orders</small></span></a><a href="{% url 'wishlist' %}">{% include 'includes/icon.html' with name='heart' %}<span><strong>{{ wishlist_count|stringformat:'02d' }}</strong><small>Wishlist items</small></span></a>
 </section>
 </div>
 {% endblock %}

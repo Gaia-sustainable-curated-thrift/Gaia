@@ -305,7 +305,7 @@ def delete_listing(request, slug):
     if request.session.get('bag_undo', {}).get('product_id') == product_id:
         request.session.pop('bag_undo')
     request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing deleted.'}
-    return redirect('products:home')
+    return _redirect_back(request, reverse('products:home'))
 
 
 def _product_url(product):

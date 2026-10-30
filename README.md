@@ -33,7 +33,7 @@ Pembagian tanggung jawab MVP adalah **Danar: User, Kayla: Product, Deva: Chat, S
 | 4 | **Salma** | **Transaksi** | Keranjang, checkout, pembuatan pesanan, alur pembayaran, serta pelacakan status transaksi. |
 | 5 | **Keisha** | **Review & Rating** | Pemberian dan penampilan review/rating setelah transaksi, dengan pembatasan berdasarkan pihak yang bertransaksi. |
 
-Pencarian/filter dasar menjadi bagian pendukung Product, dan keranjang menjadi bagian Transaksi. Keduanya tidak memiliki penanggung jawab modul terpisah. Wishlist dasar menjadi bagian modul User. Kelima modul dikembangkan dengan pembatasan akses sesuai peran dan kepemilikan data.
+Pencarian/filter dasar menjadi bagian pendukung Product, dan keranjang menjadi bagian Transaksi. Keduanya tidak memiliki penanggung jawab modul terpisah. Wishlist dasar menjadi bagian modul User. Halaman My Products (Produk Saya) di area akun menampilkan listing milik pengguna dan menghubungkan aksi jual, edit, serta hapus dari modul Product. Semua pengguna terdaftar dapat menjadi seller tanpa pendaftaran peran tambahan. Kelima modul dikembangkan dengan pembatasan akses sesuai peran dan kepemilikan data.
 
 ## User Roles dalam MVP
 

@@ -10,6 +10,8 @@ from django.contrib.auth.views import PasswordChangeView
 from django.core import signing
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models import Count, Q
+from django.core.paginator import Paginator
 from django.db.models.deletion import ProtectedError, RestrictedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -65,7 +67,7 @@ def verify_email(request, token):
 
 @login_required
 def profile(request):
-    return render(request, 'accounts/profile.html', account_context(request, 'Profile', 'Your space for a more mindful fashion journey.', order_count=request.user.account_orders.count(), wishlist_count=request.user.wishlist_items.filter(removed=False).count()))
+    return render(request, 'accounts/profile.html', account_context(request, 'Profile', 'Your space for a more mindful fashion journey.', listing_count=request.user.products.count(), order_count=request.user.account_orders.count(), wishlist_count=request.user.wishlist_items.filter(removed=False).count()))
 
 
 @login_required
@@ -235,3 +237,24 @@ def send_delete_confirmation(request):
             request.session[DELETE_SESSION_KEY] = pending
             messages.success(request, 'Confirmation email sent. Open the link in this browser within 15 minutes to continue.')
     return redirect('delete_account')
+
+
+@login_required
+@require_http_methods(['GET', 'HEAD'])
+def my_products(request):
+    listings = request.user.products.select_related('category').prefetch_related('images')
+    totals = request.user.products.aggregate(
+        total=Count('pk'),
+        available=Count('pk', filter=Q(status='available')),
+        sold=Count('pk', filter=Q(status='sold')),
+    )
+    status = request.GET.get('status', '')
+    if status not in ('available', 'sold'):
+        status = ''
+    if status:
+        listings = listings.filter(status=status)
+    page = Paginator(listings.order_by('-created_at', '-pk'), 12).get_page(request.GET.get('page'))
+    return render(request, 'accounts/my_products.html', account_context(
+        request, 'My Products', 'Manage your listings and give every piece a new story.',
+        'products', page_obj=page, selected_status=status, listing_totals=totals,
+    ))
