@@ -184,12 +184,20 @@ def wishlist_undo(request):
 
 @login_required
 def account_settings(request):
-    return render(request, 'accounts/settings.html', account_context(request, 'Account Settings', 'Manage security and access to your GAIA account.', 'settings'))
+    from allauth.socialaccount.models import SocialAccount
+    google_account = SocialAccount.objects.filter(user=request.user, provider='google').exists()
+    return render(request, 'accounts/settings.html', account_context(request, 'Account Settings', 'Manage security and access to your GAIA account.', 'settings', google_account=google_account))
 
 
 class ChangePasswordView(PasswordChangeView):
     template_name = 'accounts/change_password.html'
     success_url = reverse_lazy('account_settings')
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not request.user.has_usable_password():
+            messages.info(request, 'Your account uses external sign-in and does not have a local password to change.')
+            return redirect('account_settings')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         return {**super().get_context_data(**kwargs), **account_context(self.request, 'Change Password', 'Use a unique password to keep your account secure.', 'settings')}

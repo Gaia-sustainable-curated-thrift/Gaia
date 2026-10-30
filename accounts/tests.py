@@ -1334,3 +1334,31 @@ class VerificationRecoveryTests(TestCase):
         self.user.email = 'changed@example.test'
         self.user.save()
         self.assertFalse(self.client.get(reverse('profile')).context['email_verified'])
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class GoogleAccountPasswordExperienceTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('google-only', 'google@example.test')
+        self.client.force_login(self.user)
+
+    def test_google_only_account_sees_its_login_method_without_password_button(self):
+        from allauth.socialaccount.models import SocialAccount
+        SocialAccount.objects.create(user=self.user, provider='google', uid='google-only-uid')
+        response = self.client.get(reverse('account_settings'))
+        self.assertContains(response, 'You sign in with Google.')
+        self.assertNotContains(response, 'Change Password')
+        self.assertNotContains(response, reverse('password_reset'))
+
+    def test_unusable_password_cannot_open_or_submit_change_password_form(self):
+        for method in (self.client.get, self.client.post):
+            self.assertRedirects(method(reverse('password_change')), reverse('account_settings'))
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.has_usable_password())
+
+    def test_local_password_account_keeps_existing_change_flow(self):
+        self.user.set_password(PASSWORD)
+        self.user.save()
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse('account_settings')), 'Change Password')
+        self.assertIn('old_password', self.client.get(reverse('password_change')).context['form'].fields)
