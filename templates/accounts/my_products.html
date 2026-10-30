@@ -1,6 +1,6 @@
 {% extends 'accounts/layout.html' %}
 {% load static account_tags %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/my-products.css' %}"><script src="{% static 'js/my-products.js' %}" defer></script>{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/my-products.css' %}">{% endblock %}
 {% block account_content %}
 <div class="my-products-toolbar">
     <div><strong>{{ listing_totals.total }} listing{{ listing_totals.total|pluralize }}</strong><p class="small muted">Everyone on GAIA can sell. Start with a piece you no longer wear.</p></div>

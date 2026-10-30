@@ -68,7 +68,7 @@ jobs:
       - name: Run browser tests
         env:
           PRODUCTION: 'False'
-        run: python manage.py test products.e2e reviews.e2e --noinput
+        run: python manage.py test accounts.e2e products.e2e reviews.e2e --noinput
 
   deploy:
     name: Deploy Gaia to PWS

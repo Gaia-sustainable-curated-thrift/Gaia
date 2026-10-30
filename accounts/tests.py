@@ -1753,3 +1753,54 @@ class RequiredProfileFieldsTests(TestCase):
             self.assertIn(' required', str(form[name]))
         self.assertNotIn('required', str(form['avatar']))
         self.assertTrue(form.fields['email'].disabled)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class AccountValidationRegressionTests(TestCase):
+    def test_password_similarity_uses_the_submitted_full_name(self):
+        form = RegisterForm({'full_name': 'LavenderFoxOrbit', 'email': 'new@example.test',
+                             'password1': 'LavenderFoxOrbit2026!', 'password2': 'LavenderFoxOrbit2026!'})
+        self.assertFalse(form.is_valid())
+        self.assertIn('password2', form.errors)
+
+    def test_empty_registration_is_bound_and_shows_required_errors(self):
+        response = self.client.post(reverse('register'), {})
+        self.assertTrue(response.context['form'].is_bound)
+        self.assertIn('email', response.context['form'].errors)
+
+    def test_competing_username_change_shows_form_error_without_partial_save(self):
+        user = User.objects.create_user('race-owner', 'race@example.test', PASSWORD, first_name='Original')
+        Profile.objects.create(user=user, city='Jakarta')
+        self.client.force_login(user)
+        original = ProfileForm.is_valid
+        def competing(form):
+            valid = original(form)
+            User.objects.create_user('contended-name')
+            return valid
+        with patch.object(ProfileForm, 'is_valid', competing):
+            response = self.client.post(reverse('edit_profile'), {'full_name': 'Changed', 'username': 'contended-name',
+                'phone': '08123456789', 'city': 'Bandung', 'country': 'Indonesia'})
+        self.assertContains(response, 'This username was just taken')
+        user.refresh_from_db()
+        self.assertEqual((user.username, user.first_name, user.profile.city), ('race-owner', 'Original', 'Jakarta'))
+
+
+    def test_case_insensitive_username_uniqueness_is_enforced_by_database(self):
+        User.objects.create_user('CaseTwin')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            User.objects.create_user('casetwin')
+
+    def test_two_prevalidated_profile_forms_cannot_create_case_variant_usernames(self):
+        first = User.objects.create_user('race-first')
+        second = User.objects.create_user('race-second')
+        Profile.objects.create(user=first)
+        Profile.objects.create(user=second)
+        data = {'full_name': 'Owner', 'phone': '08123456789', 'city': 'Depok', 'country': 'Indonesia'}
+        a = ProfileForm({**data, 'username': 'SharedName'}, instance=first)
+        b = ProfileForm({**data, 'username': 'sharedname'}, instance=second)
+        self.assertTrue(a.is_valid(), a.errors)
+        self.assertTrue(b.is_valid(), b.errors)
+        a.save()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            b.save()
+        self.assertEqual(User.objects.filter(username__iexact='sharedname').count(), 1)

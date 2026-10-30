@@ -1362,3 +1362,7 @@ dialog::backdrop {
 .status.cancelled { background:#eee; color:#555; }
 .status.expired { background:#f8eadb; color:#704418; }
 @media (max-width:480px) { .order-shipping-form .button { width:100%; } }
+
+.account-request-status { padding:10px 16px; border-radius:8px; background:var(--canvas); color:var(--olive-dark); font-size:14px; }
+.account-request-error { background:#f8e8ed; color:var(--wine); }
+main[aria-busy="true"] button[type="submit"] { opacity:.6; pointer-events:none; }
