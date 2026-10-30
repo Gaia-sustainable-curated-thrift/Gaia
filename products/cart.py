@@ -1,7 +1,10 @@
+from django.contrib.auth import SESSION_KEY as AUTH_SESSION_KEY
+
 from .models import Product
 
 SESSION_KEY = 'bag'
-MAX_QUANTITY = 99
+# Each thrift listing represents one physical item.
+MAX_QUANTITY = 1
 
 
 def _read(session):
@@ -10,12 +13,15 @@ def _read(session):
         return {}
     cleaned = {}
     for key, quantity in data.items():
+        key = str(key)
+        if not key.isascii() or not key.isdecimal():
+            continue
         try:
             quantity = int(quantity)
         except (TypeError, ValueError):
             continue
         if quantity > 0:
-            cleaned[str(key)] = min(quantity, MAX_QUANTITY)
+            cleaned[str(int(key))] = min(quantity, MAX_QUANTITY)
     return cleaned
 
 
@@ -59,14 +65,21 @@ def items(session):
     data = _read(session)
     if not data:
         return []
-    ids = [int(key) for key in data if str(key).isdigit()]
+    ids = [int(key) for key in data]
     products = (
         Product.objects
         .select_related('category')
         .prefetch_related('images')
-        .filter(pk__in=ids)
+        .filter(pk__in=ids, status=Product.Status.AVAILABLE)
     )
+    # A seller can never buy their own listing, even one added before signing in.
+    owner_id = session.get(AUTH_SESSION_KEY)
+    if owner_id is not None:
+        products = products.exclude(seller_id=owner_id)
     by_id = {str(product.pk): product for product in products}
+    available = {key: quantity for key, quantity in data.items() if key in by_id}
+    if session.get(SESSION_KEY) != available:
+        _write(session, available)
     result = []
     for key, quantity in data.items():
         product = by_id.get(key)

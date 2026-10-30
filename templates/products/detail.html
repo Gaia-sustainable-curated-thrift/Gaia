@@ -45,40 +45,44 @@
             </div>
 
             <div class="pdp-actions-block">
-                <div class="pdp-actions">
-                    <form class="pdp-action-form" method="post" action="{% url 'products:bag_add' product.slug %}">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button class="button pdp-bag" type="submit" {% if not product.is_purchasable %}disabled{% endif %}>
-                            {% include 'includes/icon.html' with name='bag' %}<span>Add to bag</span>
-                        </button>
-                    </form>
-                    <form class="pdp-action-form" method="post" action="{% url 'products:wish_add' product.slug %}">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button class="button olive-button pdp-wish" type="submit">
-                            {% include 'includes/icon.html' with name='heart' %}<span>Save to wishlist</span>
-                        </button>
-                    </form>
+                {% if user == product.seller and not product.is_purchasable %}
+                <div class="pdp-sold-note" role="status">
+                    {% include 'includes/icon.html' with name='check' %}
+                    <p><strong>This item has been sold.</strong> It's hidden from the shop, so only you can see this page.</p>
                 </div>
-                <p class="pdp-saved">{{ saved_count }} people have saved this</p>
+                {% endif %}
+                <div class="pdp-actions">
+                    {% if user == product.seller %}
+                    <button class="button pdp-delete" type="button" data-delete-listing aria-haspopup="dialog" aria-controls="delete-listing-dialog" aria-expanded="false">{% include 'includes/icon.html' with name='trash' %}<span>Delete</span></button>
+                    <a class="button olive-button pdp-edit" href="{% url 'products:edit' product.slug %}">{% include 'includes/icon.html' with name='edit' %}<span>Edit</span></a>
+                    {% else %}
+                    {% include 'products/includes/bag_form.html' with form_class='pdp-action-form' button_class='pdp-bag' with_icon=True %}
+                    <form class="pdp-action-form" method="post" action="{% if wishlist_saved %}{% url 'products:wish_remove' product.slug %}{% else %}{% url 'products:wish_add' product.slug %}{% endif %}" data-wishlist-form data-add-url="{% url 'products:wish_add' product.slug %}" data-remove-url="{% url 'products:wish_remove' product.slug %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="button olive-button pdp-wish{% if wishlist_saved %} is-saved{% endif %}" type="submit" aria-pressed="{{ wishlist_saved|yesno:'true,false' }}">
+                            {% include 'includes/icon.html' with name='heart' %}<span data-wishlist-label>{% if wishlist_saved %}Saved to wishlist{% else %}Save to wishlist{% endif %}</span>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                <p class="pdp-saved" data-wishlist-count>{{ saved_count }} {% if saved_count == 1 %}person has{% else %}people have{% endif %} saved this</p>
             </div>
 
             <div class="pdp-seller">
                 <h2 class="pdp-seller-label">Listed by</h2>
                 <div class="pdp-seller-card">
                     <div class="pdp-seller-profile">
-                        <span class="pdp-avatar" aria-hidden="true">{{ product.seller|initials }}</span>
+                        <a class="pdp-avatar" href="{% url 'reviews:seller_reviews' product.seller.pk %}" aria-label="View seller {{ product.seller.username }}">
+                            {% if product.seller.profile.avatar %}<img src="{{ product.seller.profile.avatar.url }}" alt="">{% else %}{{ product.seller|initials }}{% endif %}
+                        </a>
                         <div class="pdp-seller-details">
-                            <span class="pdp-username">@{{ product.seller.username }}</span>
+                            <a class="pdp-username" href="{% url 'reviews:seller_reviews' product.seller.pk %}">@{{ product.seller.username }}</a>
                             {% seller_rating product.seller %}
                         </div>
                     </div>
                     {% if user == product.seller %}
-                    <div class="pdp-owner-actions">
-                        <a class="button pdp-edit" href="{% url 'products:edit' product.slug %}">Edit listing</a>
-                        <button class="button secondary pdp-delete" type="button" data-delete-listing aria-haspopup="dialog" aria-controls="delete-listing-dialog" aria-expanded="false">Delete</button>
-                    </div>
+                    {# The owner's edit and delete actions replace the buy buttons above. #}
                     {% elif user.is_authenticated %}
                     <form method="post" action="{% url 'chat:start' product.pk %}">{% csrf_token %}<button class="button pdp-chat" type="submit">Chat</button></form>
                     {% else %}
@@ -103,20 +107,6 @@
 
 </main>
 {% if user == product.seller %}
-<dialog class="pdp-delete-dialog" id="delete-listing-dialog" aria-labelledby="delete-listing-title" aria-describedby="delete-listing-description">
-    <div class="dialog-content">
-        <h2 id="delete-listing-title">Delete this listing?</h2>
-        <p id="delete-listing-description">&ldquo;{{ product.title }}&rdquo; will be permanently removed from the catalog.</p>
-        <div class="actions">
-            <form method="dialog">
-                <button class="button secondary" type="submit" autofocus>Cancel</button>
-            </form>
-            <form method="post" action="{% url 'products:delete' product.slug %}">
-                {% csrf_token %}
-                <button class="button" type="submit">Delete listing</button>
-            </form>
-        </div>
-    </div>
-</dialog>
+{% include 'products/includes/delete_listing_dialog.html' with dialog_id='delete-listing-dialog' %}
 {% endif %}
 {% endblock %}

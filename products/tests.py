@@ -1,4 +1,5 @@
 from tempfile import TemporaryDirectory
+from urllib.parse import parse_qs, urlparse
 
 from django.contrib.auth import get_user_model
 from django.core.checks import Tags, run_checks
@@ -94,7 +95,7 @@ class ListingEmptyStateTests(TestCase):
 
 class SharedNavbarTests(TestCase):
     def test_anonymous_navbar_uses_shared_component_without_member_actions(self):
-        for path in ['/products/', '/products/search/', '/accounts/login/']:
+        for path in ['/products/', '/products/search/?q=shirt', '/accounts/login/']:
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertTemplateUsed(response, 'includes/navbar.html')
@@ -107,7 +108,7 @@ class SharedNavbarTests(TestCase):
     def test_authenticated_navbar_is_shared_by_product_and_account_pages(self):
         user = get_user_model().objects.create_user('navbar-seller')
         self.client.force_login(user)
-        for path in ['/products/', '/products/search/', '/products/sell/', '/accounts/profile/', '/accounts/wishlist/']:
+        for path in ['/products/', '/products/search/?q=shirt', '/products/sell/', '/accounts/profile/', '/accounts/wishlist/']:
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertTemplateUsed(response, 'includes/navbar.html')
@@ -180,7 +181,7 @@ class BagTests(TestCase):
     def test_ajax_count_tracks_add_remove_and_undo_without_stale_toast(self):
         headers = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
         add = reverse('products:bag_add', args=[self.product.slug])
-        for expected in [1, 2]:
+        for expected in [1, 1]:
             response = self.client.post(add, **headers)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['bag_count'], expected)
@@ -189,9 +190,9 @@ class BagTests(TestCase):
         )
         self.assertEqual(response.json()['bag_count'], 0)
         response = self.client.post(reverse('products:bag_undo'), **headers)
-        self.assertEqual(response.json()['bag_count'], 2)
+        self.assertEqual(response.json()['bag_count'], 1)
         response = self.client.get(reverse('products:home'))
-        self.assertContains(response, 'aria-label="Shopping bag, 2 items"')
+        self.assertContains(response, 'aria-label="Shopping bag, 1 item"')
         self.assertContains(response, 'data-bag-count')
         self.assertNotContains(response, 'toast toast--added')
 
@@ -218,16 +219,207 @@ class BagTests(TestCase):
         response = self.client.post(reverse('products:wish_add', args=[self.product.slug]))
         self.assertEqual(response.status_code, 302)
         self.assertIn('/accounts/login/', response.url)
+        # After signing in the visitor lands back on the product page, not the POST-only endpoint.
+        next_url = parse_qs(urlparse(response.url).query)['next'][0]
+        self.assertEqual(next_url, reverse('products:detail', args=[self.product.slug]))
+        self.assertEqual(self.client.get(next_url).status_code, 200)
 
     def test_wish_add_saves_for_authenticated_user(self):
-        self.client.force_login(self.seller)
+        buyer = get_user_model().objects.create_user('wish-buyer')
+        self.client.force_login(buyer)
         self.client.post(reverse('products:wish_add', args=[self.product.slug]))
-        self.assertTrue(WishlistItem.objects.filter(user=self.seller, product_key=self.product.slug).exists())
+        self.assertTrue(WishlistItem.objects.filter(user=buyer, product_key=self.product.slug).exists())
 
     def test_checkout_links_to_login_for_anonymous(self):
         self.client.post(reverse('products:bag_add', args=[self.product.slug]))
         response = self.client.get(reverse('products:detail', args=[self.product.slug]))
         self.assertContains(response, '/accounts/login/?next=')
+
+
+class WishlistSaveTests(TestCase):
+    ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('wishlist-seller')
+        cls.viewer = get_user_model().objects.create_user('wishlist-viewer')
+        cls.other = get_user_model().objects.create_user('wishlist-other')
+        cls.product = Product.objects.create(seller=cls.seller, title='Wishlist Shirt', price=150000, condition='excellent')
+
+    def setUp(self):
+        self.client.force_login(self.viewer)
+        self.url = reverse('products:wish_add', args=[self.product.slug])
+        self.detail_url = reverse('products:detail', args=[self.product.slug])
+
+    def test_ajax_save_returns_a_heart_toast_and_saves_the_current_snapshot(self):
+        photo = self.product.images.create(image='products/wishlist-cover.png', is_primary=True)
+        response = self.client.post(self.url, {'user': self.other.pk}, **self.ajax)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()['ok'])
+        self.assertEqual(response.json()['toast']['icon'], 'heart')
+        self.assertIn('Saved', response.json()['toast']['text'])
+        self.assertEqual(response.json()['saved_count'], 1)
+        item = WishlistItem.objects.get(user=self.viewer, product_key=self.product.slug)
+        self.assertEqual(item.title, self.product.title)
+        self.assertEqual(item.price, self.product.price)
+        self.assertEqual(item.condition, 'Excellent')
+        self.assertEqual(item.image, photo.image.url)
+        self.assertFalse(item.removed)
+        self.assertFalse(WishlistItem.objects.filter(user=self.other).exists())
+        self.assertNotIn('bag_toast', self.client.session)
+        self.assertNotContains(self.client.get(self.detail_url), 'toast toast--added')
+
+    def test_repeated_save_does_not_duplicate_the_item_or_counter(self):
+        for _ in range(2):
+            response = self.client.post(self.url, **self.ajax)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()['saved_count'], 1)
+        self.assertEqual(WishlistItem.objects.filter(user=self.viewer, product_key=self.product.slug).count(), 1)
+
+    def test_saving_a_removed_item_restores_it_and_refreshes_its_data(self):
+        item = WishlistItem.objects.create(
+            user=self.viewer, product_key=self.product.slug, title='Old title', price=1, removed=True,
+        )
+        response = self.client.post(self.url, **self.ajax)
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertFalse(item.removed)
+        self.assertEqual(item.title, self.product.title)
+        self.assertEqual(item.price, self.product.price)
+        self.assertEqual(WishlistItem.objects.count(), 1)
+
+    def test_saved_counter_counts_only_active_saves_for_this_product(self):
+        WishlistItem.objects.create(user=self.other, product_key=self.product.slug, title='Shirt', price=150000)
+        WishlistItem.objects.create(user=self.seller, product_key=self.product.slug, title='Shirt', price=150000, removed=True)
+        WishlistItem.objects.create(user=self.viewer, product_key='another-product', title='Other', price=100000)
+        response = self.client.post(self.url, **self.ajax)
+        self.assertEqual(response.json()['saved_count'], 2)
+        page = self.client.get(self.detail_url)
+        self.assertEqual(page.context['saved_count'], 2)
+        self.assertTrue(page.context['wishlist_saved'])
+
+    def test_detail_saved_state_follows_account_remove_and_undo(self):
+        page = self.client.get(self.detail_url)
+        self.assertFalse(page.context['wishlist_saved'])
+        self.assertEqual(page.context['saved_count'], 0)
+        self.client.post(self.url, **self.ajax)
+        item = WishlistItem.objects.get(user=self.viewer, product_key=self.product.slug)
+        page = self.client.get(self.detail_url)
+        self.assertTrue(page.context['wishlist_saved'])
+        self.assertContains(page, 'Saved to wishlist')
+        self.client.post(reverse('wishlist_remove', args=[item.pk]))
+        page = self.client.get(self.detail_url)
+        self.assertFalse(page.context['wishlist_saved'])
+        self.assertEqual(page.context['saved_count'], 0)
+        self.client.post(reverse('wishlist_undo'))
+        self.assertTrue(self.client.get(self.detail_url).context['wishlist_saved'])
+
+    def test_anonymous_ajax_gets_a_login_url_back_to_the_product_page(self):
+        self.client.logout()
+        response = self.client.post(self.url, **self.ajax)
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(response.json()['ok'])
+        login = urlparse(response.json()['login_url'])
+        self.assertEqual(login.path, reverse('login'))
+        self.assertEqual(parse_qs(login.query)['next'], [self.detail_url])
+        self.assertEqual(WishlistItem.objects.count(), 0)
+
+    def test_anonymous_native_post_also_returns_to_a_gettable_page_after_login(self):
+        self.client.logout()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(parse_qs(urlparse(response.url).query)['next'], [self.detail_url])
+
+    def test_native_save_redirects_with_a_one_shot_success_toast(self):
+        response = self.client.post(self.url, {'next': self.detail_url})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, self.detail_url)
+        page = self.client.get(response.url)
+        self.assertEqual(page.context['bag_toast']['icon'], 'heart')
+        self.assertContains(page, 'toast toast--added')
+        self.assertNotContains(self.client.get(response.url), 'toast toast--added')
+
+    def test_mutations_require_post_and_csrf(self):
+        for method in [self.client.get, self.client.put, self.client.delete]:
+            self.assertEqual(method(self.url).status_code, 405)
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.viewer)
+        self.assertEqual(client.post(self.url, **self.ajax).status_code, 403)
+        self.assertEqual(WishlistItem.objects.count(), 0)
+
+    def test_missing_product_is_not_added(self):
+        response = self.client.post(reverse('products:wish_add', args=['missing-product']), **self.ajax)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(WishlistItem.objects.count(), 0)
+
+
+class SellerRatingDisplayTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('rating-seller')
+        cls.other_seller = get_user_model().objects.create_user('rating-other-seller')
+        cls.first_buyer = get_user_model().objects.create_user('rating-first-buyer')
+        cls.second_buyer = get_user_model().objects.create_user('rating-second-buyer')
+        cls.product = Product.objects.create(seller=cls.seller, title='Rated Shirt', price=150000)
+
+    def review(self, reviewer, rating, seller=None):
+        from reviews.models import Review
+
+        return Review.objects.create(
+            reviewer=reviewer, seller=seller or self.seller,
+            rating=rating, title='Buyer review', comment='Review from a buyer.',
+        )
+
+    def page(self, product=None):
+        return self.client.get(reverse('products:detail', args=[(product or self.product).slug]))
+
+    def test_average_and_count_are_specific_to_the_real_seller(self):
+        self.review(self.first_buyer, 5)
+        self.review(self.second_buyer, 2)
+        self.review(self.first_buyer, 1, seller=self.other_seller)
+        response = self.page()
+        self.assertContains(response, '<span class="pdp-rating-value">3.5</span>', html=True)
+        self.assertContains(response, '<span class="pdp-rating-count">(2)</span>', html=True)
+        another = Product.objects.create(seller=self.seller, title='Another Rated Shirt', price=175000)
+        self.assertContains(self.page(another), '<span class="pdp-rating-value">3.5</span>', html=True)
+
+    def test_fractional_star_fill_follows_the_database_average(self):
+        from reviews.templatetags.review_tags import seller_rating
+
+        self.review(self.first_buyer, 5)
+        self.review(self.second_buyer, 4)
+        summary = seller_rating(self.seller)
+        self.assertEqual(summary['average_rating'], 4.5)
+        self.assertEqual(summary['total_reviews'], 2)
+        self.assertEqual(summary['star_fill'], [100, 100, 100, 100, 50])
+        response = self.page()
+        self.assertContains(response, 'class="pdp-rating-star"', count=5)
+        self.assertContains(response, 'style="width: 50%"', count=1)
+
+    def test_editing_and_deleting_reviews_updates_the_display(self):
+        first = self.review(self.first_buyer, 5)
+        second = self.review(self.second_buyer, 1)
+        self.assertContains(self.page(), '<span class="pdp-rating-value">3.0</span>', html=True)
+        second.rating = 3
+        second.save(update_fields=['rating'])
+        self.assertContains(self.page(), '<span class="pdp-rating-value">4.0</span>', html=True)
+        first.delete()
+        response = self.page()
+        self.assertContains(response, '<span class="pdp-rating-value">3.0</span>', html=True)
+        self.assertContains(response, '<span class="pdp-rating-count">(1)</span>', html=True)
+        second.delete()
+        self.assertContains(self.page(), 'No reviews yet')
+
+    def test_seller_without_reviews_has_no_fake_score_or_full_stars(self):
+        response = self.page()
+        self.assertContains(response, 'No reviews yet')
+        self.assertNotContains(response, 'class="pdp-rating-value"')
+        self.assertNotContains(response, 'class="pdp-rating-star"')
+
+    def test_sidebar_bag_uses_the_shared_dialog_trigger(self):
+        response = self.page()
+        self.assertContains(response, 'class="site-drawer-account-icon" type="button" data-bag-toggle')
+        self.assertNotContains(response, f'class="site-drawer-account-icon" href="{reverse("orders")}"')
 
 
 class EditListingTests(TestCase):
@@ -544,6 +736,7 @@ class DeleteListingTests(TestCase):
             image_url = photo.image.url
             order = AccountOrder.objects.create(
                 user=self.other, number='DELETE-TEST-001', date=timezone.localdate(), status='completed',
+                product=self.product, seller=self.owner,
                 title=self.product.title, condition='Good', image=image_url,
                 subtotal=self.product.price, recipient='Buyer', address='Jakarta',
             )
@@ -557,6 +750,8 @@ class DeleteListingTests(TestCase):
             self.assertEqual(order.title, 'Delete This Shirt')
             self.assertEqual(order.subtotal, 125000)
             self.assertEqual(order.image, image_url)
+            self.assertIsNone(order.product_id)
+            self.assertEqual(order.seller_id, self.owner.pk)
             self.assertEqual(saved.image, image_url)
             self.assertTrue(photo.image.storage.exists(photo.image.name))
             self.client.force_login(self.other)
@@ -665,3 +860,217 @@ class SellTests(TestCase):
         self.assertContains(response, 'value="Keep This Title"')
         self.assertEqual(response.context['selected_category'], self.child)
         self.assertEqual(response.context['form']['condition'].value(), 'excellent')
+
+
+class OwnListingPurchaseTests(TestCase):
+    ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('own-seller')
+        cls.buyer = get_user_model().objects.create_user('own-buyer')
+        cls.product = Product.objects.create(seller=cls.seller, title='Own Jacket', price=200000)
+
+    def test_seller_cannot_add_own_listing_to_bag(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:bag_add', args=[self.product.slug]), **self.ajax)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['toast']['text'], 'You cannot buy your own listing.')
+        self.assertEqual(cart.count(self.client.session), 0)
+
+    def test_seller_cannot_set_or_restore_own_listing_quantity(self):
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:bag_set', args=[self.product.slug]), {'quantity': 1})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(cart.count(self.client.session), 0)
+        session = self.client.session
+        session['bag_undo'] = {'product_id': self.product.pk, 'quantity': 1}
+        session.save()
+        self.client.post(reverse('products:bag_undo'))
+        self.assertEqual(cart.count(self.client.session), 0)
+
+    def test_listing_bagged_as_guest_is_dropped_after_seller_signs_in(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.assertEqual(cart.count(self.client.session), 1)
+        self.client.force_login(self.seller)
+        session = self.client.session
+        self.assertEqual(cart.items(session), [])
+        self.assertNotIn(str(self.product.pk), session.get('bag', {}))
+
+    def test_other_buyers_can_still_add_the_listing(self):
+        self.client.force_login(self.buyer)
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        self.assertEqual(cart.count(self.client.session), 1)
+
+    def test_owner_sees_edit_and_delete_instead_of_buy_buttons_on_detail(self):
+        self.client.force_login(self.seller)
+        response = self.client.get(reverse('products:detail', args=[self.product.slug]))
+        self.assertContains(response, reverse('products:edit', args=[self.product.slug]))
+        self.assertContains(response, 'aria-controls="delete-listing-dialog"')
+        self.assertNotContains(response, reverse('products:bag_add', args=[self.product.slug]))
+        self.assertNotContains(response, reverse('products:wish_add', args=[self.product.slug]))
+        self.assertNotContains(response, reverse('chat:start', args=[self.product.pk]))
+
+    def test_owner_card_shows_edit_and_delete_with_its_own_dialog(self):
+        self.client.force_login(self.seller)
+        response = self.client.get(reverse('products:home'))
+        self.assertContains(response, reverse('products:edit', args=[self.product.slug]))
+        self.assertContains(response, f'aria-controls="delete-listing-{self.product.slug}"')
+        self.assertContains(response, f'id="delete-listing-{self.product.slug}"')
+        self.assertNotContains(response, reverse('products:bag_add', args=[self.product.slug]))
+
+    def test_other_users_still_see_add_to_bag_on_the_card(self):
+        self.client.force_login(self.buyer)
+        response = self.client.get(reverse('products:home'))
+        self.assertContains(response, reverse('products:bag_add', args=[self.product.slug]))
+        self.assertNotContains(response, reverse('products:edit', args=[self.product.slug]))
+
+    def test_deleting_from_a_card_returns_to_that_page(self):
+        self.client.force_login(self.seller)
+        listing = reverse('products:picked')
+        response = self.client.post(reverse('products:delete', args=[self.product.slug]), {'next': listing})
+        self.assertRedirects(response, listing)
+        self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+
+class ToggleButtonTests(TestCase):
+    ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('toggle-seller')
+        cls.buyer = get_user_model().objects.create_user('toggle-buyer')
+        cls.product = Product.objects.create(seller=cls.seller, title='Toggle Coat', price=250000)
+
+    def detail(self):
+        return self.client.get(reverse('products:detail', args=[self.product.slug]))
+
+    def test_bag_button_shows_added_state_on_cards_and_detail(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        remove_url = reverse('products:bag_remove', args=[self.product.slug])
+        for page in [self.detail(), self.client.get(reverse('products:home'))]:
+            with self.subTest(page=page.request['PATH_INFO']):
+                self.assertContains(page, f'action="{remove_url}"')
+                self.assertContains(page, 'Added to bag')
+                self.assertContains(page, 'aria-pressed="true"')
+
+    def test_pressing_an_added_bag_button_removes_the_item(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        response = self.client.post(reverse('products:bag_remove', args=[self.product.slug]), **self.ajax)
+        data = response.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['bag_count'], 0)
+        self.assertEqual(data['bag_slugs'], [])
+        self.assertIn('Removed', data['toast']['text'])
+        self.assertEqual(cart.count(self.client.session), 0)
+        self.assertContains(self.detail(), f'action="{reverse("products:bag_add", args=[self.product.slug])}"')
+
+    def test_bag_json_lists_slugs_so_every_button_can_follow(self):
+        data = self.client.post(reverse('products:bag_add', args=[self.product.slug]), **self.ajax).json()
+        self.assertEqual(data['bag_slugs'], [self.product.slug])
+        data = self.client.post(reverse('products:bag_set', args=[self.product.slug]), {'quantity': 0}, **self.ajax).json()
+        self.assertEqual(data['bag_slugs'], [])
+
+    def test_remove_without_javascript_redirects_back(self):
+        self.client.post(reverse('products:bag_add', args=[self.product.slug]))
+        home = reverse('products:home')
+        response = self.client.post(reverse('products:bag_remove', args=[self.product.slug]), {'next': home})
+        self.assertRedirects(response, home)
+        self.assertEqual(cart.count(self.client.session), 0)
+
+    def test_pressing_saved_wishlist_button_removes_it(self):
+        self.client.force_login(self.buyer)
+        add = self.client.post(reverse('products:wish_add', args=[self.product.slug]), **self.ajax).json()
+        self.assertTrue(add['saved'])
+        page = self.detail()
+        self.assertContains(page, f'action="{reverse("products:wish_remove", args=[self.product.slug])}"')
+        self.assertContains(page, 'Saved to wishlist')
+        removed = self.client.post(reverse('products:wish_remove', args=[self.product.slug]), **self.ajax).json()
+        self.assertFalse(removed['saved'])
+        self.assertEqual(removed['saved_count'], 0)
+        self.assertTrue(WishlistItem.objects.get(user=self.buyer, product_key=self.product.slug).removed)
+        page = self.detail()
+        self.assertFalse(page.context['wishlist_saved'])
+        self.assertContains(page, f'action="{reverse("products:wish_add", args=[self.product.slug])}"')
+
+    def test_wishlist_remove_requires_login(self):
+        response = self.client.post(reverse('products:wish_remove', args=[self.product.slug]), **self.ajax)
+        self.assertEqual(response.status_code, 401)
+        self.assertIn('/accounts/login/', response.json()['login_url'])
+
+    def test_remove_endpoints_only_accept_post(self):
+        for name in ['products:bag_remove', 'products:wish_remove']:
+            with self.subTest(name=name):
+                self.assertEqual(self.client.get(reverse(name, args=[self.product.slug])).status_code, 405)
+
+
+class SnapshotImageUrlTests(SimpleTestCase):
+    def render(self, image):
+        from django.template.loader import render_to_string
+
+        return render_to_string('includes/product_image.html', {'item': {'image': image, 'title': 'Coat'}})
+
+    def test_uploaded_media_url_is_used_as_is(self):
+        self.assertIn('src="/media/products/2026/10/a.jpg"', self.render('/media/products/2026/10/a.jpg'))
+
+    def test_absolute_url_is_used_as_is(self):
+        self.assertIn('src="https://cdn.example.test/a.jpg"', self.render('https://cdn.example.test/a.jpg'))
+
+    def test_static_asset_path_still_goes_through_static(self):
+        self.assertIn('src="/static/images/reference-coat.png"', self.render('images/reference-coat.png'))
+
+
+class OwnerSoldAndWishlistTests(TestCase):
+    ajax = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.seller = get_user_model().objects.create_user('sold-seller')
+        cls.buyer = get_user_model().objects.create_user('sold-buyer')
+        cls.product = Product.objects.create(
+            seller=cls.seller, title='Sold Jacket', price=200000, status=Product.Status.SOLD,
+        )
+
+    def detail(self):
+        return self.client.get(reverse('products:detail', args=[self.product.slug]))
+
+    def test_owner_can_open_their_sold_listing_with_a_notice(self):
+        self.client.force_login(self.seller)
+        response = self.detail()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This item has been sold.')
+        self.assertContains(response, 'badge--sold')
+        self.assertContains(response, reverse('products:edit', args=[self.product.slug]))
+        self.assertContains(response, 'id="delete-listing-dialog"')
+
+    def test_sold_listing_stays_hidden_from_everyone_else(self):
+        self.assertEqual(self.detail().status_code, 404)
+        self.client.force_login(self.buyer)
+        self.assertEqual(self.detail().status_code, 404)
+
+    def test_available_listing_has_no_sold_notice(self):
+        self.product.status = Product.Status.AVAILABLE
+        self.product.save(update_fields=['status'])
+        self.client.force_login(self.seller)
+        self.assertNotContains(self.detail(), 'This item has been sold.')
+
+    def test_saving_edits_to_a_sold_listing_returns_to_its_page(self):
+        women = Category.objects.create(name='Women')
+        tops = Category.objects.create(name='Tops', parent=women)
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:edit', args=[self.product.slug]), {
+            'title': 'Sold Jacket', 'category': tops.pk, 'condition': 'good', 'price': '210.000',
+        })
+        self.assertRedirects(response, reverse('products:detail', args=[self.product.slug]))
+
+    def test_owner_cannot_wishlist_their_own_listing(self):
+        self.product.status = Product.Status.AVAILABLE
+        self.product.save(update_fields=['status'])
+        self.client.force_login(self.seller)
+        response = self.client.post(reverse('products:wish_add', args=[self.product.slug]), **self.ajax)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['toast']['text'], 'You cannot save your own listing.')
+        self.assertFalse(WishlistItem.objects.filter(user=self.seller).exists())
+        response = self.client.post(reverse('products:wish_add', args=[self.product.slug]))
+        self.assertRedirects(response, reverse('products:detail', args=[self.product.slug]))
+        self.assertFalse(WishlistItem.objects.filter(user=self.seller).exists())

@@ -230,6 +230,8 @@ def confirmation(request):
                 )
 
                 created_orders.append(order)
+                product.status = Product.Status.SOLD
+                product.save(update_fields=['status', 'updated_at'])
 
         # Kosongkan keranjang setelah semua pesanan berhasil dibuat.
         request.session.pop("bag", None)
@@ -261,5 +263,3 @@ def confirmation(request):
 def place_order(request):
     # Form konfirmasi dikirim ke view confirmation.
     return redirect("transaction:confirmation")
-
-

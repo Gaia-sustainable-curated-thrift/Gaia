@@ -45,14 +45,14 @@ class BagAvailabilityTests(TestCase):
         self.assertEqual(cart.count(self.client.session), 0)
         self.assertNotContains(self.client.get(response.url), 'toast toast--error')
 
-    def test_rejected_add_preserves_the_existing_quantity(self):
+    def test_rejected_sold_add_removes_stale_items_from_the_visible_bag(self):
         self.add()
         self.add()
         self.mark_sold()
         response = self.add(**AJAX)
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json()['bag_count'], 2)
-        self.assertEqual(cart.quantity_for(self.client.session, self.product.pk), 2)
+        self.assertEqual(response.json()['bag_count'], 0)
+        self.assertEqual(cart.quantity_for(self.client.session, self.product.pk), 0)
 
     def test_sold_item_can_be_removed_but_not_increased(self):
         self.add()
@@ -60,8 +60,8 @@ class BagAvailabilityTests(TestCase):
         response = self.set_quantity(2, **AJAX)
         self.assertEqual(response.status_code, 409)
         self.assertTrue(response.json()['open'])
-        self.assertIn('Remove unavailable item', response.json()['drawer'])
-        self.assertEqual(cart.quantity_for(self.client.session, self.product.pk), 1)
+        self.assertNotIn(self.product.title, response.json()['drawer'])
+        self.assertEqual(cart.quantity_for(self.client.session, self.product.pk), 0)
         response = self.set_quantity(0, **AJAX)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['bag_count'], 0)
@@ -74,8 +74,8 @@ class BagAvailabilityTests(TestCase):
                 response = self.set_quantity(value, **AJAX)
                 self.assertEqual(response.status_code, 400)
                 self.assertFalse(response.json()['ok'])
-                self.assertEqual(response.json()['bag_count'], 2)
-                self.assertEqual(cart.quantity_for(self.client.session, self.product.pk), 2)
+                self.assertEqual(response.json()['bag_count'], 1)
+                self.assertEqual(cart.quantity_for(self.client.session, self.product.pk), 1)
 
     def test_non_ajax_invalid_quantity_keeps_the_drawer_open(self):
         self.add()
@@ -114,6 +114,9 @@ class BagAvailabilityTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.json()['toast'])
         response = self.set_quantity(1000000, **AJAX)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['bag_count'], 0)
+        response = self.set_quantity(1, **AJAX)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['bag_count'], cart.MAX_QUANTITY)
 
@@ -154,14 +157,15 @@ class CartStateTests(TestCase):
         session = self.client.session
         session['bag'] = {
             str(self.product.pk): '2',
-            'bad-quantity': 'not-a-number',
+            '999998': 'not-a-number',
             'non-numeric-id': 3,
             '999999': 1,
-            'negative': -1,
-            'zero': 0,
+            '999997': -1,
+            '999996': 0,
+            '²': 1,
         }
-        self.assertEqual(cart.count(session), 2)
-        self.assertEqual(cart.subtotal(session), 600000)
+        self.assertEqual(cart.count(session), 1)
+        self.assertEqual(cart.subtotal(session), 300000)
         self.assertEqual(cart.items(session)[0]['product'], self.product)
 
     def test_add_and_set_respect_the_quantity_limit(self):
@@ -170,7 +174,7 @@ class CartStateTests(TestCase):
         cart.add(session, self.product.pk)
         self.assertEqual(cart.quantity_for(session, self.product.pk), cart.MAX_QUANTITY)
         cart.set_quantity(session, self.product.pk, 3)
-        self.assertEqual(cart.subtotal(session), 900000)
+        self.assertEqual(cart.subtotal(session), 300000)
         cart.set_quantity(session, self.product.pk, 0)
         self.assertNotIn('bag', session)
 
@@ -180,3 +184,22 @@ class CartStateTests(TestCase):
         self.product.delete()
         self.assertEqual(cart.items(session), [])
         self.assertEqual(cart.count(session), 0)
+
+    def test_legacy_quantity_and_stale_items_are_cleaned_to_one_available_item(self):
+        sold = Product.objects.create(seller=self.product.seller, title='Sold Coat', price=100000, status=Product.Status.SOLD)
+        session = self.client.session
+        session['bag'] = {str(self.product.pk): 99, str(sold.pk): 5, '999999': 1}
+        self.assertEqual(cart.count(session), 1)
+        self.assertEqual(cart.subtotal(session), self.product.price)
+        self.assertEqual(session['bag'], {str(self.product.pk): 1})
+
+    def test_drawer_has_remove_only_and_focuses_the_heading_instead_of_the_photo(self):
+        response = self.client.post(reverse('products:bag_add', args=[self.product.slug]), **AJAX)
+        drawer = response.json()['drawer']
+        self.assertIn('id="bag-drawer-title" tabindex="-1" autofocus', drawer)
+        self.assertIn('class="bag-item__remove"', drawer)
+        self.assertNotIn('bag-stepper', drawer)
+        self.assertNotIn('Increase quantity', drawer)
+        again = self.client.post(reverse('products:bag_add', args=[self.product.slug]), **AJAX)
+        self.assertEqual(again.json()['bag_count'], 1)
+        self.assertIn('already in your bag', again.json()['toast']['text'])

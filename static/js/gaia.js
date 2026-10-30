@@ -62,6 +62,23 @@
         });
     }
 
+    function validateSearch(form, input) {
+        input.required = true;
+        input.pattern = '.*\\S.*';
+        input.addEventListener('input', function () { input.setCustomValidity(''); });
+        input.addEventListener('invalid', function () {
+            if (!input.value.trim()) input.setCustomValidity('Enter a search term.');
+        });
+        form.addEventListener('submit', function (event) {
+            input.value = input.value.trim();
+            if (!input.value) {
+                event.preventDefault();
+                input.setCustomValidity('Enter a search term.');
+                input.reportValidity();
+            }
+        });
+    }
+
     function initHeaderSearch() {
         var display = document.querySelector('[data-search]');
         if (!display) return null;
@@ -86,6 +103,7 @@
 
         if (placeholder) placeholder.remove();
         display.appendChild(form);
+        validateSearch(form, input);
         var mobileToggle = document.querySelector('[data-mobile-search-toggle]');
         if (mobileToggle) {
             mobileToggle.addEventListener('click', function () {
@@ -111,16 +129,10 @@
         var input = box.querySelector('input');
         if (!input) return;
 
-        input.readOnly = false;
-        input.setAttribute('aria-label', 'Search');
-
-        var form = document.createElement('form');
-        form.className = 'search-form';
-        form.method = 'get';
-        form.action = url;
-        form.setAttribute('role', 'search');
-        form.appendChild(input);
-        box.appendChild(form);
+        var form = box.querySelector('form');
+        if (!form) return;
+        input.value = new URLSearchParams(window.location.search).get('q') || '';
+        validateSearch(form, input);
     }
 
     function initGallery() {
@@ -148,6 +160,8 @@
 
         toggles.forEach(function (toggle) {
             toggle.addEventListener('click', function () {
+                var sidebar = document.getElementById('site-drawer');
+                if (sidebar && sidebar.open) sidebar.close();
                 if (!drawer.open) drawer.showModal();
             });
         });
@@ -177,7 +191,7 @@
         });
     }
 
-    function showBagToast(toast) {
+    function showToast(toast) {
         document.querySelectorAll('.toast[data-toast]').forEach(function (existing) { existing.remove(); });
         if (!toast || (toast.kind !== 'added' && toast.kind !== 'error')) return;
         var el = document.createElement('div');
@@ -194,20 +208,47 @@
         if (toast.icon) {
             var icon = document.createElement('span');
             icon.className = 'toast__icon';
-            icon.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-bag"></use></svg>';
+            var iconName = toast.icon === 'heart' ? 'heart' : 'bag';
+            icon.innerHTML = '<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-' + iconName + '"></use></svg>';
             el.appendChild(icon);
         }
 
+        // With the bag open, show the toast inside the panel above the summary so it
+        // never covers the checkout button or spills outside the drawer.
         var drawer = document.getElementById('bag-drawer');
-        (drawer && drawer.open ? drawer : document.body).appendChild(el);
+        var panel = drawer && drawer.open ? drawer.querySelector('.bag-drawer__panel') : null;
+        if (panel) {
+            el.classList.add('toast--in-drawer');
+            panel.insertBefore(el, panel.querySelector('.bag-drawer__summary'));
+        } else {
+            document.body.appendChild(el);
+        }
         dismissToast(el, 4000);
+    }
+
+    // Every add-to-bag button on the page mirrors whether its listing is in the bag;
+    // pressing an added one removes it again.
+    function syncBagButtons(slugs) {
+        document.querySelectorAll('[data-bag-form]').forEach(function (form) {
+            var inBag = slugs.indexOf(form.getAttribute('data-bag-form')) !== -1;
+            var button = form.querySelector('button[type="submit"]');
+            var label = form.querySelector('[data-bag-label]');
+            form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
+            if (button) {
+                button.classList.toggle('is-active', inBag);
+                button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
+                var icon = button.querySelector('use');
+                if (icon) icon.setAttribute('href', inBag ? '#icon-check' : '#icon-bag');
+            }
+            if (label) label.textContent = inBag ? 'Added to bag' : 'Add to bag';
+        });
     }
 
     function initBagForms() {
         var requestPending = false;
         document.addEventListener('submit', function (event) {
             var form = event.target;
-            if (!form.matches('form[action]') || !/\/bag\/(add|set|undo)\//.test(new URL(form.action).pathname)) return;
+            if (!form.matches('form[action]') || !/\/bag\/(add|remove|set|undo)\//.test(new URL(form.action).pathname)) return;
             if (typeof window.fetch !== 'function') return;
 
             event.preventDefault();
@@ -236,17 +277,82 @@
                     badge.hidden = data.bag_count === 0;
                 });
                 document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
-                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' items');
+                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' item' + (data.bag_count === 1 ? '' : 's'));
                 });
+                if (Array.isArray(data.bag_slugs)) syncBagButtons(data.bag_slugs);
                 if (data.open && drawer && !drawer.open) drawer.showModal();
-                showBagToast(data.toast);
+                showToast(data.toast);
             }).catch(function () {
                 // A failed response may follow a successful POST; do not replay it.
-                showBagToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
+                showToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
             }).finally(function () {
                 requestPending = false;
                 form.removeAttribute('aria-busy');
                 if (button) button.disabled = false;
+            });
+        });
+    }
+
+    function initWishlistForms() {
+        document.querySelectorAll('[data-wishlist-form]').forEach(function (form) {
+            var button = form.querySelector('button[type="submit"]');
+            var label = button.querySelector('[data-wishlist-label]');
+            var saved = button.classList.contains('is-saved');
+            var pending = false;
+            var navigating = false;
+
+            form.addEventListener('submit', function (event) {
+                if (typeof window.fetch !== 'function') return;
+                event.preventDefault();
+                if (pending) return;
+                pending = true;
+                button.disabled = true;
+                label.textContent = saved ? 'Menghapus…' : 'Menyimpan…';
+                form.setAttribute('aria-busy', 'true');
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin'
+                }).then(function (response) {
+                    if (response.status === 403 || response.status === 404) {
+                        showToast({ kind: 'error', text: response.status === 403
+                            ? 'Your session is no longer valid. Reload this page before trying again.'
+                            : 'This listing could not be found.' });
+                        return null;
+                    }
+                    return response.json();
+                }).then(function (data) {
+                    if (!data) return;
+                    if (typeof data.login_url === 'string') {
+                        var target = new URL(data.login_url, window.location.href);
+                        if (target.origin !== window.location.origin) throw new Error('Unexpected login redirect');
+                        navigating = true;
+                        window.location.assign(target.href);
+                    } else if (data.ok === true && data.toast && typeof data.saved_count === 'number' && typeof data.saved === 'boolean') {
+                        saved = data.saved;
+                        button.classList.toggle('is-saved', saved);
+                        button.setAttribute('aria-pressed', saved ? 'true' : 'false');
+                        form.action = form.getAttribute(saved ? 'data-remove-url' : 'data-add-url');
+                        document.querySelectorAll('[data-wishlist-count]').forEach(function (count) {
+                            count.textContent = data.saved_count + (data.saved_count === 1
+                                ? ' person has saved this' : ' people have saved this');
+                        });
+                        showToast(data.toast);
+                    } else {
+                        throw new Error('Invalid wishlist response');
+                    }
+                }).catch(function () {
+                    showToast({ kind: 'error', text: 'Could not update your wishlist. Please try again.' });
+                }).finally(function () {
+                    if (!navigating) {
+                        pending = false;
+                        button.disabled = false;
+                        label.textContent = saved ? 'Saved to wishlist' : 'Save to wishlist';
+                        form.removeAttribute('aria-busy');
+                    }
+                });
             });
         });
     }
@@ -367,19 +473,122 @@
         }
     }
 
-    function initListingDelete() {
-        var dialog = document.getElementById('delete-listing-dialog');
-        var toggle = document.querySelector('[data-delete-listing]');
-        if (!dialog || !toggle) return;
-        toggle.addEventListener('click', function () {
-            if (!dialog.open) dialog.showModal();
-            toggle.setAttribute('aria-expanded', 'true');
+    function initListingSubmit() {
+        var form = document.querySelector('[data-sell-form]');
+        if (!form) return;
+        var errors = document.querySelector('[data-listing-errors]');
+        var status = form.querySelector('[data-listing-status]');
+        var button = form.querySelector('.sell-submit');
+        var originalLabel = button.textContent;
+        var submitting = false;
+        var navigating = false;
+
+        function clearErrors() {
+            errors.textContent = '';
+            errors.hidden = true;
+            form.querySelectorAll('[aria-invalid]').forEach(function (control) {
+                control.removeAttribute('aria-invalid');
+                control.removeAttribute('aria-describedby');
+            });
+        }
+
+        function showErrors(messages) {
+            clearErrors();
+            Object.keys(messages).forEach(function (field) {
+                messages[field].forEach(function (message) {
+                    var item = document.createElement('li');
+                    item.textContent = message;
+                    errors.appendChild(item);
+                });
+            });
+            form.querySelectorAll('[name]').forEach(function (control) {
+                if (messages[control.name]) {
+                    control.setAttribute('aria-invalid', 'true');
+                    control.setAttribute('aria-describedby', 'listing-errors');
+                }
+            });
+            if (messages.category) {
+                var categoryToggle = form.querySelector('[data-sell-toggle]');
+                categoryToggle.setAttribute('aria-invalid', 'true');
+                categoryToggle.setAttribute('aria-describedby', 'listing-errors');
+            }
+            errors.hidden = false;
+            errors.focus();
+        }
+
+        form.addEventListener('submit', function (event) {
+            if (typeof window.fetch !== 'function') return;
+            event.preventDefault();
+            if (submitting) return;
+            submitting = true;
+            clearErrors();
+            form.setAttribute('aria-busy', 'true');
+            button.disabled = true;
+            button.textContent = 'Menyimpan…';
+            status.textContent = 'Menyimpan…';
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            }).then(function (response) {
+                if (response.redirected) {
+                    var target = new URL(response.url, window.location.href);
+                    if (target.origin !== window.location.origin) throw new Error('Unexpected redirect');
+                    navigating = true;
+                    window.location.assign(target.href);
+                    return null;
+                }
+                if (response.status === 403 || response.status === 404) {
+                    showErrors({ __all__: [response.status === 403
+                        ? 'Sesi tidak valid atau akses ditolak. Muat ulang halaman sebelum mencoba lagi.'
+                        : 'Listing tidak ditemukan atau Anda tidak memiliki akses.'] });
+                    return null;
+                }
+                return response.json();
+            }).then(function (data) {
+                if (!data) return;
+                if (data.ok && typeof data.redirect_url === 'string') {
+                    var target = new URL(data.redirect_url, window.location.href);
+                    if (target.origin !== window.location.origin) throw new Error('Unexpected redirect');
+                    status.textContent = data.message || 'Listing tersimpan.';
+                    navigating = true;
+                    window.location.assign(target.href);
+                } else if (data.ok === false && data.errors && typeof data.errors === 'object') {
+                    showErrors(data.errors);
+                } else {
+                    throw new Error('Invalid listing response');
+                }
+            }).catch(function () {
+                // Do not replay a POST whose result is unknown.
+                showErrors({ __all__: ['Penyimpanan belum dapat dikonfirmasi. Periksa katalog sebelum mencoba lagi.'] });
+            }).finally(function () {
+                if (!navigating) {
+                    submitting = false;
+                    form.removeAttribute('aria-busy');
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                    status.textContent = '';
+                }
+            });
         });
-        dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
-        dialog.addEventListener('click', function (event) {
-            if (event.target !== dialog) return;
-            var bounds = dialog.getBoundingClientRect();
-            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+    }
+
+    function initListingDelete() {
+        document.querySelectorAll('[data-delete-listing]').forEach(function (toggle) {
+            var dialog = document.getElementById(toggle.getAttribute('aria-controls'));
+            if (!dialog) return;
+            toggle.addEventListener('click', function () {
+                if (!dialog.open) dialog.showModal();
+                toggle.setAttribute('aria-expanded', 'true');
+            });
+            dialog.addEventListener('close', function () { toggle.setAttribute('aria-expanded', 'false'); });
+            dialog.addEventListener('click', function (event) {
+                if (event.target !== dialog) return;
+                var bounds = dialog.getBoundingClientRect();
+                if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+            });
         });
     }
 
@@ -390,7 +599,9 @@
         initGallery();
         initBagDrawer();
         initBagForms();
+        initWishlistForms();
         initSellForm();
+        initListingSubmit();
         initListingDelete();
         initToasts();
         initDrawerSearch(initHeaderSearch());

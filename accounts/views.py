@@ -18,6 +18,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from allauth.account.models import EmailAddress
+from products.models import Product
 from .forms import DeleteAccountForm, ProfileForm, RegisterForm
 from .models import AccountOrder, Profile, WishlistItem
 
@@ -26,6 +27,11 @@ def account_context(request, title, subtitle, active='profile', **extra):
     profile, _ = Profile.objects.get_or_create(user=request.user)
     verified = profile.email_verified
     return {'title': title, 'subtitle': subtitle, 'active': active, 'profile': profile, 'email_verified': verified, **extra}
+
+
+def _visible_wishlist_items(user):
+    sold_slugs = Product.objects.filter(status=Product.Status.SOLD).values('slug')
+    return user.wishlist_items.filter(removed=False).exclude(product_key__in=sold_slugs)
 
 
 def register(request):
@@ -129,7 +135,7 @@ def resend_verification(request):
 
 @login_required
 def profile(request):
-    return render(request, 'accounts/profile.html', account_context(request, 'Profile', 'Your space for a more mindful fashion journey.', listing_count=request.user.products.count(), order_count=request.user.account_orders.count(), wishlist_count=request.user.wishlist_items.filter(removed=False).count()))
+    return render(request, 'accounts/profile.html', account_context(request, 'Profile', 'Your space for a more mindful fashion journey.', listing_count=request.user.products.count(), order_count=request.user.account_orders.count(), wishlist_count=_visible_wishlist_items(request.user).count()))
 
 
 @login_required
@@ -159,7 +165,7 @@ def order_detail(request, pk):
 
 @login_required
 def wishlist(request):
-    page = Paginator(request.user.wishlist_items.filter(removed=False).order_by('-pk'), 12).get_page(request.GET.get('page'))
+    page = Paginator(_visible_wishlist_items(request.user).order_by('-pk'), 12).get_page(request.GET.get('page'))
     return render(request, 'accounts/wishlist.html', account_context(request, 'Wishlist', 'Save your favorites and give them a new story.', 'wishlist', items=page.object_list, page_obj=page, undo_id=request.session.get('wishlist_undo')))
 
 

@@ -116,6 +116,8 @@ def send_message(conversation, sender, kind=Message.Kind.TEXT, body='', image=No
             raise ChatError('Offers can only be made in a product chat.')
         if sender.pk != conversation.buyer_id:
             raise ChatError('Only the buyer can make an offer.')
+        if conversation.product is None or not conversation.product.is_purchasable:
+            raise ChatError('This listing is no longer available for offers.')
     return _save(Message(
         conversation=conversation,
         sender=sender,
@@ -137,6 +139,8 @@ def respond_to_offer(message, seller, accept):
         raise ChatError('This offer can no longer be answered.')
     if seller.pk != message.conversation.seller_id:
         raise ChatError('Only the seller can answer this offer.')
+    if accept and (message.conversation.product is None or not message.conversation.product.is_purchasable):
+        raise ChatError('This listing is no longer available for offers.')
     message.offer_status = Message.OfferStatus.ACCEPTED if accept else Message.OfferStatus.DECLINED
     message.save(update_fields=['offer_status'])
     return message
@@ -152,7 +156,7 @@ def mark_read(conversation, reader):
 
 
 def serialize_product(product):
-    if product is None:
+    if product is None or not product.is_purchasable:
         return None
     image = product.primary_image
     return {
@@ -210,4 +214,3 @@ def serialize_conversation(conversation, viewer):
         'unread': getattr(conversation, 'unread_count', 0),
         'product': serialize_product(conversation.product),
     }
-

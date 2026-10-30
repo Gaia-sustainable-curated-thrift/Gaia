@@ -1,9 +1,16 @@
-<a class="pdp-rating" href="{% url 'reviews:seller_reviews' seller.pk %}" aria-label="Read {{ total_reviews }} seller reviews">
+<a class="pdp-rating" href="{% url 'reviews:seller_reviews' seller.pk %}" aria-label="{% if total_reviews %}{{ average_rating|floatformat:1 }} out of 5, {{ total_reviews }} seller review{{ total_reviews|pluralize }}{% else %}No reviews yet{% endif %}. View seller reviews">
     {% if total_reviews %}
         <span class="pdp-rating-value">{{ average_rating|floatformat:1 }}</span>
-        <span aria-hidden="true">&#9733;</span>
-        <span class="pdp-rating-count">({{ total_reviews }}) &middot; Read reviews</span>
+        <span class="pdp-rating-stars" aria-hidden="true">
+            {% for fill in star_fill %}
+            <span class="pdp-rating-star">
+                {% include 'includes/icon.html' with name='star' %}
+                <span class="pdp-rating-star__fill" style="width: {{ fill }}%">{% include 'includes/icon.html' with name='star' %}</span>
+            </span>
+            {% endfor %}
+        </span>
+        <span class="pdp-rating-count">({{ total_reviews }})</span>
     {% else %}
-        <span class="pdp-rating-count">No reviews yet &middot; View seller reviews</span>
+        <span class="pdp-rating-count">No reviews yet</span>
     {% endif %}
 </a>

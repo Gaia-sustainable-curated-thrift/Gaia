@@ -137,6 +137,45 @@
     color: var(--wine-light);
 }
 
+/* Pressed state: the listing is already in the bag; pressing again removes it. */
+.button.is-active,
+.button.is-active:hover,
+.product-card .button.is-active,
+.pdp-actions .button.is-active {
+    background: var(--canvas);
+    color: var(--wine);
+    box-shadow: inset 0 0 0 2px var(--wine);
+}
+
+.product-card__owner {
+    display: flex;
+    gap: 8px;
+    width: calc(100% - 18px);
+    margin: auto auto 0;
+}
+
+/* Extra specificity so page rules that stretch every card button (e.g. the
+   homepage on mobile) don't blow up the square delete button. */
+.product-card .product-card__owner .button {
+    min-height: 44px;
+    color: var(--canvas);
+}
+
+.product-card .product-card__owner .button.product-card__edit {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}
+
+.product-card .product-card__owner .button.product-card__delete {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+}
+
+.product-card__delete .icon { width: 24px; height: 24px; }
+
 /* ---------- Badge ---------- */
 .badge {
     position: absolute;
@@ -584,6 +623,22 @@
 }
 
 /* ---------- Site drawer ---------- */
+.site-drawer .site-drawer-search { display: flex; }
+.site-drawer-categories a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    min-height: 50px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e6e6df;
+    font-size: 17px;
+}
+.site-drawer-categories a:last-child { border-bottom: 0; }
+.site-drawer-categories a:hover { color: var(--wine); }
+.site-drawer-categories a span { font-size: 24px; line-height: 1; }
+.site-drawer button.site-drawer-account-icon { border: 0; padding: 0; color: inherit; background: transparent; }
+.site-drawer button.site-drawer-account-icon:hover { background: var(--field); }
 .site-drawer {
     height: calc(100vh - 16px);
     height: calc(100dvh - 16px);
@@ -932,11 +987,14 @@
     .product-card__title { font-size: 12px; }
     .product-card__meta,
     .product-card__price { font-size: 12px; }
+    /* Inset card buttons to line up with the 8px-padded text above them. */
     .product-card .button {
-        width: 100%;
+        width: calc(100% - 16px);
         min-height: 44px;
         font-size: 12px;
     }
+    .product-card__owner { width: calc(100% - 16px); gap: 8px; }
+    .product-card__delete .icon { width: 20px; height: 20px; }
 
     .search-empty {
         flex-direction: column;
@@ -1079,6 +1137,19 @@
 
 .pdp-actions-block { margin-top: 15px; }
 
+.pdp-sold-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--selected);
+    color: var(--olive-dark);
+}
+.pdp-sold-note p { margin: 0; font-size: 16px; line-height: 1.5; }
+.pdp-sold-note .icon { flex-shrink: 0; width: 24px; height: 24px; }
+
 .pdp-actions {
     display: flex;
     gap: 24px;
@@ -1094,6 +1165,16 @@
 }
 
 .pdp-actions .olive-button { color: var(--canvas); }
+.pdp-wish.is-saved .icon { fill: currentColor; }
+.pdp-actions .pdp-wish.is-saved,
+.pdp-actions .pdp-wish.is-saved:hover {
+    background: var(--canvas);
+    color: var(--olive);
+    box-shadow: inset 0 0 0 2px var(--olive);
+}
+.pdp-actions .pdp-delete,
+.pdp-actions .pdp-edit { margin-left: 0; color: var(--canvas); }
+[data-wishlist-form][aria-busy="true"] .pdp-wish { cursor: progress; opacity: 0.7; }
 
 .pdp-actions .icon { width: 32px; height: 32px; }
 
@@ -1138,6 +1219,7 @@
     width: 60px;
     height: 60px;
     border-radius: 50%;
+    overflow: hidden;
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
@@ -1147,6 +1229,7 @@
     font-size: 20px;
     font-weight: 600;
 }
+.pdp-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .pdp-seller-details {
     display: flex;
@@ -1170,6 +1253,10 @@
 .pdp-rating-value { font-size: 16px; font-weight: 600; line-height: 1.5; }
 .pdp-rating-count { font-size: 16px; line-height: 1.5; }
 .pdp-rating-stars { display: inline-flex; align-items: center; gap: 2px; }
+.pdp-rating-star { position: relative; display: inline-flex; flex: 0 0 24px; width: 24px; height: 24px; }
+.pdp-rating-star > .icon { color: var(--selected); }
+.pdp-rating-star__fill { position: absolute; inset: 0 auto 0 0; overflow: hidden; color: var(--olive); }
+.pdp-rating-star__fill .icon { display: block; max-width: none; }
 
 .pdp-rating .icon {
     width: 24px;
@@ -1190,6 +1277,17 @@
 .pdp-delete { color: var(--wine); }
 .pdp-delete-dialog h2 { font-family: "EB Garamond", Georgia, serif; font-size: 32px; line-height: 1.2; color: var(--olive-dark); margin: 0 0 16px; }
 .pdp-delete-dialog .actions { gap: 12px; }
+/* The dialog can sit inside page sections (e.g. the homepage) whose own .button
+   rules would otherwise restyle it; pin the base button look here. */
+.pdp-delete-dialog .actions .button {
+    width: auto;
+    min-height: 48px;
+    padding: 12px 24px;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #fff;
+}
+.pdp-delete-dialog .actions .button.secondary { color: var(--ink); }
 
 .pdp-also { margin-top: 72px; }
 
@@ -1250,6 +1348,9 @@
     .pdp-condition { font-weight: 400; }
     .pdp-actions { flex-direction: column; gap: 8px; }
     .pdp-actions-block { margin-top: 16px; }
+    .pdp-sold-note { gap: 8px; margin-bottom: 12px; padding: 10px 12px; }
+    .pdp-sold-note p { font-size: 12px; }
+    .pdp-sold-note .icon { width: 20px; height: 20px; }
     .pdp-actions .button { font-size: 12px; min-height: 44px; gap: 8px; }
     .pdp-actions .icon { width: 28px; height: 28px; }
     .pdp-saved { text-align: center; }
@@ -1270,6 +1371,7 @@
     .pdp-rating-value { font-weight: 400; }
     .pdp-rating-stars { gap: 4px; }
     .pdp-rating .icon { width: 16px; height: 16px; }
+    .pdp-rating-star { flex-basis: 16px; width: 16px; height: 16px; }
     .pdp-chat,
     .pdp-edit { width: 100%; font-size: 12px; min-height: 44px; }
     .pdp-owner-actions { width: 100%; }
@@ -1355,6 +1457,8 @@
     color: var(--olive-dark);
 }
 
+.bag-drawer__title:focus { outline: none; }
+
 .bag-drawer__items {
     display: flex;
     flex-direction: column;
@@ -1383,7 +1487,7 @@
     object-fit: cover;
 }
 
-.bag-stepper__remove {
+.bag-item__remove {
     border: 0;
     padding: 0;
     background: transparent;
@@ -1433,33 +1537,11 @@
     color: var(--olive-dark);
 }
 
-.bag-stepper {
+.bag-item__actions {
     display: flex;
     align-items: center;
     gap: 12px;
     margin-left: auto;
-}
-
-.bag-stepper__btn {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--ink);
-    cursor: pointer;
-}
-
-.bag-stepper__btn .icon { width: 20px; height: 20px; }
-.bag-stepper__btn:hover { color: var(--wine); }
-
-.bag-stepper__value {
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 2;
-    color: var(--ink);
 }
 
 .bag-drawer__summary {
@@ -1579,6 +1661,20 @@
 .toast--error .toast__text { font-size: 16px; font-weight: 600; line-height: 1.5; }
 .toast__icon .icon { width: 32px; height: 32px; color: var(--ink); }
 
+.bag-drawer .toast--in-drawer {
+    position: static;
+    transform: none;
+    width: auto;
+    min-height: 0;
+    margin-top: 16px;
+    gap: 16px;
+    background: var(--field);
+    box-shadow: none;
+}
+.bag-drawer .toast--in-drawer.is-leaving { transform: none; }
+.bag-drawer .toast--in-drawer.toast--added .toast__text { font-size: 16px; line-height: 1.5; }
+.bag-drawer .toast--in-drawer .toast__icon .icon { width: 24px; height: 24px; }
+
 /* ---------- Shopping bag responsive ---------- */
 @media (min-width: 641px) and (max-width: 1023px) {
     .bag-drawer__panel {
@@ -1598,10 +1694,6 @@
     .bag-item__meta { font-size: 12px; }
     .bag-item__row { gap: 16px; }
     .bag-item__price { font-size: 16px; line-height: 2; }
-    .bag-stepper { gap: 12px; }
-    .bag-stepper__btn { width: 24px; height: 24px; }
-    .bag-stepper__btn .icon { width: 16px; height: 16px; }
-    .bag-stepper__value { font-size: 16px; line-height: 2; }
     .bag-summary { margin-bottom: 16px; }
     .bag-summary__label { font-size: 16px; line-height: 2; }
     .bag-summary__note { font-size: 10px; }
@@ -1640,10 +1732,7 @@
     .bag-item__meta { font-size: 12px; }
     .bag-item__row { flex-direction: column; align-items: flex-start; gap: 4px; }
     .bag-item__price { font-size: 16px; line-height: 2; }
-    .bag-stepper { margin-left: 0; gap: 20px; }
-    .bag-stepper__btn { width: 20px; height: 20px; }
-    .bag-stepper__btn .icon { width: 14px; height: 14px; }
-    .bag-stepper__value { font-size: 16px; font-weight: 400; line-height: 1.5; }
+    .bag-item__actions { margin-left: 0; }
     .bag-summary { margin-bottom: 12px; }
     .bag-summary__label { font-size: 16px; line-height: 2; }
     .bag-summary__note { font-size: 8px; }
@@ -1706,6 +1795,11 @@
 }
 
 .sell-errors li + li { margin-top: 4px; }
+.sell-errors[hidden] { display: none; }
+.sell-submit-status { margin: 0; color: var(--olive-dark); font-size: 14px; }
+.sell-submit-status:empty { display: none; }
+.sell-form [aria-invalid="true"] { border-color: var(--wine); }
+.sell-form[aria-busy="true"] .sell-submit { cursor: progress; opacity: 0.7; }
 
 .sell-form {
     display: flex;
