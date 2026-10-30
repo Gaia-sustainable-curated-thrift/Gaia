@@ -356,22 +356,49 @@
 
     // Every add-to-bag button on the page mirrors whether its listing is in the bag;
     // pressing an added one removes it again.
+    function setBagButton(form, inBag) {
+        var button = form.querySelector('button[type="submit"]');
+        var label = form.querySelector('[data-bag-label]');
+        var changed = button && button.classList.contains('is-active') !== inBag;
+        form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
+        if (changed) replayClass(button, 'is-popping');
+        if (button) {
+            button.classList.toggle('is-active', inBag);
+            button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
+            var icon = button.querySelector('use');
+            if (icon) icon.setAttribute('href', inBag ? '#icon-check' : '#icon-bag');
+        }
+        if (label) label.textContent = inBag ? 'Added to bag' : 'Add to bag';
+    }
+
     function syncBagButtons(slugs) {
         document.querySelectorAll('[data-bag-form]').forEach(function (form) {
-            var inBag = slugs.indexOf(form.getAttribute('data-bag-form')) !== -1;
-            var button = form.querySelector('button[type="submit"]');
-            var label = form.querySelector('[data-bag-label]');
-            var changed = button && button.classList.contains('is-active') !== inBag;
-            form.action = form.getAttribute(inBag ? 'data-remove-url' : 'data-add-url');
-            if (changed) replayClass(button, 'is-popping');
-            if (button) {
-                button.classList.toggle('is-active', inBag);
-                button.setAttribute('aria-pressed', inBag ? 'true' : 'false');
-                var icon = button.querySelector('use');
-                if (icon) icon.setAttribute('href', inBag ? '#icon-check' : '#icon-bag');
-            }
-            if (label) label.textContent = inBag ? 'Added to bag' : 'Add to bag';
+            setBagButton(form, slugs.indexOf(form.getAttribute('data-bag-form')) !== -1);
         });
+    }
+
+    function bagFormsFor(slug) {
+        return Array.prototype.filter.call(document.querySelectorAll('[data-bag-form]'), function (form) {
+            return form.getAttribute('data-bag-form') === slug;
+        });
+    }
+
+    function setBagCount(count) {
+        document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
+            var changed = badge.textContent.trim() !== String(count);
+            badge.textContent = count;
+            badge.hidden = count === 0;
+            if (changed && !badge.hidden) replayClass(badge, 'is-bumping');
+        });
+        document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
+            toggle.setAttribute('aria-label', 'Shopping bag, ' + count + ' item' + (count === 1 ? '' : 's'));
+        });
+    }
+
+    function currentBagCount() {
+        var badge = document.querySelector('[data-bag-count]');
+        var count = badge ? parseInt(badge.textContent, 10) : 0;
+        return isNaN(count) ? 0 : count;
     }
 
     function initBagForms() {
@@ -388,13 +415,30 @@
             var button = form.querySelector('button[type="submit"]');
             if (button) button.disabled = true;
             var drawer = document.getElementById('bag-drawer');
-            var adding = /\/bag\/add\//.test(new URL(form.action).pathname);
+            var url = form.action;
+            var body = new FormData(form);
+            var adding = /\/bag\/add\//.test(new URL(url).pathname);
             var card = form.closest('.product-card');
             var photo = card ? card.querySelector('.product-card__media img') : document.querySelector('[data-gallery-main]');
 
-            fetch(form.action, {
+            // Optimistic UI: an add/remove toggle flips (and the badge moves) straight
+            // away; the server's answer then confirms it, or the change is rolled back.
+            var slug = form.getAttribute('data-bag-form');
+            var revert = null;
+            if (slug) {
+                var previousCount = currentBagCount();
+                bagFormsFor(slug).forEach(function (other) { setBagButton(other, adding); });
+                setBagCount(Math.max(0, previousCount + (adding ? 1 : -1)));
+                if (adding) flyToBag(photo);
+                revert = function () {
+                    bagFormsFor(slug).forEach(function (other) { setBagButton(other, !adding); });
+                    setBagCount(previousCount);
+                };
+            }
+
+            fetch(url, {
                 method: 'POST',
-                body: new FormData(form),
+                body: body,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             }).then(function (response) {
@@ -402,6 +446,7 @@
             }).then(function (data) {
                 // Rate-limited (429) responses carry only a toast explaining why.
                 if (data && data.ok === false && data.toast && typeof data.bag_count !== 'number') {
+                    if (revert) revert();
                     showToast(data.toast);
                     return;
                 }
@@ -410,21 +455,13 @@
                 }
                 var panel = document.querySelector('.bag-drawer__panel');
                 if (panel && data.drawer) panel.innerHTML = data.drawer;
-                document.querySelectorAll('[data-bag-count]').forEach(function (badge) {
-                    var changed = badge.textContent.trim() !== String(data.bag_count);
-                    badge.textContent = data.bag_count;
-                    badge.hidden = data.bag_count === 0;
-                    if (changed && !badge.hidden) replayClass(badge, 'is-bumping');
-                });
-                document.querySelectorAll('[data-bag-toggle]').forEach(function (toggle) {
-                    toggle.setAttribute('aria-label', 'Shopping bag, ' + data.bag_count + ' item' + (data.bag_count === 1 ? '' : 's'));
-                });
+                setBagCount(data.bag_count);
                 if (Array.isArray(data.bag_slugs)) syncBagButtons(data.bag_slugs);
-                if (adding && data.ok && !data.open) flyToBag(photo);
                 if (data.open && drawer && !drawer.open) drawer.showModal();
                 showToast(data.toast);
             }).catch(function () {
                 // A failed response may follow a successful POST; do not replay it.
+                if (revert) revert();
                 showToast({ kind: 'error', text: 'Could not update your bag. Please try again.' });
             }).finally(function () {
                 requestPending = false;
@@ -438,27 +475,60 @@
         document.querySelectorAll('[data-wishlist-form]').forEach(function (form) {
             var button = form.querySelector('button[type="submit"]');
             var label = button.querySelector('[data-wishlist-label]');
+            var counters = document.querySelectorAll('[data-wishlist-count]');
             var saved = button.classList.contains('is-saved');
             var pending = false;
             var navigating = false;
+
+            function savedCount() {
+                var count = counters.length ? parseInt(counters[0].textContent, 10) : NaN;
+                return isNaN(count) ? null : count;
+            }
+
+            function render(state, count) {
+                button.classList.toggle('is-saved', state);
+                button.setAttribute('aria-pressed', state ? 'true' : 'false');
+                // Same pressed look as the bag button: outline plus a check mark.
+                var icon = button.querySelector('use');
+                if (icon) icon.setAttribute('href', state ? '#icon-check' : '#icon-heart');
+                label.textContent = state ? 'Saved to wishlist' : 'Save to wishlist';
+                form.action = form.getAttribute(state ? 'data-remove-url' : 'data-add-url');
+                if (typeof count !== 'number') return;
+                counters.forEach(function (node) {
+                    node.textContent = count + (count === 1 ? ' person has saved this' : ' people have saved this');
+                });
+            }
 
             form.addEventListener('submit', function (event) {
                 if (typeof window.fetch !== 'function') return;
                 event.preventDefault();
                 if (pending) return;
                 pending = true;
-                button.disabled = true;
-                label.textContent = saved ? 'Menghapus…' : 'Menyimpan…';
                 form.setAttribute('aria-busy', 'true');
 
-                fetch(form.action, {
+                var url = form.action;
+                var body = new FormData(form);
+                var before = saved;
+                var beforeCount = savedCount();
+                // Optimistic UI: show the new state right away, confirm or roll back after.
+                var next = !saved;
+                render(next, beforeCount === null ? undefined : Math.max(0, beforeCount + (next ? 1 : -1)));
+                replayClass(button, 'is-popping');
+                if (next) heartBurst(button);
+
+                function rollBack(toast) {
+                    render(before, beforeCount === null ? undefined : beforeCount);
+                    showToast(toast);
+                }
+
+                fetch(url, {
                     method: 'POST',
-                    body: new FormData(form),
+                    body: body,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin'
                 }).then(function (response) {
                     if (response.status === 403 || response.status === 404) {
-                        showToast({ kind: 'error', text: response.status === 403
+                        rollBack({ kind: 'error', text: response.status === 403
                             ? 'Your session is no longer valid. Reload this page before trying again.'
                             : 'This listing could not be found.' });
                         return null;
@@ -466,38 +536,25 @@
                     return response.json();
                 }).then(function (data) {
                     if (!data) return;
-                    if (data.ok === false && data.toast && typeof data.login_url !== 'string') {
-                        showToast(data.toast);
-                    } else if (typeof data.login_url === 'string') {
+                    if (typeof data.login_url === 'string') {
                         var target = new URL(data.login_url, window.location.href);
                         if (target.origin !== window.location.origin) throw new Error('Unexpected login redirect');
                         navigating = true;
                         window.location.assign(target.href);
                     } else if (data.ok === true && data.toast && typeof data.saved_count === 'number' && typeof data.saved === 'boolean') {
-                        if (saved !== data.saved) replayClass(button, 'is-popping');
-                        if (!saved && data.saved) heartBurst(button);
                         saved = data.saved;
-                        button.classList.toggle('is-saved', saved);
-                        button.setAttribute('aria-pressed', saved ? 'true' : 'false');
-                        // Same pressed look as the bag button: outline plus a check mark.
-                        var icon = button.querySelector('use');
-                        if (icon) icon.setAttribute('href', saved ? '#icon-check' : '#icon-heart');
-                        form.action = form.getAttribute(saved ? 'data-remove-url' : 'data-add-url');
-                        document.querySelectorAll('[data-wishlist-count]').forEach(function (count) {
-                            count.textContent = data.saved_count + (data.saved_count === 1
-                                ? ' person has saved this' : ' people have saved this');
-                        });
+                        render(saved, data.saved_count);
                         showToast(data.toast);
+                    } else if (data.ok === false && data.toast) {
+                        rollBack(data.toast);
                     } else {
                         throw new Error('Invalid wishlist response');
                     }
                 }).catch(function () {
-                    showToast({ kind: 'error', text: 'Could not update your wishlist. Please try again.' });
+                    rollBack({ kind: 'error', text: 'Could not update your wishlist. Please try again.' });
                 }).finally(function () {
                     if (!navigating) {
                         pending = false;
-                        button.disabled = false;
-                        label.textContent = saved ? 'Saved to wishlist' : 'Save to wishlist';
                         form.removeAttribute('aria-busy');
                     }
                 });
@@ -723,10 +780,11 @@
         });
     }
 
-    function initListingDelete() {
-        document.querySelectorAll('[data-delete-listing]').forEach(function (toggle) {
+    function initListingDelete(root) {
+        (root || document).querySelectorAll('[data-delete-listing]:not([data-delete-ready])').forEach(function (toggle) {
             var dialog = document.getElementById(toggle.getAttribute('aria-controls'));
             if (!dialog) return;
+            toggle.setAttribute('data-delete-ready', '');
             toggle.addEventListener('click', function () {
                 if (!dialog.open) dialog.showModal();
                 toggle.setAttribute('aria-expanded', 'true');
@@ -736,6 +794,41 @@
                 if (event.target !== dialog) return;
                 var bounds = dialog.getBoundingClientRect();
                 if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+            });
+        });
+    }
+
+    // Deleting from a product card happens in place: the card fades out at once and
+    // comes back with an error toast if the server refuses. The detail page keeps its
+    // normal form post, since it has to navigate away anyway.
+    function initCardDelete() {
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            var dialog = form.closest('.pdp-delete-dialog');
+            if (!dialog || form.method !== 'post' || typeof window.fetch !== 'function') return;
+            var toggle = document.querySelector('[data-delete-listing][aria-controls="' + dialog.id + '"]');
+            var card = toggle && toggle.closest('.product-card');
+            if (!card) return;
+            event.preventDefault();
+            dialog.close();
+            card.classList.add('is-removing');
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+            }).then(function (result) {
+                if (!result.ok || !result.data || result.data.ok !== true) {
+                    throw result.data && result.data.toast ? result.data.toast : null;
+                }
+                window.setTimeout(function () { card.remove(); dialog.remove(); }, 260);
+                showToast(result.data.toast);
+            }).catch(function (toast) {
+                card.classList.remove('is-removing');
+                showToast(toast && toast.text ? toast : { kind: 'error', text: 'Could not delete this listing. Please try again.' });
             });
         });
     }
@@ -830,8 +923,8 @@
     }
 
     // Show a shimmer behind product photos until they have loaded.
-    function initPhotoShimmer() {
-        document.querySelectorAll('.product-card__media img, .pdp-main-image img').forEach(function (img) {
+    function initPhotoShimmer(root) {
+        (root || document).querySelectorAll('.product-card__media img, .pdp-main-image img').forEach(function (img) {
             if (img.complete) return;
             var frame = img.parentElement;
             frame.classList.add('is-loading');
@@ -1028,6 +1121,12 @@
         initPhotoShimmer();
         initSellBanner();
         initHomeMotion();
+        initCardDelete();
+        // HTMX swaps in new search results; wire up the cards it brings.
+        document.body.addEventListener('htmx:afterSettle', function () {
+            initListingDelete();
+            initPhotoShimmer();
+        });
     }
 
     if (document.readyState === 'loading') {

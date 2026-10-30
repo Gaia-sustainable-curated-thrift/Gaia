@@ -1,5 +1,7 @@
 {% extends 'accounts/base.html' %}
+{% load static %}
 {% block extra_css %}
+<script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
 {# Product pages opt in to cross-page view transitions, so a card photo can morph into the detail photo. #}
 <style>
 @view-transition { navigation: auto; }

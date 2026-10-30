@@ -155,6 +155,9 @@ def search(request):
 
     products = products.order_by('-created_at')
     result_count = products.count()
+    # Keep the filter panel whenever the search term itself matches something,
+    # so narrowing the filters down to nothing doesn't hide the way back.
+    has_matches = result_count > 0 or base.exists()
     products = products[:60]
 
     genders = [
@@ -196,6 +199,7 @@ def search(request):
         'q': q,
         'products': products,
         'result_count': result_count,
+        'has_matches': has_matches,
         'price_from': price_from,
         'price_to': price_to,
         'genders': genders,
@@ -325,7 +329,10 @@ def delete_listing(request, product):
     cart.remove(request.session, product_id)
     if request.session.get('bag_undo', {}).get('product_id') == product_id:
         request.session.pop('bag_undo')
-    request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing deleted.'}
+    toast = {'kind': 'added', 'text': 'Listing deleted.'}
+    if _is_ajax(request):
+        return JsonResponse({'ok': True, 'toast': toast, 'product_id': product_id})
+    request.session['bag_toast'] = toast
     return _redirect_back(request, reverse('products:home'))
 
 
