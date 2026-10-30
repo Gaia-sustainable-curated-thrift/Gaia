@@ -148,3 +148,21 @@ Untuk menguji app tertentu, tambahkan nama app, misalnya `python manage.py test 
 .\env\Scripts\python.exe -m coverage run manage.py test accounts
 .\env\Scripts\python.exe -m coverage report
 ```
+
+### Konfigurasi keamanan deployment
+
+Set `PRODUCTION=True` dan `SECRET_KEY` acak baru (minimal 50 karakter) melalui environment PWS sebelum deploy. Key lama di riwayat repository harus dianggap bocor dan tidak digunakan kembali. Nilai secret tidak boleh dimasukkan ke GitHub atau log. Rotasi key membuat sesi/token lama tidak berlaku.
+
+Mode produksi mematikan debug, mengaktifkan cookie secure, redirect HTTPS, dan HSTS. Proxy PWS harus meneruskan serta menimpa `X-Forwarded-Proto`; jangan mempercayai header langsung dari klien. Jalankan `python manage.py check --deploy` dengan konfigurasi produksi. Media upload harus disajikan oleh server media/proxy pada `/media/` dengan tipe konten gambar dan `X-Content-Type-Options: nosniff`; `DEBUG=False` tidak menggunakan server media pengembangan Django.
+
+Rujukan: [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/).
+
+### Integritas email akun
+
+Email akun nonkosong memiliki unique index `LOWER(TRIM(email))` di database (SQLite/PostgreSQL). Aturan ini berlaku untuk registrasi biasa, Google/allauth, admin, serta penulisan langsung ke model. Akun sistem boleh tidak memiliki email. Sebelum migrasi, jalankan `python manage.py audit_account_emails`; bila ada duplikat lama, selesaikan kepemilikannya dahulu. Migrasi berhenti tanpa menggabungkan atau menghapus akun secara otomatis.
+
+### Verifikasi dan identitas akun
+
+Status verifikasi email dibaca dari `allauth.account.EmailAddress` untuk email akun saat ini. Migrasi memindahkan flag verifikasi profil lama tanpa menggabungkan akun. Pengguna dapat meminta ulang tautan melalui Account Settings; tautan berlaku 24 jam dan permintaan dibatasi satu kali per menit per akun, termasuk ketika berpindah browser atau pengiriman gagal. Mode produksi membuat tautan HTTPS meskipun upstream PWS menggunakan HTTP.
+
+Username `gaiacare` dan username support yang dikonfigurasi tidak dapat dipilih oleh pengguna biasa. `GAIA_CARE_USER_ID` dapat menunjuk akun staff aktif yang disiapkan administrator; benturan username dengan akun biasa ditolak, tanpa menaikkan hak akun tersebut. Percakapan support lama yang salah tujuan memerlukan pemeriksaan admin.

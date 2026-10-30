@@ -9,12 +9,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
 from django.core import signing
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.core.paginator import Paginator
 from django.db.models.deletion import ProtectedError, RestrictedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from allauth.account.models import EmailAddress
 from .forms import DeleteAccountForm, ProfileForm, RegisterForm
@@ -23,7 +24,7 @@ from .models import AccountOrder, Profile, WishlistItem
 
 def account_context(request, title, subtitle, active='profile', **extra):
     profile, _ = Profile.objects.get_or_create(user=request.user)
-    verified = profile.email_verified or EmailAddress.objects.filter(user=request.user, email__iexact=request.user.email, verified=True).exists()
+    verified = profile.email_verified
     return {'title': title, 'subtitle': subtitle, 'active': active, 'profile': profile, 'email_verified': verified, **extra}
 
 
@@ -32,18 +33,25 @@ def register(request):
         return redirect('profile')
     form = RegisterForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        with transaction.atomic():
-            user = form.save()
-            Profile.objects.create(user=user)
-        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-        token = signing.dumps({'user': user.pk, 'email': user.email}, salt='gaia-email')
-        link = request.build_absolute_uri(reverse('verify_email', args=[token]))
         try:
-            send_mail('Verify your GAIA email', f'Welcome to GAIA! Verify your email:\n{link}', settings.DEFAULT_FROM_EMAIL, [user.email])
+            with transaction.atomic():
+                user = form.save()
+                Profile.objects.create(user=user)
+        except IntegrityError:
+            if get_user_model().objects.filter(email__iexact=form.cleaned_data['email']).exists():
+                form.add_error('email', 'An account with this email already exists. Please log in.')
+            elif get_user_model().objects.filter(username__iexact=form.instance.username).exists():
+                form.add_error(None, 'This username was just taken. Please submit the form again.')
+            else:
+                raise
+            return render(request, 'registration/register.html', {'form': form})
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        try:
+            _send_verification_email(request, user)
             request.session['verification_email_sent'] = True
         except (SMTPException, OSError):
             request.session['verification_email_sent'] = False
-            messages.error(request, 'Your account was created, but the verification email could not be sent. You can continue to your profile.')
+            messages.error(request, 'Your account was created, but the verification email could not be sent. You can resend it from Account Settings.')
         return redirect('account_created')
     return render(request, 'registration/register.html', {'form': form})
 
@@ -56,13 +64,67 @@ def account_created(request):
 def verify_email(request, token):
     try:
         payload = signing.loads(token, salt='gaia-email', max_age=86400)
-        profile = get_object_or_404(Profile, user_id=payload['user'], user__email=payload['email'])
-        profile.email_verified = True
-        profile.save(update_fields=['email_verified'])
+        with transaction.atomic():
+            profile = get_object_or_404(Profile.objects.select_for_update(), user_id=payload['user'], user__email=payload['email'])
+            email = profile.user.email.strip().lower()
+            address = EmailAddress.objects.filter(user=profile.user, email__iexact=email).first()
+            if address is None:
+                address = EmailAddress.objects.create(
+                    user=profile.user, email=email,
+                    primary=not EmailAddress.objects.filter(user=profile.user, primary=True).exists(),
+                )
+            if not address.set_verified():
+                messages.error(request, 'This email belongs to another verified account. Please contact support.')
+                return redirect('profile')
         messages.success(request, 'Email verified. Your sustainable story starts here.')
-    except signing.BadSignature:
+    except (signing.BadSignature, KeyError, TypeError):
         messages.error(request, 'This verification link is invalid or has expired.')
+    except IntegrityError:
+        messages.error(request, 'This email could not be verified. Please contact support.')
     return redirect('profile')
+
+
+def _send_verification_email(request, user):
+    # Reserve the cooldown in the database, so another browser cannot bypass it.
+    with transaction.atomic():
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile = Profile.objects.select_for_update().get(pk=profile.pk)
+        now = timezone.now()
+        if profile.verification_sent_at and (now - profile.verification_sent_at).total_seconds() < 60:
+            return False
+        profile.verification_sent_at = now
+        profile.save(update_fields=['verification_sent_at'])
+    token = signing.dumps({'user': user.pk, 'email': user.email}, salt='gaia-email')
+    scheme = 'https' if settings.PRODUCTION else request.scheme
+    path = reverse('verify_email', args=[token])
+    link = f'{scheme}://{request.get_host()}{path}'
+    sent = send_mail('Verify your GAIA email', f'Welcome to GAIA! Verify your email:\n{link}', settings.DEFAULT_FROM_EMAIL, [user.email])
+    if not sent:
+        raise OSError('Email delivery not accepted')
+    return True
+
+
+@login_required
+@require_POST
+def resend_verification(request):
+    context = account_context(request, 'Account Settings', '', 'settings')
+    if context['email_verified']:
+        messages.info(request, 'Your email is already verified.')
+    elif not request.user.email:
+        messages.error(request, 'Your account has no email address. Please contact support.')
+    else:
+        try:
+            sent = _send_verification_email(request, request.user)
+        except (SMTPException, OSError):
+            request.session['verification_email_sent'] = False
+            messages.error(request, 'Verification email could not be sent. Please try again after one minute.')
+        else:
+            if sent:
+                request.session['verification_email_sent'] = True
+                messages.success(request, 'Verification email sent. Check your inbox; the link is valid for 24 hours.')
+            else:
+                messages.info(request, 'Please wait one minute before requesting another verification email.')
+    return redirect('account_settings')
 
 
 @login_required
@@ -85,7 +147,8 @@ def edit_profile(request):
 
 @login_required
 def orders(request):
-    return render(request, 'accounts/orders.html', account_context(request, 'Orders', "Track your orders and follow each item's journey.", 'orders', orders=request.user.account_orders.all()))
+    page = Paginator(request.user.account_orders.order_by('-date', '-pk'), 12).get_page(request.GET.get('page'))
+    return render(request, 'accounts/orders.html', account_context(request, 'Orders', "Track your orders and follow each item's journey.", 'orders', orders=page.object_list, page_obj=page))
 
 
 @login_required
@@ -96,7 +159,15 @@ def order_detail(request, pk):
 
 @login_required
 def wishlist(request):
-    return render(request, 'accounts/wishlist.html', account_context(request, 'Wishlist', 'Save your favorites and give them a new story.', 'wishlist', items=request.user.wishlist_items.filter(removed=False), undo_id=request.session.get('wishlist_undo')))
+    page = Paginator(request.user.wishlist_items.filter(removed=False).order_by('-pk'), 12).get_page(request.GET.get('page'))
+    return render(request, 'accounts/wishlist.html', account_context(request, 'Wishlist', 'Save your favorites and give them a new story.', 'wishlist', items=page.object_list, page_obj=page, undo_id=request.session.get('wishlist_undo')))
+
+
+def _wishlist_page_redirect(request):
+    page = request.POST.get('page', '')
+    if page.isdecimal() and 0 < len(page) < 8 and int(page) > 0:
+        return redirect(f"{reverse('wishlist')}?page={int(page)}")
+    return redirect('wishlist')
 
 
 @login_required
@@ -107,7 +178,7 @@ def wishlist_remove(request, pk):
     item.save(update_fields=['removed'])
     request.session['wishlist_undo'] = item.pk
     messages.success(request, 'Item removed from your wishlist.')
-    return redirect('wishlist')
+    return _wishlist_page_redirect(request)
 
 
 @login_required
@@ -117,17 +188,25 @@ def wishlist_undo(request):
     if pk:
         WishlistItem.objects.filter(pk=pk, user=request.user, removed=True).update(removed=False)
         messages.success(request, 'Item restored to your wishlist.')
-    return redirect('wishlist')
+    return _wishlist_page_redirect(request)
 
 
 @login_required
 def account_settings(request):
-    return render(request, 'accounts/settings.html', account_context(request, 'Account Settings', 'Manage security and access to your GAIA account.', 'settings'))
+    from allauth.socialaccount.models import SocialAccount
+    google_account = SocialAccount.objects.filter(user=request.user, provider='google').exists()
+    return render(request, 'accounts/settings.html', account_context(request, 'Account Settings', 'Manage security and access to your GAIA account.', 'settings', google_account=google_account))
 
 
 class ChangePasswordView(PasswordChangeView):
     template_name = 'accounts/change_password.html'
     success_url = reverse_lazy('account_settings')
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not request.user.has_usable_password():
+            messages.info(request, 'Your account uses external sign-in and does not have a local password to change.')
+            return redirect('account_settings')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         return {**super().get_context_data(**kwargs), **account_context(self.request, 'Change Password', 'Use a unique password to keep your account secure.', 'settings')}
@@ -142,7 +221,8 @@ DELETE_LINK_SECONDS = 900
 
 
 def _deletion_blocked(user):
-    return user.account_orders.exclude(status=AccountOrder.Status.COMPLETED).exists()
+    return (user.account_orders.exclude(status=AccountOrder.Status.COMPLETED).exists()
+            or user.sales_orders.exclude(status=AccountOrder.Status.COMPLETED).exists())
 
 
 def _deletion_link_valid(request, token):
@@ -166,7 +246,7 @@ def delete_account(request, token=None):
     form = DeleteAccountForm(request.POST if request.method == 'POST' else None, user=user)
     if request.method == 'POST' and form.is_valid():
         if blocked:
-            form.add_error(None, 'Finish your pending orders before deleting your account.')
+            form.add_error(None, 'Finish your pending orders and sales before deleting your account.')
         elif not has_password and not link_valid:
             form.add_error(None, 'Request a new confirmation email and open its link in this browser.')
         else:
@@ -174,7 +254,7 @@ def delete_account(request, token=None):
                 with transaction.atomic():
                     locked_user = get_user_model().objects.select_for_update().get(pk=user.pk)
                     if _deletion_blocked(locked_user):
-                        form.add_error(None, 'Finish your pending orders before deleting your account.')
+                        form.add_error(None, 'Finish your pending orders and sales before deleting your account.')
                     else:
                         locked_user.delete()
             except (ProtectedError, RestrictedError):
@@ -205,7 +285,7 @@ def send_delete_confirmation(request):
     if request.user.has_usable_password():
         return redirect('delete_account')
     if _deletion_blocked(request.user):
-        messages.error(request, 'Finish your pending orders before deleting your account.')
+        messages.error(request, 'Finish your pending orders and sales before deleting your account.')
     elif not request.user.email or not context['email_verified']:
         messages.error(request, 'A verified email is required. Verify your email before deleting your account.')
     else:

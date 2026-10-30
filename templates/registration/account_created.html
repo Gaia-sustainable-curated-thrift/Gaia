@@ -14,4 +14,5 @@
 </p>
 <p class="muted">{% if verification_email_sent %}Check your inbox to verify your email address.{% endif %} You can also complete your profile now.
 </p><a class="button full-width" href="{% url 'profile' %}">Continue to Profile</a><a class="auth-back" href="{% url 'edit_profile' %}">Complete My Profile</a>
+<p class="muted">Need a new verification link? You can resend it from <a href="{% url 'account_settings' %}">Account Settings</a>.</p>
 {% endblock %}

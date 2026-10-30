@@ -159,3 +159,34 @@ class ChatEntryPointTests(TestCase):
         self.assertContains(self.client.get(reverse('chat:order', args=[order.pk]), follow=True), 'Order #GA-2048')
         self.client.force_login(self.seller)
         self.assertEqual(self.client.get(reverse('chat:order', args=[order.pk])).status_code, 404)
+
+
+class SupportIdentityTests(TestCase):
+    def test_existing_ordinary_account_is_never_promoted_or_used_as_support(self):
+        impostor = User.objects.create_user('gaiacare', password='pw')
+        buyer = User.objects.create_user('new-buyer')
+        with self.assertRaises(services.ChatError):
+            services.start_support_conversation(buyer)
+        impostor.refresh_from_db()
+        self.assertFalse(impostor.is_staff)
+        self.assertTrue(impostor.check_password('pw'))
+        self.assertFalse(Conversation.objects.exists())
+
+    def test_admin_selected_support_must_be_active_staff(self):
+        support = User.objects.create_user('staff-support', is_staff=True)
+        with self.settings(GAIA_CARE_USER_ID=support.pk):
+            self.assertEqual(services.get_gaia_care_user(), support)
+            support.is_active = False
+            support.save()
+            with self.assertRaises(services.ChatError):
+                services.get_gaia_care_user()
+        with self.settings(GAIA_CARE_USER_ID='invalid'):
+            with self.assertRaises(services.ChatError):
+                services.get_gaia_care_user()
+
+    def test_old_hijacked_conversation_is_not_silently_reused(self):
+        buyer = User.objects.create_user('new-buyer')
+        impostor = User.objects.create_user('old-impostor')
+        Conversation.objects.create(kind='support', buyer=buyer, seller=impostor)
+        with self.assertRaises(services.ChatError):
+            services.start_support_conversation(buyer)

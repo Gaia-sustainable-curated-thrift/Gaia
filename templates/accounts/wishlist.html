@@ -1,7 +1,7 @@
 {% extends 'accounts/layout.html' %}
 {% load account_tags %}
 {% block account_content %}{% if items %}
-<p class="list-count">{{ items|length }} saved item{{ items|length|pluralize }}
+<p class="list-count">{{ page_obj.paginator.count }} saved item{{ page_obj.paginator.count|pluralize }}
 </p>
 <div class="wishlist-layout">
 <div class="wishlist-products">{% for item in items %}
@@ -11,7 +11,7 @@
 </h3>
 <p>{{ item.condition }}<br>{{ item.price|rupiah }}
 </p>
-<form method="post" action="{% url 'wishlist_remove' item.pk %}">{% csrf_token %}<button class="button" type="submit">Remove from Wishlist</button>
+<form method="post" action="{% url 'wishlist_remove' item.pk %}">{% csrf_token %}<input type="hidden" name="page" value="{{ page_obj.number }}"><button class="button" type="submit">Remove from Wishlist</button>
 </form>
 </div>
 </article>{% endfor %}
@@ -30,9 +30,10 @@
 </h2>
 <p class="muted">Find something you love? Save it to revisit later.
 </p>{% if undo_id %}
-<form method="post" action="{% url 'wishlist_undo' %}">{% csrf_token %}<button class="button olive-button" type="submit">Undo Removal</button>
+<form method="post" action="{% url 'wishlist_undo' %}">{% csrf_token %}<input type="hidden" name="page" value="{{ page_obj.number }}"><button class="button olive-button" type="submit">Undo Removal</button>
 </form>{% else %}<a class="button olive-button" href="/">Back to Home</a>{% endif %}
 </section>{% endif %}{% if items and undo_id %}
-<form class="undo-form" method="post" action="{% url 'wishlist_undo' %}">{% csrf_token %}<button class="text-button" type="submit">Undo Removal</button>
+<form class="undo-form" method="post" action="{% url 'wishlist_undo' %}">{% csrf_token %}<input type="hidden" name="page" value="{{ page_obj.number }}"><button class="text-button" type="submit">Undo Removal</button>
 </form>{% endif %}
+{% include 'includes/account_pagination.html' with pagination_label='Wishlist' %}
 {% endblock %}
