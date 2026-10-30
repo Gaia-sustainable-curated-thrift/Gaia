@@ -16,7 +16,7 @@ from django.core import mail, signing
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
-from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from .context_processors import social_login
@@ -1435,3 +1435,49 @@ class AccountPaginationTests(TestCase):
         response = self.client.post(reverse('wishlist_undo'), {'page': '2'})
         self.assertRedirects(response, reverse('wishlist') + '?page=2')
         self.assertFalse(WishlistItem.objects.get(pk=item.pk).removed)
+
+
+class AccountMigrationSafetyTests(TransactionTestCase):
+    def setUp(self):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        self.connection = connection
+        self.target = [('accounts', '0004_accountorder_product_accountorder_seller')]
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.target)
+        self.old_apps = executor.loader.project_state(self.target).apps
+
+    def tearDown(self):
+        from django.db.migrations.executor import MigrationExecutor
+        executor = MigrationExecutor(self.connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def test_legacy_verified_flag_moves_to_the_current_email_address(self):
+        from django.db.migrations.executor import MigrationExecutor
+        LegacyUser = self.old_apps.get_model('auth', 'User')
+        LegacyProfile = self.old_apps.get_model('accounts', 'Profile')
+        user = LegacyUser.objects.create(username='legacy-verified', email='Legacy@example.test')
+        LegacyProfile.objects.create(user_id=user.pk, email_verified=True)
+        executor = MigrationExecutor(self.connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        self.assertTrue(EmailAddress.objects.get(user_id=user.pk, email='legacy@example.test').verified)
+        self.assertTrue(Profile.objects.get(user_id=user.pk).email_verified)
+
+    def test_existing_duplicate_emails_stop_migration_without_merging_accounts(self):
+        from django.db.migrations.executor import MigrationExecutor
+        LegacyUser = self.old_apps.get_model('auth', 'User')
+        first = LegacyUser.objects.create(username='legacy-one', email='same@example.test')
+        second = LegacyUser.objects.create(username='legacy-two', email='SAME@example.test')
+        try:
+            with self.assertRaisesMessage(RuntimeError, 'Duplicate account emails exist'):
+                executor = MigrationExecutor(self.connection)
+                executor.migrate(executor.loader.graph.leaf_nodes())
+            self.assertEqual(LegacyUser.objects.filter(pk__in=[first.pk, second.pk]).count(), 2)
+            output = StringIO()
+            call_command('audit_account_emails', stdout=output)
+            self.assertIn('1 duplicate email group(s)', output.getvalue())
+            self.assertNotIn('same@example.test', output.getvalue())
+        finally:
+            # Only remove the deliberately duplicated fixture so tearDown can migrate forward.
+            LegacyUser.objects.filter(pk=second.pk).delete()
