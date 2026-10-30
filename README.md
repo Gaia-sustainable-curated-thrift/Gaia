@@ -148,3 +148,11 @@ Untuk menguji app tertentu, tambahkan nama app, misalnya `python manage.py test 
 .\env\Scripts\python.exe -m coverage run manage.py test accounts
 .\env\Scripts\python.exe -m coverage report
 ```
+
+### Konfigurasi keamanan deployment
+
+Set `PRODUCTION=True` dan `SECRET_KEY` acak baru (minimal 50 karakter) melalui environment PWS sebelum deploy. Key lama di riwayat repository harus dianggap bocor dan tidak digunakan kembali. Nilai secret tidak boleh dimasukkan ke GitHub atau log. Rotasi key membuat sesi/token lama tidak berlaku.
+
+Mode produksi mematikan debug, mengaktifkan cookie secure, redirect HTTPS, dan HSTS. Proxy PWS harus meneruskan serta menimpa `X-Forwarded-Proto`; jangan mempercayai header langsung dari klien. Jalankan `python manage.py check --deploy` dengan konfigurasi produksi. Media upload harus disajikan oleh server media/proxy pada `/media/` dengan tipe konten gambar dan `X-Content-Type-Options: nosniff`; `DEBUG=False` tidak menggunakan server media pengembangan Django.
+
+Rujukan: [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/).
