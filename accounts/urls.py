@@ -11,6 +11,7 @@ urlpatterns = [
     path('verify/<str:token>/', views.verify_email, name='verify_email'),
     path('profile/', views.profile, name='profile'),
     path('profile/edit/', views.edit_profile, name='edit_profile'),
+    path('products/', views.my_products, name='my_products'),
     path('orders/', views.orders, name='orders'),
     path('orders/<int:pk>/', views.order_detail, name='order_detail'),
     path('wishlist/', views.wishlist, name='wishlist'),

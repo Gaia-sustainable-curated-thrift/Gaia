@@ -1020,3 +1020,123 @@ class AvatarTests(TestCase):
                 self.assertEqual(self.upload().status_code, 302)
         self.user.profile.refresh_from_db()
         self.assertTrue(self.user.profile.avatar)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class MyProductsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from products.models import Category, Product
+        cls.user = User.objects.create_user('my-listings-owner', 'listings@example.com', PASSWORD)
+        cls.other = User.objects.create_user('my-listings-other')
+        parent = Category.objects.create(name='My Products Test Parent', slug='my-products-test-parent')
+        cls.category = Category.objects.create(name='Test Tops', slug='my-products-test-tops', parent=parent)
+        cls.available = Product.objects.create(seller=cls.user, title='My Linen Shirt', price=125000, category=cls.category)
+        cls.sold = Product.objects.create(seller=cls.user, title='My Sold Coat', price=250000, status='sold', category=cls.category)
+        cls.foreign = Product.objects.create(seller=cls.other, title='Other Seller Secret', price=100000, category=cls.category)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        self.url = reverse('my_products')
+
+    def test_guest_must_login_and_post_is_not_allowed(self):
+        self.assertEqual(self.client.post(self.url).status_code, 405)
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse('login') + '?next='))
+
+    def test_page_contains_only_current_users_products(self):
+        response = self.client.get(self.url, {'seller': self.other.pk})
+        self.assertContains(response, self.available.title)
+        self.assertContains(response, self.sold.title)
+        self.assertNotContains(response, self.foreign.title)
+        self.assertEqual(response.context['listing_totals'], {'total': 2, 'available': 1, 'sold': 1})
+        self.assertEqual(response.context['active'], 'products')
+        self.assertContains(response, reverse('products:edit', args=[self.available.slug]))
+        self.assertContains(response, reverse('products:delete', args=[self.available.slug]))
+        self.assertContains(response, 'id="my-product-delete-dialog"')
+
+    def test_available_sold_and_unknown_filters(self):
+        for status, titles in [('available', [self.available.title]), ('sold', [self.sold.title]), ('unknown', [self.available.title, self.sold.title])]:
+            with self.subTest(status=status):
+                response = self.client.get(self.url, {'status': status})
+                self.assertCountEqual([product.title for product in response.context['page_obj']], titles)
+                self.assertEqual(response.context['listing_totals']['total'], 2)
+
+    def test_normal_user_without_products_gets_sell_empty_state(self):
+        user = User.objects.create_user('new-listings-owner')
+        self.client.force_login(user)
+        response = self.client.get(self.url)
+        self.assertFalse(user.is_staff)
+        self.assertContains(response, 'Your first listing starts here')
+        self.assertContains(response, reverse('products:sell'))
+        self.assertNotContains(response, self.available.title)
+
+    def test_empty_filter_can_return_to_all_products(self):
+        self.available.status = 'sold'
+        self.available.save()
+        response = self.client.get(self.url, {'status': 'available'})
+        self.assertContains(response, 'No available listings yet')
+        self.assertContains(response, 'View All Listings')
+        self.assertEqual(response.context['listing_totals']['total'], 2)
+
+    def test_pagination_and_bad_page_numbers(self):
+        from products.models import Product
+        Product.objects.bulk_create([Product(seller=self.user, title=f'Extra {index}', slug=f'my-products-extra-{index}', price=10000) for index in range(13)])
+        first = self.client.get(self.url)
+        self.assertEqual(len(first.context['page_obj']), 12)
+        self.assertTrue(first.context['page_obj'].has_next())
+        second = self.client.get(self.url, {'page': 2})
+        self.assertEqual(len(second.context['page_obj']), 3)
+        invalid = self.client.get(self.url, {'page': 'invalid'})
+        self.assertEqual(invalid.context['page_obj'].number, 1)
+        overflow = self.client.get(self.url, {'page': 999})
+        self.assertEqual(overflow.context['page_obj'].number, 2)
+
+    def test_profile_activity_and_sidebar_link_to_my_products(self):
+        response = self.client.get(reverse('profile'))
+        self.assertContains(response, self.url)
+        self.assertEqual(response.context['listing_count'], 2)
+        self.assertContains(self.client.get(reverse('account_settings')), self.url)
+
+    def test_owner_can_edit_using_existing_product_view(self):
+        response = self.client.get(reverse('products:edit', args=[self.available.slug]))
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(reverse('products:edit', args=[self.available.slug]), {'title': 'Updated From My Products', 'price': 150000, 'category': self.category.pk, 'condition': 'good'})
+        self.assertEqual(response.status_code, 302)
+        self.available.refresh_from_db()
+        self.assertEqual(self.available.title, 'Updated From My Products')
+        self.assertEqual(self.available.seller_id, self.user.pk)
+
+    def test_cannot_edit_or_delete_another_sellers_product(self):
+        for action in ['edit', 'delete']:
+            response = self.client.post(reverse('products:' + action, args=[self.foreign.slug]), {'seller': self.user.pk, 'next': self.url})
+            self.assertEqual(response.status_code, 404)
+        self.assertTrue(type(self.foreign).objects.filter(pk=self.foreign.pk).exists())
+
+    def test_delete_returns_to_my_products_and_preserves_other_listings(self):
+        response = self.client.post(reverse('products:delete', args=[self.available.slug]), {'next': self.url + '?status=available'})
+        self.assertRedirects(response, self.url + '?status=available')
+        self.assertFalse(type(self.available).objects.filter(pk=self.available.pk).exists())
+        self.assertTrue(type(self.foreign).objects.filter(pk=self.foreign.pk).exists())
+        self.assertTrue(type(self.sold).objects.filter(pk=self.sold.pk).exists())
+
+    def test_delete_rejects_external_next_and_requires_csrf(self):
+        url = reverse('products:delete', args=[self.available.slug])
+        strict = Client(enforce_csrf_checks=True)
+        strict.force_login(self.user)
+        self.assertEqual(strict.post(url, {'next': self.url}).status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        response = self.client.post(url, {'next': 'https://untrusted.example/'})
+        self.assertRedirects(response, reverse('products:home'))
+
+    def test_uploaded_media_image_is_used_and_title_is_escaped(self):
+        self.available.title = '<script>alert(1)</script>'
+        self.available.save()
+        photo = self.available.images.create(image='products/my-products-test.jpg', is_primary=True)
+        response = self.client.get(self.url)
+        self.assertContains(response, photo.image.url)
+        self.assertNotContains(response, '/static/media/products/')
+        self.assertContains(response, '&lt;script&gt;alert(1)&lt;/script&gt;')
+        self.assertNotContains(response, self.available.title)

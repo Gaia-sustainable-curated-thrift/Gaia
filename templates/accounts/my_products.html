@@ -1,0 +1,57 @@
+{% extends 'accounts/layout.html' %}
+{% load static account_tags %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/my-products.css' %}"><script src="{% static 'js/my-products.js' %}" defer></script>{% endblock %}
+{% block account_content %}
+<div class="my-products-toolbar">
+    <div><strong>{{ listing_totals.total }} listing{{ listing_totals.total|pluralize }}</strong><p class="small muted">Everyone on GAIA can sell. Start with a piece you no longer wear.</p></div>
+    <a class="button" href="{% url 'products:sell' %}">Sell an Item <span aria-hidden="true">&#43;</span></a>
+</div>
+<nav class="my-products-tabs" aria-label="Filter your products">
+    <a href="{% url 'my_products' %}" {% if not selected_status %}aria-current="page"{% endif %}>All <span>{{ listing_totals.total }}</span></a>
+    <a href="?status=available" {% if selected_status == 'available' %}aria-current="page"{% endif %}>Available <span>{{ listing_totals.available }}</span></a>
+    <a href="?status=sold" {% if selected_status == 'sold' %}aria-current="page"{% endif %}>Sold <span>{{ listing_totals.sold }}</span></a>
+</nav>
+{% if page_obj.object_list %}
+<div class="my-products-grid">
+    {% for product in page_obj %}
+    <article class="my-product-card">
+        <a class="my-product-image" href="{% url 'products:detail' product.slug %}" aria-label="View {{ product.title }}">
+            {% with photo=product.primary_image %}{% if photo %}<img src="{{ photo.image.url }}" alt="{{ product.title }}" loading="lazy">{% else %}<span class="my-product-placeholder">{% include 'includes/icon.html' with name='bag' %}<span>No photo yet</span></span>{% endif %}{% endwith %}
+            <span class="my-product-status {% if product.status == 'sold' %}is-sold{% endif %}">{{ product.get_status_display }}</span>
+        </a>
+        <div class="my-product-info">
+            <h2><a href="{% url 'products:detail' product.slug %}">{{ product.title }}</a></h2>
+            <p class="small muted">{{ product.category.name|default:'Uncategorized' }} ? {{ product.get_condition_display }}</p>
+            <strong>{{ product.price|rupiah }}</strong>
+            <div class="my-product-actions">
+                <a class="button my-product-edit" href="{% url 'products:edit' product.slug %}">Edit Listing</a>
+                <button class="my-product-delete" type="button" data-product-delete-url="{% url 'products:delete' product.slug %}" data-product-title="{{ product.title }}" aria-label="Delete {{ product.title }}" aria-haspopup="dialog" aria-controls="my-product-delete-dialog">{% include 'includes/icon.html' with name='trash' %}</button>
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% if page_obj.has_other_pages %}<nav class="my-products-pagination" aria-label="Products pagination">
+    {% if page_obj.has_previous %}<a href="?status={{ selected_status }}&amp;page={{ page_obj.previous_page_number }}">&larr; Previous</a>{% endif %}
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a href="?status={{ selected_status }}&amp;page={{ page_obj.next_page_number }}">Next &rarr;</a>{% endif %}
+</nav>{% endif %}
+{% else %}
+<section class="card empty-state">
+    {% include 'includes/icon.html' with name='bag' %}
+    <h2>{% if listing_totals.total %}No {{ selected_status }} listings yet{% else %}Your first listing starts here{% endif %}</h2>
+    <p class="muted">{% if listing_totals.total %}Try another filter to see your other pieces.{% else %}Give your pre-loved pieces a new home. You can sell with your current account.{% endif %}</p>
+    <a class="button olive-button" href="{% if listing_totals.total %}{% url 'my_products' %}{% else %}{% url 'products:sell' %}{% endif %}">{% if listing_totals.total %}View All Listings{% else %}Sell Your First Item{% endif %}</a>
+</section>
+{% endif %}
+<dialog id="my-product-delete-dialog" class="my-product-dialog" aria-labelledby="my-product-delete-title" aria-describedby="my-product-delete-description">
+    <div class="dialog-content">
+        <h2 id="my-product-delete-title">Delete this listing?</h2>
+        <p id="my-product-delete-description"><strong data-delete-product-name></strong> will be permanently removed from the catalog. This cannot be undone.</p>
+        <div class="actions">
+            <form method="dialog"><button class="button my-product-cancel" type="submit" autofocus>Keep Listing</button></form>
+            <form method="post" data-product-delete-form>{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="button" type="submit">Delete Listing</button></form>
+        </div>
+    </div>
+</dialog>
+{% endblock %}

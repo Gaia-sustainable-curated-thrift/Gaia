@@ -28,7 +28,6 @@ urlpatterns = [
 
     # Pratinjau halaman 404 (produksi otomatis pakai templates/404.html)
     path("404/", not_found, name="preview-404"),
-
     path("", RedirectView.as_view(pattern_name="products:home", permanent=False)),
 ]
 
