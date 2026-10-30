@@ -1231,3 +1231,45 @@ class ReservedUsernameTests(TestCase):
         user = User(username='gaiacare', first_name='Gaia Care', email='buyer@example.test')
         adapter.populate_username(RequestFactory().get('/'), user)
         self.assertNotEqual(user.username.casefold(), 'gaiacare')
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+                   EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class SellerAccountDeletionTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user('seller-delete', 'seller@example.test', PASSWORD)
+        self.buyer = User.objects.create_user('buyer-keep', 'buyer@example.test')
+        self.client.force_login(self.seller)
+        self.order = AccountOrder.objects.create(
+            user=self.buyer, seller=self.seller, number='SALE-KEEP', date=date.today(),
+            status='awaiting_payment', title='Sold coat', subtotal=100, recipient='Buyer', address='Jakarta')
+        self.data = {'password': PASSWORD, 'confirmation': 'DELETE', 'acknowledge': 'on'}
+
+    def test_pending_sales_block_deletion_without_touching_buyer_history(self):
+        for status in ('awaiting_payment', 'in_transit'):
+            self.order.status = status
+            self.order.save()
+            self.assertContains(self.client.get(reverse('delete_account')), 'pending orders or sales')
+            response = self.client.post(reverse('delete_account'), self.data)
+            self.assertTrue(response.context['form'].non_field_errors())
+            self.assertTrue(User.objects.filter(pk=self.seller.pk).exists())
+            self.order.refresh_from_db()
+            self.assertEqual(self.order.seller_id, self.seller.pk)
+
+    def test_google_seller_cannot_request_deletion_link_during_active_sale(self):
+        self.seller.set_unusable_password()
+        self.seller.save()
+        EmailAddress.objects.create(user=self.seller, email=self.seller.email, verified=True)
+        self.client.force_login(self.seller)
+        self.client.post(reverse('send_delete_confirmation'))
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertNotIn('account_delete_confirmation', self.client.session)
+
+    def test_completed_sale_remains_in_buyer_history_after_seller_deletion(self):
+        self.order.status = 'completed'
+        self.order.save()
+        self.assertRedirects(self.client.post(reverse('delete_account'), self.data), reverse('login'))
+        self.order.refresh_from_db()
+        self.assertIsNone(self.order.seller_id)
+        self.assertEqual(self.order.user_id, self.buyer.pk)
+        self.assertEqual((self.order.title, self.order.subtotal), ('Sold coat', 100))

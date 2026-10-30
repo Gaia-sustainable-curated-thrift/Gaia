@@ -151,7 +151,8 @@ DELETE_LINK_SECONDS = 900
 
 
 def _deletion_blocked(user):
-    return user.account_orders.exclude(status=AccountOrder.Status.COMPLETED).exists()
+    return (user.account_orders.exclude(status=AccountOrder.Status.COMPLETED).exists()
+            or user.sales_orders.exclude(status=AccountOrder.Status.COMPLETED).exists())
 
 
 def _deletion_link_valid(request, token):
@@ -175,7 +176,7 @@ def delete_account(request, token=None):
     form = DeleteAccountForm(request.POST if request.method == 'POST' else None, user=user)
     if request.method == 'POST' and form.is_valid():
         if blocked:
-            form.add_error(None, 'Finish your pending orders before deleting your account.')
+            form.add_error(None, 'Finish your pending orders and sales before deleting your account.')
         elif not has_password and not link_valid:
             form.add_error(None, 'Request a new confirmation email and open its link in this browser.')
         else:
@@ -183,7 +184,7 @@ def delete_account(request, token=None):
                 with transaction.atomic():
                     locked_user = get_user_model().objects.select_for_update().get(pk=user.pk)
                     if _deletion_blocked(locked_user):
-                        form.add_error(None, 'Finish your pending orders before deleting your account.')
+                        form.add_error(None, 'Finish your pending orders and sales before deleting your account.')
                     else:
                         locked_user.delete()
             except (ProtectedError, RestrictedError):
@@ -214,7 +215,7 @@ def send_delete_confirmation(request):
     if request.user.has_usable_password():
         return redirect('delete_account')
     if _deletion_blocked(request.user):
-        messages.error(request, 'Finish your pending orders before deleting your account.')
+        messages.error(request, 'Finish your pending orders and sales before deleting your account.')
     elif not request.user.email or not context['email_verified']:
         messages.error(request, 'A verified email is required. Verify your email before deleting your account.')
     else:
