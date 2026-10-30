@@ -202,3 +202,6 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'GAIA <noreply@gaia.local>'
 
 ACCOUNT_ADAPTER = 'accounts.adapters.AccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'accounts.adapters.SocialAccountAdapter'
+
+GAIA_CARE_USERNAME = os.getenv('GAIA_CARE_USERNAME', 'gaiacare')
+GAIA_CARE_USER_ID = os.getenv('GAIA_CARE_USER_ID') or None

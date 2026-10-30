@@ -1204,3 +1204,30 @@ class UniqueAccountEmailTests(TestCase):
         self.assertEqual(error.exception.response.url, reverse('login'))
         self.assertEqual(User.objects.count(), 1)
         self.assertFalse(SocialAccount.objects.filter(user=existing).exists())
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class ReservedUsernameTests(TestCase):
+    def test_registration_never_assigns_the_support_username(self):
+        form = RegisterForm({'full_name': 'Gaia Care', 'email': 'buyer@example.test',
+                             'password1': PASSWORD, 'password2': PASSWORD})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().username, 'gaiacare1')
+
+    @override_settings(GAIA_CARE_USERNAME='helpdesk')
+    def test_profile_rejects_default_and_configured_reserved_names(self):
+        user = User.objects.create_user('buyer')
+        for username in ('GaiaCare', 'HELPDESK'):
+            form = ProfileForm({'full_name': 'Buyer', 'username': username}, instance=user)
+            self.assertFalse(form.is_valid())
+            self.assertIn('reserved', form.errors['username'][0])
+
+    def test_google_and_allauth_signup_respect_reserved_names(self):
+        from django.core.exceptions import ValidationError
+        from .adapters import AccountAdapter
+        adapter = AccountAdapter()
+        with self.assertRaises(ValidationError):
+            adapter.clean_username('GAIACARE', shallow=True)
+        user = User(username='gaiacare', first_name='Gaia Care', email='buyer@example.test')
+        adapter.populate_username(RequestFactory().get('/'), user)
+        self.assertNotEqual(user.username.casefold(), 'gaiacare')

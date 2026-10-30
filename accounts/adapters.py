@@ -6,6 +6,8 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.shortcuts import redirect
+from django.core.exceptions import ValidationError
+from .identity import reserved_username
 
 
 @contextmanager
@@ -22,6 +24,16 @@ def unique_email_signup(request, user):
 
 
 class AccountAdapter(DefaultAccountAdapter):
+    def clean_username(self, username, shallow=False):
+        if reserved_username(username):
+            raise ValidationError('This username is reserved for the GAIA support team.')
+        return super().clean_username(username, shallow=shallow)
+
+    def populate_username(self, request, user):
+        if reserved_username(user.username or ''):
+            user.username = ''
+        return super().populate_username(request, user)
+
     def save_user(self, request, user, form, commit=True):
         with unique_email_signup(request, user):
             return super().save_user(request, user, form, commit=commit)
