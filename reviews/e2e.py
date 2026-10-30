@@ -240,7 +240,7 @@ class ReviewBrowserTests(StaticLiveServerTestCase):
         expect(page.locator('#site-drawer')).to_be_visible()
         page.keyboard.press('Escape')
         expect(page.locator('#site-drawer')).not_to_be_visible()
-        page.locator('[data-bag-toggle]').click()
+        page.locator('.gaia-navbar [data-bag-toggle]').click()
         expect(page.locator('#bag-drawer')).to_be_visible()
         page.keyboard.press('Escape')
         expect(page.locator('#bag-drawer')).not_to_be_visible()

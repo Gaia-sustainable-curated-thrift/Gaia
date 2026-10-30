@@ -2264,3 +2264,12 @@
     .bag-drawer .bag-drawer__panel,
     .bag-drawer::backdrop { transition: none; }
 }
+
+/* ---------- HTMX search results ---------- */
+.search-results { transition: opacity 200ms ease; }
+.search-results.htmx-request { opacity: 0.45; pointer-events: none; }
+.search-results__empty .icon { margin: 0 auto 12px; }
+.search-results__empty .filter-clear { display: inline-block; margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .search-results { transition: none; } }
+.product-card.is-removing { opacity: 0; transform: scale(0.94); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; }
+@media (prefers-reduced-motion: reduce) { .product-card.is-removing { transition: none; } }
