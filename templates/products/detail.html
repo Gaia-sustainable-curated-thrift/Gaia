@@ -16,7 +16,7 @@
             <div class="pdp-main-image">
                 {% with hero=images.0 %}
                 {% if hero %}
-                <img data-gallery-main src="{{ hero.image.url }}" alt="{{ product.title }}">
+                <img data-gallery-main src="{{ hero.image.url }}" alt="{{ product.title }}" style="view-transition-name: product-photo">
                 {% else %}
                 <div class="pdp-no-image">{% include 'includes/icon.html' with name='bag' %}</div>
                 {% endif %}
