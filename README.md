@@ -302,7 +302,7 @@ Buka `http://127.0.0.1:8000/` untuk mengakses aplikasi. Akun dapat dibuat melalu
 - **Google login:** isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` pada environment aplikasi. Daftarkan callback `/accounts/google/login/callback/` dengan domain dan protokol yang sesuai pada Google Cloud. Untuk lokal gunakan `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http`; pada PWS gunakan HTTPS.
 - **Email:** default console backend menampilkan email di terminal. Konfigurasikan SMTP melalui variabel pada `.env.example` untuk mengirim email ke inbox.
 - **Foto produk (Cloudinary):** kosongkan `CLOUDINARY_URL` untuk menyimpan foto di folder `media/`. Di PWS, isi dengan nilai dari dashboard Cloudinary (`cloudinary://API_KEY:API_SECRET@CLOUD_NAME`) lewat environment aplikasi, jangan lewat repository. Foto yang diunggah sebelum variabel diisi tidak berpindah otomatis dan perlu diunggah ulang.
-- **Media lain:** foto profil dan foto chat memakai media storage Django. Server deployment perlu menyediakan penyimpanan persisten dan akses URL media agar file tidak hilang saat redeploy.
+- **Media lain:** Avatar baru memakai Cloudinary jika `CLOUDINARY_URL` tersedia, sementara foto chat tetap memakai media storage Django yang privat. Server deployment perlu menyediakan penyimpanan persisten dan akses URL media agar file tidak hilang saat redeploy.
 - **Rahasia aplikasi:** `.env` lokal tidak ikut dipush ke GitHub. Environment aplikasi PWS dikonfigurasi terpisah dari secret GitHub Actions yang digunakan untuk deploy.
 
 ### Data Demo
@@ -484,3 +484,12 @@ Migrasi `accounts.0007` menyelaraskan aturan username tidak peka huruf besar/kec
 - Jelaskan mengapa form tetap divalidasi server, CSRF dipertahankan, queryset dibatasi pemilik, dan unique index database diperlukan meskipun form sudah mengecek duplikat.
 - Latihan live coding: menambah validasi panjang nomor telepon, mengubah ukuran pagination, atau menambah field profil beserta migration/form/template/test. Kerjakan pada branch latihan dan database lokal.
 - Coverage dan browser test bukan bukti TDD. Proyek tidak mengklaim Red-Green-Refactor tanpa bukti riwayat Git. Nilai demo/live coding ditentukan dari pemahaman dan pekerjaan mandiri saat penilaian.
+
+### Perlindungan akun dan perbaikan navigasi
+
+- Login dibatasi 10 percobaan per akun dan 60 per alamat IP dalam 10 menit; username/email akun yang sama memakai bucket yang sama. Reset password dibatasi 3 permintaan per email dan 20 per IP per jam. Respons penolakan berupa HTTP 429 dengan `Retry-After`, termasuk untuk email yang tidak terdaftar. Bucket disimpan di database lintasworker; identitas/IP disimpan sebagai hash, bukan teks asli. Alamat IP berasal dari `REMOTE_ADDR`, bukan header klien yang dapat dipalsukan. Bucket kedaluwarsa direset pada pemakaian berikutnya.
+- Setelah autentikasi AJAX memutar CSRF, seluruh hidden token yang masih tampil ikut diperbarui, termasuk form shopping bag. Navigasi Back/Forward membatalkan fetch lama dan mengabaikan respons yang kedaluwarsa.
+- Nomor telepon profil harus berisi 8-15 digit, boleh diawali `+`, dan boleh menggunakan spasi/kurung/hyphen saat input; nilai disimpan dalam bentuk digit yang dinormalisasi. Wishlist menyembunyikan produk sold atau soft-deleted dan menampilkannya kembali jika listing dipulihkan.
+- Avatar baru disimpan di Cloudinary ketika `CLOUDINARY_URL` tersedia; pengujian selalu memakai storage lokal. Path avatar lokal lama tetap bisa dibaca selama filenya tersedia. Untuk menyalin avatar lama ke Cloudinary, jalankan `python manage.py persist_avatars --dry-run`, lalu `python manage.py persist_avatars` pada environment deployment. Command mempertahankan backup lokal dan melewati file yang sudah dipindah. File yang sudah hilang pada deploy sebelumnya tidak dapat dipulihkan tanpa backup atau upload ulang.
+
+Perubahan ini memerlukan migrasi `accounts.0008_auth_throttle_persistent_avatar`. Tes browser akun juga membuktikan hapus bag setelah login dan Back saat fetch tertunda.
