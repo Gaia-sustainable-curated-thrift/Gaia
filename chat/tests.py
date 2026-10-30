@@ -85,6 +85,35 @@ class ChatServiceTests(TestCase):
         services.send_message(self.convo, self.buyer, body='naik lagi')
         self.assertEqual(list(services.conversations_for(self.buyer)), [self.convo, support])
 
+    def test_sold_product_cards_are_hidden_but_text_history_and_messages_remain(self):
+        shared = services.send_message(self.convo, self.seller, kind=Message.Kind.PRODUCT, product=self.product)
+        self.product.status = Product.Status.SOLD
+        self.product.save(update_fields=['status'])
+        self.assertIsNone(services.serialize_product(self.product))
+        self.assertIsNone(services.serialize_message(shared, self.buyer)['product'])
+        self.assertIsNone(services.serialize_conversation(self.convo, self.buyer)['product'])
+        message = services.send_message(self.convo, self.buyer, body='Question about my order')
+        self.assertEqual(message.body, 'Question about my order')
+        self.assertEqual(self.convo.messages.count(), 2)
+
+    def test_sold_listing_rejects_new_offers_and_acceptance_but_can_decline(self):
+        offer = services.send_message(self.convo, self.buyer, kind=Message.Kind.OFFER, offer_price=250000)
+        self.product.status = Product.Status.SOLD
+        self.product.save(update_fields=['status'])
+        with self.assertRaisesMessage(services.ChatError, 'no longer available'):
+            services.send_message(self.convo, self.buyer, kind=Message.Kind.OFFER, offer_price=200000)
+        with self.assertRaisesMessage(services.ChatError, 'no longer available'):
+            services.respond_to_offer(offer, self.seller, accept=True)
+        offer.refresh_from_db()
+        self.assertEqual(offer.offer_status, Message.OfferStatus.PENDING)
+        self.assertEqual(services.respond_to_offer(offer, self.seller, accept=False).offer_status, Message.OfferStatus.DECLINED)
+
+    def test_deleted_listing_cannot_receive_new_offers(self):
+        self.product.delete()
+        self.convo.refresh_from_db()
+        with self.assertRaisesMessage(services.ChatError, 'no longer available'):
+            services.send_message(self.convo, self.buyer, kind=Message.Kind.OFFER, offer_price=200000)
+
 
 class ChatPageTests(TestCase):
     def setUp(self):
@@ -123,6 +152,17 @@ class ChatPageTests(TestCase):
         self.client.logout()
         self.assertEqual(self.client.get(reverse('chat:inbox')).status_code, 302)
 
+    def test_sold_product_room_has_no_product_link_or_offer_controls(self):
+        convo = services.start_conversation(self.buyer, self.product)
+        services.send_message(convo, self.buyer, body='Previous message')
+        self.product.status = Product.Status.SOLD
+        self.product.save(update_fields=['status'])
+        response = self.client.get(reverse('chat:room', args=[convo.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse('products:detail', args=[self.product.slug]))
+        self.assertNotContains(response, 'Buat penawaran')
+        self.assertContains(response, 'Previous message')
+
 
 class ChatEntryPointTests(TestCase):
     def setUp(self):
@@ -159,3 +199,34 @@ class ChatEntryPointTests(TestCase):
         self.assertContains(self.client.get(reverse('chat:order', args=[order.pk]), follow=True), 'Order #GA-2048')
         self.client.force_login(self.seller)
         self.assertEqual(self.client.get(reverse('chat:order', args=[order.pk])).status_code, 404)
+
+
+class SupportIdentityTests(TestCase):
+    def test_existing_ordinary_account_is_never_promoted_or_used_as_support(self):
+        impostor = User.objects.create_user('gaiacare', password='pw')
+        buyer = User.objects.create_user('new-buyer')
+        with self.assertRaises(services.ChatError):
+            services.start_support_conversation(buyer)
+        impostor.refresh_from_db()
+        self.assertFalse(impostor.is_staff)
+        self.assertTrue(impostor.check_password('pw'))
+        self.assertFalse(Conversation.objects.exists())
+
+    def test_admin_selected_support_must_be_active_staff(self):
+        support = User.objects.create_user('staff-support', is_staff=True)
+        with self.settings(GAIA_CARE_USER_ID=support.pk):
+            self.assertEqual(services.get_gaia_care_user(), support)
+            support.is_active = False
+            support.save()
+            with self.assertRaises(services.ChatError):
+                services.get_gaia_care_user()
+        with self.settings(GAIA_CARE_USER_ID='invalid'):
+            with self.assertRaises(services.ChatError):
+                services.get_gaia_care_user()
+
+    def test_old_hijacked_conversation_is_not_silently_reused(self):
+        buyer = User.objects.create_user('new-buyer')
+        impostor = User.objects.create_user('old-impostor')
+        Conversation.objects.create(kind='support', buyer=buyer, seller=impostor)
+        with self.assertRaises(services.ChatError):
+            services.start_support_conversation(buyer)

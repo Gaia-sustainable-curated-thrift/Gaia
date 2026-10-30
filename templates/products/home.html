@@ -1,7 +1,7 @@
 {% extends 'products/base.html' %}
 {% load static %}
 {% block title %}Shop{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/home.css' %}">{% endblock %}
+{% block extra_css %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/home.css' %}">{% endblock %}
 {% block main %}
 <main class="shop-main homepage-main">
 
@@ -38,15 +38,21 @@
         <h2 class="section-title-center">Discover</h2>
         <div class="discover-grid">
             <a class="discover-card" href="{% url 'products:listing' 'women' %}">
-                <img src="{% static 'images/discover-women.png' %}" alt="">
-                <span class="discover-card__sub">Shop for</span>
-                <span class="discover-card__title">Women</span>
+                <img class="discover-card__image" src="{% static 'images/discover-women.png' %}" alt="">
+                <img class="discover-card__image--hover" src="{% static 'images/women-hover.png' %}" alt="" aria-hidden="true">
+                <span class="discover-card__label">
+                    <span class="discover-card__sub">Shop for</span>
+                    <span class="discover-card__title">Women</span>
+                </span>
                 <span class="button">Discover {% include 'includes/icon.html' with name='arrow-right' %}</span>
             </a>
             <a class="discover-card discover-card--men" href="{% url 'products:listing' 'men' %}">
-                <img src="{% static 'images/discover-men.png' %}" alt="">
-                <span class="discover-card__sub">Shop for</span>
-                <span class="discover-card__title">Men</span>
+                <img class="discover-card__image" src="{% static 'images/discover-men.png' %}" alt="">
+                <img class="discover-card__image--hover" src="{% static 'images/men-hover.png' %}" alt="" aria-hidden="true">
+                <span class="discover-card__label">
+                    <span class="discover-card__sub">Shop for</span>
+                    <span class="discover-card__title">Men</span>
+                </span>
                 <span class="button">Discover {% include 'includes/icon.html' with name='arrow-right' %}</span>
             </a>
         </div>
@@ -80,12 +86,22 @@
         {% endfor %}
     </section>
 
-    <section class="sell-banner">
-        <img class="sell-banner__art" src="{% static 'images/sell-illustration.png' %}" alt="">
-        <div>
-            <h2>Got too many clothes?</h2>
+    <section class="sell-banner" data-sell-banner>
+        <div class="sell-banner__scene" aria-hidden="true">
+            <span class="sell-banner__glow"></span>
+            <span class="sell-banner__speed"><i></i><i></i><i></i></span>
+            <svg class="sell-banner__item sell-banner__item--shirt" viewBox="0 0 24 24"><path d="M8 3 3 6l2 4 2-1v11h10V9l2 1 2-4-5-3c-.5 1.7-2 3-4 3S8.5 4.7 8 3Z"/></svg>
+            <svg class="sell-banner__item sell-banner__item--hanger" viewBox="0 0 24 24"><path d="M12 8V7a2 2 0 1 0-2-2M12 8 3 15c-1 .8-.4 2 .8 2h16.4c1.2 0 1.8-1.2.8-2L12 8Z"/></svg>
+            <svg class="sell-banner__item sell-banner__item--sock" viewBox="0 0 24 24"><path d="M9 3h7v9l-1 5a4 4 0 0 1-7.6 1.4l-.7-1.5A3 3 0 0 1 8 13l1-2V3ZM9 7h7"/></svg>
+            <div class="sell-banner__runner">
+                <img class="sell-banner__art" src="{% static 'images/sell-illustration.png' %}" alt="">
+            </div>
+            <span class="sell-banner__shadow"></span>
+        </div>
+        <div class="sell-banner__copy">
+            <h2>Got too many <span class="sell-banner__highlight">clothes</span>?</h2>
             <p>Clean some space in your wardrobe and help save the earth.</p>
-            <a class="button" href="{% url 'products:sell' %}">Join Gaia Seller {% include 'includes/icon.html' with name='arrow-right' %}</a>
+            <a class="button sell-banner__cta" href="{% url 'products:sell' %}">Join Gaia Seller {% include 'includes/icon.html' with name='arrow-right' %}</a>
         </div>
     </section>
 

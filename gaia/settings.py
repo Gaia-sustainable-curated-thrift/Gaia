@@ -24,17 +24,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-bios4*e_#)eg^7-ctu!@+w4u(d^i70a%&r1(wri2nu4g-6)%dy'
+from .environment import security_settings
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+globals().update(security_settings(os.environ))
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "danar-iqbal-gaia.pws.cs.ui.ac.id"]
 # PWS terminates HTTPS before forwarding requests to Django over HTTP.
 # Trust only this deployment's browser origin; CSRF tokens remain required.
 CSRF_TRUSTED_ORIGINS = ["https://danar-iqbal-gaia.pws.cs.ui.ac.id"]
-PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 # Application definition
 
 INSTALLED_APPS = [
@@ -52,6 +49,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'reviews.apps.ReviewsConfig',
     ]
 
 MIDDLEWARE = [
@@ -201,3 +199,9 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'GAIA <noreply@gaia.local>')
+
+ACCOUNT_ADAPTER = 'accounts.adapters.AccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'accounts.adapters.SocialAccountAdapter'
+
+GAIA_CARE_USERNAME = os.getenv('GAIA_CARE_USERNAME', 'gaiacare')
+GAIA_CARE_USER_ID = os.getenv('GAIA_CARE_USER_ID') or None

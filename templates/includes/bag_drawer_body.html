@@ -1,7 +1,7 @@
 {% load account_tags %}
 <span class="bag-drawer__handle" aria-hidden="true"></span>
 <header class="bag-drawer__head">
-    <h2 class="bag-drawer__title">Shopping Bag ({{ bag_count }})</h2>
+    <h2 class="bag-drawer__title" id="bag-drawer-title" tabindex="-1" autofocus>Shopping Bag ({{ bag_count }})</h2>
 </header>
 
 {% if bag_items %}
@@ -20,19 +20,12 @@
             </div>
             <div class="bag-item__row">
                 <span class="bag-item__price">{{ item.line_total|rupiah }}</span>
-                <div class="bag-stepper">
+                <div class="bag-item__actions">
                     <form method="post" action="{% url 'products:bag_set' item.product.slug %}">
                         {% csrf_token %}
-                        <input type="hidden" name="quantity" value="{{ item.quantity|add:'-1' }}">
+                        <input type="hidden" name="quantity" value="0">
                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button class="bag-stepper__btn" type="submit" aria-label="Decrease quantity of {{ item.product.title }}">{% include 'includes/icon.html' with name='minus' %}</button>
-                    </form>
-                    <span class="bag-stepper__value">{{ item.quantity }}</span>
-                    <form method="post" action="{% url 'products:bag_set' item.product.slug %}">
-                        {% csrf_token %}
-                        <input type="hidden" name="quantity" value="{{ item.quantity|add:'1' }}">
-                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                        <button class="bag-stepper__btn" type="submit" aria-label="Increase quantity of {{ item.product.title }}">{% include 'includes/icon.html' with name='plus' %}</button>
+                        <button class="bag-item__remove" type="submit" aria-label="Remove {{ item.product.title }} from bag">Remove</button>
                     </form>
                 </div>
             </div>

@@ -9,7 +9,12 @@ class Profile(models.Model):
     phone = models.CharField(max_length=30, blank=True)
     city = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
-    email_verified = models.BooleanField(default=False)
+    verification_sent_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def email_verified(self):
+        from allauth.account.models import EmailAddress
+        return EmailAddress.objects.filter(user_id=self.user_id, email__iexact=self.user.email, verified=True).exists()
 
 
 class WishlistItem(models.Model):
@@ -34,6 +39,9 @@ class AccountOrder(models.Model):
         AWAITING_PAYMENT = 'awaiting_payment', 'Awaiting payment'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='account_orders')
+    # Nullable for historical snapshots; new checkout records both links.
+    product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
+    seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
     number = models.CharField(max_length=40, unique=True)
     date = models.DateField()
     status = models.CharField(max_length=30, choices=Status.choices)

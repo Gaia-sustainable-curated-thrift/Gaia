@@ -1,0 +1,9 @@
+{% extends "accounts/layout.html" %}
+{% block title %}Seller Reviews{% endblock %}
+{% block extra_css %}{% include "reviews/_assets.html" %}{% endblock %}
+{% block account_content %}
+<div class="reviews-page reviews-overview reviews-account" data-review-page>
+    <p class="review-status" data-review-status role="status" tabindex="-1" hidden></p>
+    <div data-review-panel>{% include "reviews/_review_panel.html" %}</div>
+</div>
+{% endblock %}

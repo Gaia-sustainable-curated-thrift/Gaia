@@ -12,11 +12,21 @@ class ChatError(ValueError):
 
 
 def get_gaia_care_user():
-    username = getattr(settings, 'GAIA_CARE_USERNAME', 'gaiacare')
-    user, created = get_user_model().objects.get_or_create(username=username, defaults={'first_name': 'Gaia Care', 'is_staff': True})
-    if created:
-        user.set_unusable_password()
-        user.save(update_fields=['password'])
+    User = get_user_model()
+    support_id = getattr(settings, 'GAIA_CARE_USER_ID', None)
+    if support_id:
+        try:
+            user = User.objects.get(pk=int(support_id))
+        except (User.DoesNotExist, ValueError, TypeError):
+            raise ChatError('GAIA support is unavailable. Please contact an administrator.')
+    else:
+        username = getattr(settings, 'GAIA_CARE_USERNAME', 'gaiacare')
+        user, _ = User.objects.get_or_create(
+            username=username,
+            defaults={'first_name': 'Gaia Care', 'is_staff': True, 'password': '!'},
+        )
+    if not user.is_staff or not user.is_active:
+        raise ChatError('GAIA support is unavailable. Please contact an administrator.')
     return user
 
 
@@ -70,14 +80,19 @@ def start_support_conversation(user):
         kind=Conversation.Kind.SUPPORT, buyer=user,
         defaults={'seller': gaia_care},
     )
+    if conversation.seller_id != gaia_care.pk:
+        raise ChatError('This support conversation needs administrator review.')
     return conversation
 
 
 def start_order_conversation(order):
+    gaia_care = get_gaia_care_user()
     conversation, _ = Conversation.objects.get_or_create(
         kind=Conversation.Kind.ORDER, order=order,
-        defaults={'buyer': order.user, 'seller': get_gaia_care_user()},
+        defaults={'buyer': order.user, 'seller': gaia_care},
     )
+    if conversation.seller_id != gaia_care.pk:
+        raise ChatError('This support conversation needs administrator review.')
     return conversation
 
 
@@ -101,6 +116,8 @@ def send_message(conversation, sender, kind=Message.Kind.TEXT, body='', image=No
             raise ChatError('Offers can only be made in a product chat.')
         if sender.pk != conversation.buyer_id:
             raise ChatError('Only the buyer can make an offer.')
+        if conversation.product is None or not conversation.product.is_purchasable:
+            raise ChatError('This listing is no longer available for offers.')
     return _save(Message(
         conversation=conversation,
         sender=sender,
@@ -122,6 +139,8 @@ def respond_to_offer(message, seller, accept):
         raise ChatError('This offer can no longer be answered.')
     if seller.pk != message.conversation.seller_id:
         raise ChatError('Only the seller can answer this offer.')
+    if accept and (message.conversation.product is None or not message.conversation.product.is_purchasable):
+        raise ChatError('This listing is no longer available for offers.')
     message.offer_status = Message.OfferStatus.ACCEPTED if accept else Message.OfferStatus.DECLINED
     message.save(update_fields=['offer_status'])
     return message
@@ -137,7 +156,7 @@ def mark_read(conversation, reader):
 
 
 def serialize_product(product):
-    if product is None:
+    if product is None or not product.is_purchasable:
         return None
     image = product.primary_image
     return {
@@ -195,4 +214,3 @@ def serialize_conversation(conversation, viewer):
         'unread': getattr(conversation, 'unread_count', 0),
         'product': serialize_product(conversation.product),
     }
-

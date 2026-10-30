@@ -2,7 +2,8 @@
    Desktop source: Figma 350:5068. Responsive variants use the same tokens. */
 .gaia-navbar {
     --nav-padding: 24px 32px;
-    --nav-margin: 32px 20px 0;
+    --nav-margin: 32px auto 0;
+    --nav-inset: 20px;
     --nav-radius: 20px;
     --nav-gap: 32px;
     --nav-control: 48px;
@@ -10,6 +11,9 @@
     --nav-logo: 48px;
     --nav-brand-size: 36px;
     --nav-account-size: 20px;
+    box-sizing: border-box;
+    width: calc(100% - var(--nav-inset) - var(--nav-inset));
+    max-width: 1400px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -85,6 +89,8 @@
     line-height: 1.5;
 }
 .gaia-navbar .search-display > .icon { width: 28px; height: 28px; color: var(--wine-dark); }
+.gaia-navbar .nav-account-label { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.gaia-navbar .nav-actions .nav-avatar { display: block; }
 .gaia-navbar .search-form { display: flex; flex: 1; min-width: 0; }
 .gaia-navbar .search-form input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; outline: none; color: var(--ink); font: inherit; }
 .gaia-navbar .search-form input::placeholder { color: #959593; }
@@ -113,35 +119,76 @@
 @media (max-width: 1024px) {
     .gaia-navbar { --nav-gap: 16px; --nav-account-size: 16px; --nav-control: 44px; --nav-icon: 28px; flex-wrap: wrap; }
     .gaia-navbar .search-display { display: none; }
+    .gaia-navbar .nav-account-label { display: none; }
     .gaia-navbar .mobile-search-toggle { display: inline-flex; }
     .gaia-navbar .search-display.is-search-open { display: flex; order: 3; flex: 1 0 100%; width: 100%; }
 }
 @media (max-width: 640px) {
     .gaia-navbar {
-        --nav-padding: 16px;
-        --nav-margin: 8px 8px 0;
+        --nav-padding: 12px;
+        --nav-margin: 8px auto 0;
+        --nav-inset: 8px;
         --nav-radius: 12px;
         --nav-gap: 0;
         --nav-control: 44px;
-        --nav-logo: 44px;
-        --nav-brand-size: 33px;
+        --nav-logo: 36px;
+        --nav-brand-size: 28px;
         --nav-account-size: 12px;
         min-height: 76px;
         flex-direction: row;
     }
     .gaia-navbar .brand-group { gap: 0; }
-    .gaia-navbar .brand { width: auto; gap: 16px; }
+    .gaia-navbar .brand { width: auto; gap: 8px; }
     .gaia-navbar .nav-actions { gap: 4px; }
     .gaia-navbar .nav-wishlist,
+    .gaia-navbar .nav-chat,
     .gaia-navbar .account-link { display: none; }
     .gaia-navbar .search-display.is-search-open { margin-top: 12px; height: 48px; padding: 8px 16px; gap: 16px; font-size: 16px; }
     .gaia-navbar .search-display > .icon { width: 20px; height: 20px; }
     .gaia-navbar .nav-bag__count { min-width: 18px; height: 18px; font-size: 8px; top: 0; right: 0; }
 }
 @media (max-width: 380px) {
-    .gaia-navbar { --nav-padding: 12px 8px; --nav-control: 32px; --nav-icon: 24px; --nav-logo: 32px; --nav-brand-size: 26px; }
+    .gaia-navbar { --nav-padding: 12px 8px; --nav-control: 40px; --nav-icon: 24px; --nav-logo: 28px; --nav-brand-size: 24px; }
     .gaia-navbar .brand { gap: 6px; }
     .gaia-navbar .nav-actions { gap: 3px; }
 }
 
 .nav-avatar img, .site-drawer-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+
+/* Scroll behaviour: past the navbar it tucks away, and slides back when the pointer
+   nears the top edge, the page scrolls up, or something inside it gets focus. */
+.gaia-navbar { --nav-sticky-top: 12px; }
+.gaia-navbar[data-scroll-nav] { position: sticky; top: var(--nav-sticky-top); z-index: 100; transition: transform 220ms ease, box-shadow 220ms ease; }
+.gaia-navbar.is-nav-scrolled:not(.is-nav-revealed):not(:focus-within) { transform: translateY(calc(-100% - 64px)); pointer-events: none; }
+.gaia-navbar.is-nav-scrolled.is-nav-revealed { box-shadow: 0 8px 28px rgba(37, 39, 16, 0.12); }
+.nav-reveal-edge { position: fixed; inset: 0 0 auto; z-index: 99; width: 100%; height: 24px; padding: 0; border: 0; background: transparent; cursor: default; }
+.nav-reveal-edge[hidden] { display: none; }
+.nav-reveal-edge:focus-visible { outline-offset: -3px; }
+@media (max-width: 640px) {
+    .gaia-navbar { --nav-sticky-top: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gaia-navbar[data-scroll-nav] { transition: none; }
+}
+
+/* Microinteractions: soft hover/press on icons, a focus glow on search and a bump on the bag count. */
+.gaia-navbar .icon-button { transition: background-color 180ms ease, transform 120ms ease; }
+.gaia-navbar .icon-button:hover { background: var(--field); }
+.gaia-navbar .icon-button:active { transform: scale(0.92); }
+.gaia-navbar .account-link { transition: color 180ms ease, opacity 180ms ease; }
+.gaia-navbar .account-link:hover { opacity: 0.8; }
+.gaia-navbar .search-display { transition: box-shadow 200ms ease, background-color 200ms ease; }
+.gaia-navbar .search-display:focus-within { background: #fff; box-shadow: 0 0 0 4px rgba(116, 15, 53, 0.12); }
+.gaia-navbar .nav-bag__count.is-bumping { animation: nav-count-bump 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes nav-count-bump {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gaia-navbar .icon-button,
+    .gaia-navbar .account-link,
+    .gaia-navbar .search-display { transition: none; }
+    .gaia-navbar .icon-button:active { transform: none; }
+    .gaia-navbar .nav-bag__count.is-bumping { animation: none; }
+}

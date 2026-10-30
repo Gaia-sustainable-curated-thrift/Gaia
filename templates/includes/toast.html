@@ -1,6 +1,8 @@
-{% if bag_toast and bag_toast.kind == 'added' %}
-<div class="toast toast--added" role="status" data-toast data-toast-duration="4000">
+{% if bag_toast %}
+{% if bag_toast.kind == 'added' or bag_toast.kind == 'error' %}
+<div class="toast toast--{{ bag_toast.kind }}" role="{% if bag_toast.kind == 'error' %}alert{% else %}status{% endif %}" data-toast data-toast-duration="4000">
     <span class="toast__text">{{ bag_toast.text }}</span>
-    {% if bag_toast.icon %}<span class="toast__icon">{% include 'includes/icon.html' with name='bag' %}</span>{% endif %}
+    {% if bag_toast.icon %}<span class="toast__icon">{% if bag_toast.icon == 'heart' %}{% include 'includes/icon.html' with name='heart' %}{% else %}{% include 'includes/icon.html' with name='bag' %}{% endif %}</span>{% endif %}
 </div>
+{% endif %}
 {% endif %}

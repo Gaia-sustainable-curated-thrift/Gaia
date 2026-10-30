@@ -48,7 +48,12 @@ def room(request, pk):
         'initials': services.initials(title),
         'product': services.serialize_product(conversation.product),
         'thread': [services.serialize_message(m, request.user) for m in conversation.messages.select_related('sender', 'product')],
-        'can_offer': conversation.kind == Conversation.Kind.PRODUCT and request.user.pk == conversation.buyer_id,
+        'can_offer': (
+            conversation.kind == Conversation.Kind.PRODUCT
+            and request.user.pk == conversation.buyer_id
+            and conversation.product is not None
+            and conversation.product.is_purchasable
+        ),
     })
 
 
@@ -81,7 +86,11 @@ def start_support_chat(request):
 @require_http_methods(['GET', 'POST'])
 def start_order_chat(request, order_id):
     order = get_object_or_404(AccountOrder, pk=order_id, user=request.user)
-    conversation = services.start_order_conversation(order)
+    try:
+        conversation = services.start_order_conversation(order)
+    except services.ChatError as error:
+        flash.error(request, str(error))
+        return redirect('chat:inbox')
     return redirect('chat:room', pk=conversation.pk)
 
 

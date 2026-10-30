@@ -8,17 +8,19 @@
             <img src="{% static 'images/gaia-logo.png' %}" width="44" height="44" alt="">
             <span>GAIA</span>
         </a>
-        <div class="site-drawer-search" role="search" aria-label="Product search">
+        <div class="site-drawer-search">
             {% include 'includes/icon.html' with name='search' %}
-            <input type="search" placeholder="Search now…" aria-label="Product search, coming soon" readonly>
+            <form class="search-form" method="get" action="{% url 'products:search' %}" role="search" aria-label="Sidebar product search">
+                <input type="search" name="q" placeholder="Search now…" aria-label="Product search" required pattern=".*\S.*">
+            </form>
         </div>
         <nav class="site-drawer-categories" aria-label="Shop by category">
-            <button type="button" data-drawer-category="Women's">Women's <span aria-hidden="true">→</span></button>
-            <button type="button" data-drawer-category="Men's">Men's <span aria-hidden="true">→</span></button>
-            <button type="button" data-drawer-category="Tops">Tops <span aria-hidden="true">→</span></button>
-            <button type="button" data-drawer-category="Bottoms">Bottoms <span aria-hidden="true">→</span></button>
-            <button type="button" data-drawer-category="Shoes">Shoes <span aria-hidden="true">→</span></button>
-            <button type="button" data-drawer-category="Bags">Bags <span aria-hidden="true">→</span></button>
+            <a href="{% url 'products:listing' 'women' %}">Women's <span aria-hidden="true">→</span></a>
+            <a href="{% url 'products:listing' 'men' %}">Men's <span aria-hidden="true">→</span></a>
+            <a href="{% url 'products:picked' %}?category=tops">Tops <span aria-hidden="true">→</span></a>
+            <a href="{% url 'products:picked' %}?category=bottoms">Bottoms <span aria-hidden="true">→</span></a>
+            <a href="{% url 'products:picked' %}?category=shoes">Shoes <span aria-hidden="true">→</span></a>
+            <a href="{% url 'products:picked' %}?category=bags">Bags <span aria-hidden="true">→</span></a>
         </nav>
         <p class="site-drawer-status" role="status" data-drawer-status hidden></p>
     </div>
@@ -31,7 +33,7 @@
                 <span class="site-drawer-avatar" aria-hidden="true">{% if user.is_authenticated and user.profile.avatar %}<img src="{{ user.profile.avatar.url }}" alt="" width="36" height="36">{% endif %}</span>
                 <span class="site-drawer-name">{% if user.is_authenticated %}{{ user.get_full_name|default:user.username }}{% else %}Log In{% endif %}</span>
             </a>
-            <a class="site-drawer-account-icon" href="{% url 'orders' %}" aria-label="My orders">{% include 'includes/icon.html' with name='bag' %}</a>
+            <button class="site-drawer-account-icon" type="button" data-bag-toggle aria-controls="bag-drawer" aria-haspopup="dialog" aria-label="Shopping bag">{% include 'includes/icon.html' with name='bag' %}</button>
             <a class="site-drawer-account-icon" href="{% url 'chat:inbox' %}" aria-label="My chats">{% include 'includes/icon.html' with name='chat' %}</a>
             <a class="site-drawer-account-icon" href="{% url 'wishlist' %}" aria-label="My wishlist">{% include 'includes/icon.html' with name='heart' %}</a>
         </div>

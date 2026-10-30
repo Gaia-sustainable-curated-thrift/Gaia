@@ -1,0 +1,17 @@
+{% if product.slug in bag_slugs %}
+<form class="{{ form_class }}" method="post" action="{% url 'products:bag_remove' product.slug %}" data-bag-form="{{ product.slug }}" data-add-url="{% url 'products:bag_add' product.slug %}" data-remove-url="{% url 'products:bag_remove' product.slug %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button class="button {{ button_class }} is-active" type="submit" aria-pressed="true" {% if not product.is_purchasable %}disabled{% endif %}>
+        {% if with_icon %}{% include 'includes/icon.html' with name='check' %}{% endif %}<span data-bag-label>Added to bag</span>
+    </button>
+</form>
+{% else %}
+<form class="{{ form_class }}" method="post" action="{% url 'products:bag_add' product.slug %}" data-bag-form="{{ product.slug }}" data-add-url="{% url 'products:bag_add' product.slug %}" data-remove-url="{% url 'products:bag_remove' product.slug %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button class="button {{ button_class }}" type="submit" aria-pressed="false" {% if not product.is_purchasable %}disabled{% endif %}>
+        {% if with_icon %}{% include 'includes/icon.html' with name='bag' %}{% endif %}<span data-bag-label>Add to bag</span>
+    </button>
+</form>
+{% endif %}

@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
+from django.db import transaction
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -10,15 +11,12 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from accounts.models import WishlistItem
 from . import cart
+from .forms import ProductListingForm
 from .models import Category, Product, ProductImage
 
 CATEGORY_ORDER = {'tops': 0, 'bottoms': 1, 'bags': 2, 'shoes': 3}
 GENDER_ORDER = ['women', 'men']
 CONDITION_LABELS = {'signs_of_wear': 'Signs of Wear'}
-
-SAVED_COUNT = 100
-SELLER_RATING = '5.0'
-SELLER_REVIEWS = 120
 
 
 def order_categories(categories):
@@ -36,6 +34,7 @@ def department_categories(parent, slug):
 def home(request):
     picked = (
         Product.objects
+        .filter(status=Product.Status.AVAILABLE)
         .select_related('category')
         .prefetch_related('images')
         .order_by('-created_at')[:5]
@@ -78,7 +77,7 @@ def listing(request, gender=None):
             Product.objects
             .select_related('category')
             .prefetch_related('images')
-            .filter(category__parent=parent) if parent else Product.objects.none()
+            .filter(category__parent=parent, status=Product.Status.AVAILABLE) if parent else Product.objects.none()
         )
     else:
         parent = parents.first()
@@ -87,6 +86,7 @@ def listing(request, gender=None):
         link_base = reverse('products:picked')
         products = (
             Product.objects
+            .filter(status=Product.Status.AVAILABLE)
             .select_related('category')
             .prefetch_related('images')
         )
@@ -94,7 +94,7 @@ def listing(request, gender=None):
     categories = department_categories(parent, gender or (parent.slug if parent else 'all'))
 
     if category_slug:
-        active_category = next((c for c in categories if c.slug == category_slug), None)
+        active_category = next((c for c in categories if c.slug == category_slug or c.name.lower() == category_slug.lower()), None)
     else:
         active_category = categories[0] if categories else None
 
@@ -117,19 +117,22 @@ def listing(request, gender=None):
 
 def search(request):
     q = request.GET.get('q', '').strip()
+    if not q:
+        request.session['bag_toast'] = {'kind': 'error', 'text': 'Enter a search term.'}
+        return redirect('products:home')
     base = (
         Product.objects
+        .filter(status=Product.Status.AVAILABLE)
         .select_related('category', 'category__parent')
         .prefetch_related('images')
     )
-    if q:
-        base = base.filter(
-            Q(title__icontains=q)
-            | Q(description__icontains=q)
-            | Q(style_tags__icontains=q)
-            | Q(category__name__icontains=q)
-            | Q(category__parent__name__icontains=q)
-        )
+    base = base.filter(
+        Q(title__icontains=q)
+        | Q(description__icontains=q)
+        | Q(style_tags__icontains=q)
+        | Q(category__name__icontains=q)
+        | Q(category__parent__name__icontains=q)
+    )
 
     price_from = request.GET.get('price_from', '').strip()
     price_to = request.GET.get('price_to', '').strip()
@@ -138,9 +141,9 @@ def search(request):
     selected_conditions = request.GET.getlist('condition')
 
     products = base
-    if price_from.isdigit():
+    if price_from.isascii() and price_from.isdigit():
         products = products.filter(price__gte=int(price_from))
-    if price_to.isdigit():
+    if price_to.isascii() and price_to.isdigit():
         products = products.filter(price__lte=int(price_to))
     if selected_genders:
         products = products.filter(category__parent__slug__in=selected_genders)
@@ -203,10 +206,13 @@ def search(request):
 def detail(request, slug):
     product = get_object_or_404(
         Product.objects
-        .select_related('category', 'category__parent', 'seller')
+        .select_related('category', 'category__parent', 'seller', 'seller__profile')
         .prefetch_related('images'),
         slug=slug,
     )
+    # Sold listings leave the shop, but their owner can still open, edit or delete them.
+    if not product.is_purchasable and product.seller_id != request.user.pk:
+        raise Http404('Listing is no longer available')
 
     images = list(product.images.all())
     primary = product.primary_image
@@ -216,6 +222,7 @@ def detail(request, slug):
 
     related = (
         Product.objects
+        .filter(status=Product.Status.AVAILABLE)
         .select_related('category')
         .prefetch_related('images')
         .exclude(pk=product.pk)
@@ -226,87 +233,99 @@ def detail(request, slug):
             related = same_category
     related = related.order_by('-created_at')[:5]
 
+    saved_items = WishlistItem.objects.filter(product_key=product.slug, removed=False)
     return render(request, 'products/detail.html', {
         'product': product,
         'images': images,
         'related': related,
-        'saved_count': SAVED_COUNT,
-        'seller_rating': SELLER_RATING,
-        'seller_reviews': SELLER_REVIEWS,
+        'saved_count': saved_items.count(),
+        'wishlist_saved': request.user.is_authenticated and saved_items.filter(user=request.user).exists(),
     })
 
 
 def _seller_parents():
-    return list(Category.objects.filter(parent__isnull=True).order_by('name'))
+    return list(Category.objects.filter(parent__isnull=True).prefetch_related('children').order_by('name'))
+
+
+def _listing_form_page(request, product=None):
+    editing = product is not None
+    existing_images = list(product.images.all()) if editing else []
+    form = ProductListingForm(
+        request.POST if request.method == 'POST' else None,
+        request.FILES if request.method == 'POST' else None,
+        instance=product,
+    )
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            product = form.save(commit=False)
+            product.seller = request.user
+            product.save()
+            next_order = max((image.order for image in existing_images), default=-1) + 1
+            for index, photo in enumerate(form.cleaned_data['photos']):
+                ProductImage.objects.create(
+                    product=product, image=photo,
+                    is_primary=not existing_images and index == 0, order=next_order + index,
+                )
+        message = 'Listing updated.' if editing else 'Listing created.'
+        if editing or _is_ajax(request):
+            request.session['bag_toast'] = {'kind': 'added', 'text': message}
+        destination = _product_url(product)
+        if _is_ajax(request):
+            return JsonResponse({
+                'ok': True,
+                'product_id': product.pk,
+                'redirect_url': destination,
+                'message': message,
+            }, status=200 if editing else 201)
+        return redirect(destination)
+
+    if request.method == 'POST' and _is_ajax(request):
+        return JsonResponse({
+            'ok': False,
+            'errors': {field: list(messages) for field, messages in form.errors.items()},
+        }, status=400)
+
+    selected_category = form.cleaned_data.get('category') if form.is_bound else (product.category if editing else None)
+    cover = product.primary_image if editing else None
+    return render(request, 'products/sell.html', {
+        'parents': _seller_parents(),
+        'conditions': [{'value': value, 'label': label} for value, label in Product.Condition.choices],
+        'form': form,
+        'errors': [message for messages in form.errors.values() for message in messages],
+        'selected_category': selected_category,
+        'selected_parent': selected_category.parent.slug if selected_category else '',
+        'editing': editing,
+        'product': product,
+        'existing_images': existing_images,
+        'cover_id': cover.pk if cover else None,
+    })
 
 
 @login_required
 def sell(request):
-    parents = _seller_parents()
-    conditions = [{'value': value, 'label': label} for value, label in Product.Condition.choices]
+    return _listing_form_page(request)
 
-    if request.method == 'POST':
-        errors = []
-        title = request.POST.get('title', '').strip()
-        category_id = request.POST.get('category')
-        price_raw = request.POST.get('price', '').strip()
-        condition = request.POST.get('condition', Product.Condition.GOOD)
-        photos = request.FILES.getlist('photos')
 
-        if not title:
-            errors.append('Listing title is required.')
-        if not category_id:
-            errors.append('Choose a category.')
+@login_required
+def edit(request, slug):
+    product = get_object_or_404(
+        Product.objects.select_related('category__parent').prefetch_related('images'),
+        slug=slug, seller=request.user,
+    )
+    return _listing_form_page(request, product)
 
-        price = None
-        digits = ''.join(ch for ch in price_raw if ch.isdigit())
-        if not digits:
-            errors.append('Enter a price.')
-        else:
-            price = int(digits)
 
-        category = None
-        if category_id:
-            category = Category.objects.filter(pk=category_id, parent__isnull=False).first()
-            if category is None:
-                errors.append('Choose a valid category.')
-
-        if condition not in dict(Product.Condition.choices):
-            condition = Product.Condition.GOOD
-
-        if len(photos) > 5:
-            errors.append('Select maximum 5 photos.')
-
-        if not errors:
-            product = Product.objects.create(
-                seller=request.user,
-                title=title,
-                price=price,
-                category=category,
-                condition=condition,
-            )
-            for index, photo in enumerate(photos):
-                ProductImage.objects.create(product=product, image=photo, is_primary=index == 0, order=index)
-            return redirect('products:detail', slug=product.slug)
-
-        return render(request, 'products/sell.html', {
-            'parents': parents,
-            'conditions': conditions,
-            'errors': errors,
-            'selected_parent': request.POST.get('parent', ''),
-            'form': {
-                'title': title,
-                'category': category_id or '',
-                'price': price_raw,
-                'condition': condition,
-            },
-        })
-
-    return render(request, 'products/sell.html', {
-        'parents': parents,
-        'conditions': conditions,
-        'selected_parent': parents[0].slug if parents else '',
-    })
+@login_required
+@require_POST
+def delete_listing(request, slug):
+    product = get_object_or_404(Product, slug=slug, seller=request.user)
+    product_id = product.pk
+    product.delete()
+    cart.remove(request.session, product_id)
+    if request.session.get('bag_undo', {}).get('product_id') == product_id:
+        request.session.pop('bag_undo')
+    request.session['bag_toast'] = {'kind': 'added', 'text': 'Listing deleted.'}
+    return _redirect_back(request, reverse('products:home'))
 
 
 def _product_url(product):
@@ -324,7 +343,7 @@ def _is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
-def _bag_json(request, *, toast=None, open_drawer=False):
+def _bag_json(request, *, toast=None, open_drawer=False, status=200):
     items = cart.items(request.session)
     context = {
         'bag_items': items,
@@ -334,21 +353,40 @@ def _bag_json(request, *, toast=None, open_drawer=False):
         'bag_open': open_drawer,
     }
     return JsonResponse({
-        'ok': True,
+        'ok': status < 400,
         'bag_count': context['bag_count'],
+        'bag_slugs': [item['product'].slug for item in items],
         'drawer': render_to_string('includes/bag_drawer_body.html', context, request=request),
-        'toast': toast if toast and toast.get('kind') == 'added' else None,
+        'toast': toast if toast and toast.get('kind') in ('added', 'error') else None,
         'open': open_drawer,
-    })
+    }, status=status)
+
+
+def _is_own_listing(request, product):
+    return request.user.is_authenticated and product.seller_id == request.user.pk
+
+
+def _bag_error(request, text, fallback, *, open_drawer=False, status=409):
+    toast = {'kind': 'error', 'text': text}
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast, open_drawer=open_drawer, status=status)
+    request.session['bag_toast'] = toast
+    request.session['bag_open'] = open_drawer
+    return redirect(fallback)
 
 
 @require_POST
 def bag_add(request, slug):
     product = get_object_or_404(Product, slug=slug)
+    if not product.is_purchasable:
+        return _bag_error(request, 'This item is no longer available.', reverse('products:home'))
+    if _is_own_listing(request, product):
+        return _bag_error(request, 'You cannot buy your own listing.', _product_url(product), status=403)
+    already_in_bag = cart.quantity_for(request.session, product.pk) > 0
     cart.add(request.session, product.pk)
     toast = {
         'kind': 'added',
-        'text': f'Added \u201c{product.title}\u201d to bag',
+        'text': 'This item is already in your bag.' if already_in_bag else f'Added \u201c{product.title}\u201d to bag',
         'icon': True,
     }
     if _is_ajax(request):
@@ -358,12 +396,41 @@ def bag_add(request, slug):
 
 
 @require_POST
+def bag_remove(request, slug):
+    product = get_object_or_404(Product, slug=slug)
+    in_bag = cart.quantity_for(request.session, product.pk) > 0
+    cart.remove(request.session, product.pk)
+    toast = {
+        'kind': 'added',
+        'text': f'Removed \u201c{product.title}\u201d from bag' if in_bag else 'This item is not in your bag.',
+        'icon': True,
+    }
+    if _is_ajax(request):
+        return _bag_json(request, toast=toast)
+    request.session['bag_toast'] = toast
+    return _redirect_back(request, _product_url(product) if product.is_purchasable else reverse('products:home'))
+
+
+@require_POST
 def bag_set(request, slug):
     product = get_object_or_404(Product, slug=slug)
     try:
-        quantity = int(request.POST.get('quantity', 1))
+        quantity = int(request.POST.get('quantity', ''))
     except (TypeError, ValueError):
-        quantity = 1
+        return _bag_error(
+            request, 'Enter a valid whole-number quantity.', _product_url(product) if product.is_purchasable else reverse('products:home'),
+            open_drawer=True, status=400,
+        )
+
+    if quantity > 0 and not product.is_purchasable:
+        return _bag_error(
+            request, 'This item is no longer available.',
+            reverse('products:home'), open_drawer=True,
+        )
+    if quantity > 0 and _is_own_listing(request, product):
+        return _bag_error(request, 'You cannot buy your own listing.', _product_url(product), open_drawer=True, status=403)
+    if quantity > cart.MAX_QUANTITY:
+        return _bag_error(request, 'Each listing is available only once.', _product_url(product), open_drawer=True, status=400)
 
     toast = None
     if quantity <= 0:
@@ -379,7 +446,7 @@ def bag_set(request, slug):
         return _bag_json(request, toast=toast, open_drawer=True)
     request.session['bag_toast'] = toast
     request.session['bag_open'] = True
-    return _redirect_back(request, _product_url(product))
+    return _redirect_back(request, _product_url(product)) if product.is_purchasable else redirect('products:home')
 
 
 @require_POST
@@ -387,7 +454,13 @@ def bag_undo(request):
     entry = request.session.pop('bag_undo', None)
     toast = None
     if entry:
-        cart.set_quantity(request.session, entry['product_id'], entry.get('quantity', 1))
+        product = Product.objects.filter(pk=entry['product_id']).first()
+        if product is None or not product.is_purchasable or _is_own_listing(request, product):
+            return _bag_error(
+                request, 'This item is no longer available and could not be restored.',
+                reverse('products:home'), open_drawer=True,
+            )
+        cart.set_quantity(request.session, product.pk, entry.get('quantity', 1))
         toast = {'kind': 'added', 'text': 'Item added back to bag', 'icon': True}
     if _is_ajax(request):
         return _bag_json(request, toast=toast, open_drawer=True)
@@ -396,11 +469,36 @@ def bag_undo(request):
     return _redirect_back(request, reverse('products:home'))
 
 
+def _wish_login_required(request, product):
+    login_response = redirect_to_login(_product_url(product), settings.LOGIN_URL)
+    if _is_ajax(request):
+        return JsonResponse({'ok': False, 'login_url': login_response.url}, status=401)
+    return login_response
+
+
+def _wish_response(request, product, *, saved, toast):
+    if _is_ajax(request):
+        return JsonResponse({
+            'ok': True,
+            'saved': saved,
+            'toast': toast,
+            'saved_count': WishlistItem.objects.filter(product_key=product.slug, removed=False).count(),
+        })
+    request.session['bag_toast'] = toast
+    return _redirect_back(request, _product_url(product))
+
+
 @require_POST
 def wish_add(request, slug):
-    product = get_object_or_404(Product, slug=slug)
+    product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
     if not request.user.is_authenticated:
-        return redirect_to_login(request.get_full_path(), settings.LOGIN_URL)
+        return _wish_login_required(request, product)
+    if _is_own_listing(request, product):
+        toast = {'kind': 'error', 'text': 'You cannot save your own listing.'}
+        if _is_ajax(request):
+            return JsonResponse({'ok': False, 'toast': toast}, status=403)
+        request.session['bag_toast'] = toast
+        return redirect(_product_url(product))
 
     image = product.primary_image
     WishlistItem.objects.update_or_create(
@@ -414,8 +512,24 @@ def wish_add(request, slug):
             'removed': False,
         },
     )
-    request.session['bag_toast'] = {
+    toast = {
         'kind': 'added',
         'text': f'Saved \u201c{product.title}\u201d to wishlist',
+        'icon': 'heart',
     }
-    return _redirect_back(request, _product_url(product))
+    return _wish_response(request, product, saved=True, toast=toast)
+
+
+@require_POST
+def wish_remove(request, slug):
+    product = get_object_or_404(Product, slug=slug, status=Product.Status.AVAILABLE)
+    if not request.user.is_authenticated:
+        return _wish_login_required(request, product)
+
+    WishlistItem.objects.filter(user=request.user, product_key=product.slug, removed=False).update(removed=True)
+    toast = {
+        'kind': 'added',
+        'text': f'Removed \u201c{product.title}\u201d from wishlist',
+        'icon': 'heart',
+    }
+    return _wish_response(request, product, saved=False, toast=toast)

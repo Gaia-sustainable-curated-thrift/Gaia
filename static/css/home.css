@@ -26,8 +26,28 @@
 .homepage-main .discover-card__sub { font-size: 20px; line-height: 2; font-weight: 600; }
 .homepage-main .discover-card__title { font-size: 64px; line-height: 1.2; }
 .homepage-main .discover-card .button { margin-top: 16px; }
-.homepage-main .discover-card--men .discover-card__sub,
-.homepage-main .discover-card--men .discover-card__title { color: var(--ink); }
+.homepage-main .discover-card__label {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.homepage-main .discover-card__sub,
+.homepage-main .discover-card__title { color: var(--ink); }
+.homepage-main .discover-card .button { z-index: 1; }
+
+/* Hover swaps in the alternate outfit photo. */
+.homepage-main .discover-card { transition: background-color 320ms ease; }
+.homepage-main .discover-card img { transition: opacity 320ms ease; pointer-events: none; }
+.homepage-main .discover-card .discover-card__image--hover { opacity: 0; }
+.homepage-main .discover-card:is(:hover, :focus-visible) { background: #d1d2be; }
+.homepage-main .discover-card:is(:hover, :focus-visible) .discover-card__image { opacity: 0; }
+.homepage-main .discover-card:is(:hover, :focus-visible) .discover-card__image--hover { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .homepage-main .discover-card,
+    .homepage-main .discover-card img { transition: none; }
+}
 .homepage-main .home-categories { margin-top: 64px; }
 .homepage-main .segment--category { width: min(800px, 62.5%); padding: 0; gap: 0; background: #d1d2be; }
 .homepage-main .segment__item { min-height: 48px; padding: 8px 32px; font-size: 16px; font-weight: 600; line-height: 2; color: var(--olive-dark); }
@@ -123,4 +143,241 @@ body:has(.homepage-main) .footer-columns h2 { font-family: "EB Garamond", Georgi
 
 @media (max-width: 360px) {
     .homepage-main .home-recommendations .section-head .button { width: auto; padding: 8px 16px; }
+}
+
+/* ---------- Sell banner: animated mascot scene ---------- */
+.homepage-main .sell-banner {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+        radial-gradient(circle at 16% 55%, rgba(240, 241, 234, 0.16), transparent 42%),
+        radial-gradient(circle at 92% 0%, rgba(116, 15, 53, 0.45), transparent 45%),
+        var(--olive-dark);
+}
+.homepage-main .sell-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: radial-gradient(rgba(240, 241, 234, 0.09) 1.2px, transparent 1.6px);
+    background-size: 18px 18px;
+}
+.homepage-main .sell-banner__scene { position: relative; flex: 0 0 auto; width: 231px; aspect-ratio: 232 / 221; --run-speed: 0.72s; }
+.homepage-main .sell-banner:hover .sell-banner__scene { --run-speed: 0.42s; }
+.homepage-main .sell-banner__runner { position: absolute; inset: 0; transform-origin: 50% 100%; animation: runner-bob var(--run-speed) ease-in-out infinite; }
+.homepage-main .sell-banner__art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.homepage-main .sell-banner__shadow {
+    position: absolute;
+    left: 14%;
+    right: 16%;
+    bottom: -10px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(20, 22, 8, 0.35);
+    filter: blur(3px);
+    animation: runner-shadow var(--run-speed) ease-in-out infinite;
+}
+.homepage-main .sell-banner__glow {
+    position: absolute;
+    inset: 4% 6%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240, 241, 234, 0.22), transparent 65%);
+    animation: glow-pulse 3.2s ease-in-out infinite;
+}
+.homepage-main .sell-banner__speed { position: absolute; left: -26%; top: 48%; display: grid; gap: 14px; width: 34%; }
+.homepage-main .sell-banner__speed i {
+    display: block;
+    height: 3px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, transparent, rgba(240, 241, 234, 0.7));
+    animation: speed-line 0.9s linear infinite;
+}
+.homepage-main .sell-banner__speed i:nth-child(2) { width: 70%; margin-left: 30%; animation-delay: -0.3s; }
+.homepage-main .sell-banner__speed i:nth-child(3) { width: 85%; margin-left: 10%; animation-delay: -0.6s; }
+.homepage-main .sell-banner__item {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    fill: none;
+    stroke: var(--canvas);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.85;
+    animation: item-float 4.2s ease-in-out infinite;
+}
+.homepage-main .sell-banner__item--shirt { left: -14%; top: 4%; }
+.homepage-main .sell-banner__item--hanger { right: -12%; top: 58%; width: 34px; height: 34px; animation-delay: -1.4s; animation-duration: 5s; }
+.homepage-main .sell-banner__item--sock { left: 2%; bottom: 2%; width: 26px; height: 26px; animation-delay: -2.6s; animation-duration: 4.6s; }
+
+.homepage-main .sell-banner__copy { position: relative; }
+/* "clothes" uses the button wine on a cream marker stroke so it stays readable on olive. */
+.homepage-main .sell-banner__highlight {
+    position: relative;
+    display: inline-block;
+    padding: 0 0.18em;
+    color: var(--wine);
+    background: linear-gradient(var(--canvas), var(--canvas)) no-repeat 0 60% / 100% 78%;
+    border-radius: 6px;
+}
+.homepage-main .sell-banner__cta { position: relative; overflow: hidden; }
+.homepage-main .sell-banner__cta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 600ms ease;
+}
+.homepage-main .sell-banner__cta:hover::after { transform: translateX(120%); }
+.homepage-main .sell-banner__cta .icon { transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.homepage-main .sell-banner__cta:hover .icon { transform: translateX(6px); }
+
+/* Entrance once the banner scrolls into view (gaia.js adds data-animate and is-visible). */
+.homepage-main .sell-banner[data-animate] .sell-banner__copy > * { opacity: 0; transform: translateY(14px); }
+.homepage-main .sell-banner[data-animate] .sell-banner__scene { opacity: 0; transform: translateX(-40px) rotate(-6deg); }
+.homepage-main .sell-banner[data-animate] .sell-banner__highlight { background-size: 0% 78%; }
+.homepage-main .sell-banner[data-animate].is-visible .sell-banner__copy > * { opacity: 1; transform: none; transition: opacity 500ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+.homepage-main .sell-banner[data-animate].is-visible .sell-banner__copy > :nth-child(2) { transition-delay: 120ms; }
+.homepage-main .sell-banner[data-animate].is-visible .sell-banner__copy > :nth-child(3) { transition-delay: 240ms; }
+.homepage-main .sell-banner[data-animate].is-visible .sell-banner__scene { opacity: 1; transform: none; transition: opacity 500ms ease, transform 800ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.homepage-main .sell-banner[data-animate].is-visible .sell-banner__highlight { background-size: 100% 78%; transition: background-size 700ms cubic-bezier(0.22, 1, 0.36, 1) 450ms; }
+
+@keyframes runner-bob {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-9px) rotate(2deg); }
+}
+@keyframes runner-shadow {
+    0%, 100% { transform: scaleX(1); opacity: 1; }
+    50% { transform: scaleX(0.78); opacity: 0.6; }
+}
+@keyframes glow-pulse {
+    0%, 100% { transform: scale(0.92); opacity: 0.7; }
+    50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes speed-line {
+    0% { transform: translateX(40%); opacity: 0; }
+    30% { opacity: 1; }
+    100% { transform: translateX(-60%); opacity: 0; }
+}
+@keyframes item-float {
+    0%, 100% { transform: translateY(0) rotate(-8deg); }
+    50% { transform: translateY(-12px) rotate(8deg); }
+}
+
+@media (max-width: 1024px) {
+    .homepage-main .sell-banner__scene { width: 160px; }
+}
+@media (max-width: 640px) {
+    .homepage-main .sell-banner__scene { width: 104px; align-self: flex-start; margin: 8px 0 0 28px; }
+    .homepage-main .sell-banner__art { width: 100%; height: 100%; }
+    .homepage-main .sell-banner__item { width: 20px; height: 20px; }
+    .homepage-main .sell-banner__item--hanger { width: 22px; height: 22px; }
+    .homepage-main .sell-banner__speed { gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .homepage-main .sell-banner__runner,
+    .homepage-main .sell-banner__shadow,
+    .homepage-main .sell-banner__glow,
+    .homepage-main .sell-banner__speed i,
+    .homepage-main .sell-banner__item { animation: none; }
+    .homepage-main .sell-banner__cta::after,
+    .homepage-main .sell-banner__cta .icon { transition: none; }
+}
+
+/* ---------- Homepage motion ---------- */
+/* Hero: copy rises in on load, the jackets slide in and then drift gently. */
+.homepage-main .hero-banner { overflow: hidden; }
+.homepage-main .hero-banner::after {
+    content: '';
+    position: absolute;
+    right: 8%;
+    top: 12%;
+    width: 46%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240, 241, 234, 0.16), transparent 65%);
+    pointer-events: none;
+    animation: glow-pulse 5s ease-in-out infinite;
+}
+.homepage-main .hero-banner__copy > * { animation: hero-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.homepage-main .hero-banner__copy > :nth-child(2) { animation-delay: 120ms; }
+.homepage-main .hero-banner__copy > :nth-child(3) { animation-delay: 240ms; }
+.homepage-main .hero-banner__media { z-index: 1; transform: translateY(var(--hero-shift, 0px)); will-change: transform; }
+.homepage-main .hero-banner__media img {
+    animation:
+        hero-media-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both,
+        hero-drift 6s ease-in-out 1.1s infinite;
+}
+@keyframes hero-rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes hero-media-in {
+    from { opacity: 0; transform: translateX(60px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes hero-drift {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(-1deg); }
+}
+
+/* Arrow buttons on the homepage nudge their arrow; the hero button also gets a sheen. */
+.homepage-main .button .icon { transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.homepage-main .button:hover .icon,
+.homepage-main .discover-card:hover .button .icon { transform: translateX(6px); }
+.homepage-main :is(.hero-banner, .discover-card) .button { position: relative; overflow: hidden; }
+.homepage-main :is(.hero-banner, .discover-card) .button::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 600ms ease;
+}
+.homepage-main .hero-banner .button:hover::after,
+.homepage-main .discover-card:is(:hover, :focus-visible) .button::after { transform: translateX(120%); }
+
+/* Discover cards tilt towards the cursor (gaia.js sets --tilt-x/--tilt-y). */
+.homepage-main .discover-grid { perspective: 1200px; }
+.homepage-main .discover-card {
+    transform: rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
+    transition: background-color 320ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 300ms ease;
+}
+.homepage-main .discover-card:hover { box-shadow: 0 18px 40px rgba(37, 39, 16, 0.14); }
+.homepage-main .discover-card.is-tilting { transition: background-color 320ms ease, transform 80ms linear, box-shadow 300ms ease; }
+
+/* Category photos lift inside their circle on hover. */
+.homepage-main .category-circle__img img { transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.homepage-main .category-circle:hover .category-circle__img img { transform: scale(1.1) rotate(-4deg); }
+.homepage-main .category-circle > span:last-child { transition: color 200ms ease; }
+.homepage-main .category-circle:hover > span:last-child { color: var(--olive); }
+
+/* Section pieces reveal as they scroll in (gaia.js adds data-reveal-item / is-revealed). */
+.homepage-main [data-reveal-item] { opacity: 0; transform: translateY(24px); }
+.homepage-main .category-circle[data-reveal-item] { transform: translateY(16px) scale(0.85); }
+.homepage-main [data-reveal-item].is-revealed {
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity 500ms ease var(--reveal-delay, 0ms),
+        transform 650ms cubic-bezier(0.34, 1.3, 0.64, 1) var(--reveal-delay, 0ms);
+}
+.homepage-main .discover-card[data-reveal-item].is-revealed {
+    transform: rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
+}
+@media print { .homepage-main [data-reveal-item] { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .homepage-main .hero-banner::after,
+    .homepage-main .hero-banner__copy > *,
+    .homepage-main .hero-banner__media img { animation: none; }
+    .homepage-main .button .icon,
+    .homepage-main :is(.hero-banner, .discover-card) .button::after,
+    .homepage-main .discover-card,
+    .homepage-main .category-circle__img img { transition: none; }
+    .homepage-main .button:hover .icon,
+    .homepage-main .category-circle:hover .category-circle__img img { transform: none; }
 }

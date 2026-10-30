@@ -13,9 +13,16 @@
         <p class="product-card__meta">{{ product.get_condition_display }}</p>
         <p class="product-card__price">{{ product.price|rupiah }}</p>
     </div>
-    <form class="product-card__form" method="post" action="{% url 'products:bag_add' product.slug %}">
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-        <button class="button" type="submit" {% if not product.is_purchasable %}disabled{% endif %}>Add to bag</button>
-    </form>
+    {% if user == product.seller %}
+    <div class="product-card__owner">
+        <button class="button product-card__delete" type="button" data-delete-listing aria-haspopup="dialog" aria-controls="delete-listing-{{ product.slug }}" aria-expanded="false" aria-label="Delete {{ product.title }}">{% include 'includes/icon.html' with name='trash' %}</button>
+        <a class="button olive-button product-card__edit" href="{% url 'products:edit' product.slug %}">Edit</a>
+    </div>
+    {% else %}
+    {% include 'products/includes/bag_form.html' with form_class='product-card__form' button_class='' with_icon=False %}
+    {% endif %}
 </article>
+{% if user == product.seller %}
+{# Kept outside the card so the card's button styles don't leak into the dialog. #}
+{% include 'products/includes/delete_listing_dialog.html' with dialog_id='delete-listing-'|add:product.slug next=request.get_full_path %}
+{% endif %}

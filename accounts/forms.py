@@ -3,6 +3,7 @@ from PIL import Image, ImageOps
 from django import forms
 from django.core.files.base import ContentFile
 from .avatars import schedule_avatar_delete
+from .identity import reserved_username
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.utils.text import slugify
@@ -47,7 +48,7 @@ class RegisterForm(UserCreationForm):
         user.first_name = self.cleaned_data['full_name']
         base = slugify(user.first_name).replace('-', '')[:120] or 'gaia'
         username, suffix = base, 1
-        while User.objects.filter(username__iexact=username).exists():
+        while reserved_username(username) or User.objects.filter(username__iexact=username).exists():
             username = f'{base}{suffix}'
             suffix += 1
         user.username = username
@@ -97,6 +98,8 @@ class ProfileForm(forms.ModelForm):
 
     def clean_username(self):
         username = self.cleaned_data['username']
+        if reserved_username(username) and not (self.instance.is_staff and username == self.instance.username):
+            raise forms.ValidationError('This username is reserved for the GAIA support team.')
         if User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError('This username is already taken.')
         return username

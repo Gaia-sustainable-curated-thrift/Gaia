@@ -1,1 +1,11 @@
 {% extends 'accounts/base.html' %}
+{% block extra_css %}
+{# Product pages opt in to cross-page view transitions, so a card photo can morph into the detail photo. #}
+<style>
+@view-transition { navigation: auto; }
+::view-transition-group(*) { animation-duration: 380ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+@media (prefers-reduced-motion: reduce) {
+    @view-transition { navigation: none; }
+}
+</style>
+{% endblock %}

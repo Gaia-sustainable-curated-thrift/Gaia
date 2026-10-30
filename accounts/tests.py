@@ -16,7 +16,7 @@ from django.core import mail, signing
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
-from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from .context_processors import social_login
@@ -338,10 +338,8 @@ class FormTests(TestCase):
                 self.assertTrue(form.is_valid(), form.errors)
                 self.assertEqual(form.get_user().pk, self.user.pk)
 
-    def test_login_rejects_wrong_password_unknown_and_ambiguous_email(self):
-        User.objects.create_user('duplicate', 'gaia@example.com', PASSWORD)
-        for identifier, password in [('gaia', 'wrong'), ('missing@example.com', PASSWORD),
-                                     ('gaia@example.com', PASSWORD)]:
+    def test_login_rejects_wrong_password_and_unknown_email(self):
+        for identifier, password in [('gaia', 'wrong'), ('missing@example.com', PASSWORD)]:
             with self.subTest(identifier=identifier):
                 form = EmailAuthenticationForm(data={'username': identifier, 'password': password})
                 self.assertFalse(form.is_valid())
@@ -497,10 +495,8 @@ class UserViewTests(TestCase):
         self.assertEqual(Profile.objects.filter(user=self.user).count(), 1)
 
     def test_verification_context_supports_local_and_google_verification(self):
-        profile = Profile.objects.create(user=self.user, email_verified=True)
-        self.assertTrue(self.client.get(reverse('profile')).context['email_verified'])
-        profile.email_verified = False
-        profile.save()
+        profile = Profile.objects.create(user=self.user)
+        self.assertFalse(self.client.get(reverse('profile')).context['email_verified'])
         EmailAddress.objects.create(user=self.user, email=self.user.email, verified=True)
         self.assertTrue(self.client.get(reverse('profile')).context['email_verified'])
 
@@ -1020,3 +1016,468 @@ class AvatarTests(TestCase):
                 self.assertEqual(self.upload().status_code, 302)
         self.user.profile.refresh_from_db()
         self.assertTrue(self.user.profile.avatar)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class MyProductsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from products.models import Category, Product
+        cls.user = User.objects.create_user('my-listings-owner', 'listings@example.com', PASSWORD)
+        cls.other = User.objects.create_user('my-listings-other')
+        parent = Category.objects.create(name='My Products Test Parent', slug='my-products-test-parent')
+        cls.category = Category.objects.create(name='Test Tops', slug='my-products-test-tops', parent=parent)
+        cls.available = Product.objects.create(seller=cls.user, title='My Linen Shirt', price=125000, category=cls.category)
+        cls.sold = Product.objects.create(seller=cls.user, title='My Sold Coat', price=250000, status='sold', category=cls.category)
+        cls.foreign = Product.objects.create(seller=cls.other, title='Other Seller Secret', price=100000, category=cls.category)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        self.url = reverse('my_products')
+
+    def test_guest_must_login_and_post_is_not_allowed(self):
+        self.assertEqual(self.client.post(self.url).status_code, 405)
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith(reverse('login') + '?next='))
+
+    def test_page_contains_only_current_users_products(self):
+        response = self.client.get(self.url, {'seller': self.other.pk})
+        self.assertContains(response, self.available.title)
+        self.assertContains(response, self.sold.title)
+        self.assertNotContains(response, self.foreign.title)
+        self.assertEqual(response.context['listing_totals'], {'total': 2, 'available': 1, 'sold': 1})
+        self.assertEqual(response.context['active'], 'products')
+        self.assertContains(response, reverse('products:edit', args=[self.available.slug]))
+        self.assertContains(response, reverse('products:delete', args=[self.available.slug]))
+        self.assertContains(response, 'id="my-product-delete-dialog"')
+
+    def test_available_sold_and_unknown_filters(self):
+        for status, titles in [('available', [self.available.title]), ('sold', [self.sold.title]), ('unknown', [self.available.title, self.sold.title])]:
+            with self.subTest(status=status):
+                response = self.client.get(self.url, {'status': status})
+                self.assertCountEqual([product.title for product in response.context['page_obj']], titles)
+                self.assertEqual(response.context['listing_totals']['total'], 2)
+
+    def test_normal_user_without_products_gets_sell_empty_state(self):
+        user = User.objects.create_user('new-listings-owner')
+        self.client.force_login(user)
+        response = self.client.get(self.url)
+        self.assertFalse(user.is_staff)
+        self.assertContains(response, 'Your first listing starts here')
+        self.assertContains(response, reverse('products:sell'))
+        self.assertNotContains(response, self.available.title)
+
+    def test_empty_filter_can_return_to_all_products(self):
+        self.available.status = 'sold'
+        self.available.save()
+        response = self.client.get(self.url, {'status': 'available'})
+        self.assertContains(response, 'No available listings yet')
+        self.assertContains(response, 'View All Listings')
+        self.assertEqual(response.context['listing_totals']['total'], 2)
+
+    def test_pagination_and_bad_page_numbers(self):
+        from products.models import Product
+        Product.objects.bulk_create([Product(seller=self.user, title=f'Extra {index}', slug=f'my-products-extra-{index}', price=10000) for index in range(13)])
+        first = self.client.get(self.url)
+        self.assertEqual(len(first.context['page_obj']), 12)
+        self.assertTrue(first.context['page_obj'].has_next())
+        second = self.client.get(self.url, {'page': 2})
+        self.assertEqual(len(second.context['page_obj']), 3)
+        invalid = self.client.get(self.url, {'page': 'invalid'})
+        self.assertEqual(invalid.context['page_obj'].number, 1)
+        overflow = self.client.get(self.url, {'page': 999})
+        self.assertEqual(overflow.context['page_obj'].number, 2)
+
+    def test_profile_activity_and_sidebar_link_to_my_products(self):
+        response = self.client.get(reverse('profile'))
+        self.assertContains(response, self.url)
+        self.assertEqual(response.context['listing_count'], 2)
+        self.assertContains(self.client.get(reverse('account_settings')), self.url)
+
+    def test_owner_can_edit_using_existing_product_view(self):
+        response = self.client.get(reverse('products:edit', args=[self.available.slug]))
+        self.assertEqual(response.status_code, 200)
+        response = self.client.post(reverse('products:edit', args=[self.available.slug]), {'title': 'Updated From My Products', 'price': 150000, 'category': self.category.pk, 'condition': 'good'})
+        self.assertEqual(response.status_code, 302)
+        self.available.refresh_from_db()
+        self.assertEqual(self.available.title, 'Updated From My Products')
+        self.assertEqual(self.available.seller_id, self.user.pk)
+
+    def test_cannot_edit_or_delete_another_sellers_product(self):
+        for action in ['edit', 'delete']:
+            response = self.client.post(reverse('products:' + action, args=[self.foreign.slug]), {'seller': self.user.pk, 'next': self.url})
+            self.assertEqual(response.status_code, 404)
+        self.assertTrue(type(self.foreign).objects.filter(pk=self.foreign.pk).exists())
+
+    def test_delete_returns_to_my_products_and_preserves_other_listings(self):
+        response = self.client.post(reverse('products:delete', args=[self.available.slug]), {'next': self.url + '?status=available'})
+        self.assertRedirects(response, self.url + '?status=available')
+        self.assertFalse(type(self.available).objects.filter(pk=self.available.pk).exists())
+        self.assertTrue(type(self.foreign).objects.filter(pk=self.foreign.pk).exists())
+        self.assertTrue(type(self.sold).objects.filter(pk=self.sold.pk).exists())
+
+    def test_delete_rejects_external_next_and_requires_csrf(self):
+        url = reverse('products:delete', args=[self.available.slug])
+        strict = Client(enforce_csrf_checks=True)
+        strict.force_login(self.user)
+        self.assertEqual(strict.post(url, {'next': self.url}).status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        response = self.client.post(url, {'next': 'https://untrusted.example/'})
+        self.assertRedirects(response, reverse('products:home'))
+
+    def test_uploaded_media_image_is_used_and_title_is_escaped(self):
+        self.available.title = '<script>alert(1)</script>'
+        self.available.save()
+        photo = self.available.images.create(image='products/my-products-test.jpg', is_primary=True)
+        response = self.client.get(self.url)
+        self.assertContains(response, photo.image.url)
+        self.assertNotContains(response, '/static/media/products/')
+        self.assertContains(response, '&lt;script&gt;alert(1)&lt;/script&gt;')
+        self.assertNotContains(response, self.available.title)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class UniqueAccountEmailTests(TestCase):
+    def data(self, **changes):
+        return {'full_name': 'New Buyer', 'email': 'buyer@example.test',
+                'password1': PASSWORD, 'password2': PASSWORD, **changes}
+
+    def test_two_prevalidated_registrations_cannot_save_the_same_email(self):
+        first = RegisterForm(self.data())
+        second = RegisterForm(self.data(full_name='Other Buyer', email='BUYER@example.test'))
+        self.assertTrue(first.is_valid(), first.errors)
+        self.assertTrue(second.is_valid(), second.errors)
+        first.save()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            second.save()
+        self.assertEqual(User.objects.filter(email__iexact='buyer@example.test').count(), 1)
+
+    def test_database_covers_direct_creates_and_email_updates(self):
+        User.objects.create_user('one', 'one@example.test')
+        for email in ('ONE@example.test', ' one@example.test '):
+            with self.subTest(email=email), self.assertRaises(IntegrityError), transaction.atomic():
+                User.objects.create_user('two', email)
+        other = User.objects.create_user('other', 'other@example.test')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            User.objects.filter(pk=other.pk).update(email='ONE@example.test')
+        User.objects.create_user('without-email-1')
+        User.objects.create_user('without-email-2')
+
+    def test_registration_race_returns_form_error_instead_of_server_error(self):
+        original = RegisterForm.is_valid
+        def competing_registration(form):
+            valid = original(form)
+            User.objects.create_user('winner', 'buyer@example.test')
+            return valid
+        with patch.object(RegisterForm, 'is_valid', competing_registration):
+            response = self.client.post(reverse('register'), self.data())
+        self.assertContains(response, 'already exists')
+        self.assertEqual(User.objects.count(), 1)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertFalse(Profile.objects.exists())
+
+    def test_email_audit_does_not_change_data(self):
+        User.objects.create_user('one', 'one@example.test')
+        output = StringIO()
+        call_command('audit_account_emails', stdout=output)
+        self.assertIn('0 duplicate email group(s)', output.getvalue())
+        self.assertNotIn('one@example.test', output.getvalue())
+        self.assertEqual(User.objects.count(), 1)
+
+    def test_google_signup_race_does_not_create_or_link_a_duplicate(self):
+        from allauth.core.exceptions import ImmediateHttpResponse
+        from allauth.socialaccount.models import SocialAccount, SocialLogin
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from .adapters import SocialAccountAdapter
+        existing = User.objects.create_user('existing', 'buyer@example.test')
+        request = RequestFactory().get('/accounts/google/login/callback/')
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        login = SocialLogin(user=User(username='google-buyer', email='BUYER@example.test'),
+                            account=SocialAccount(provider='google', uid='test-google-id'))
+        with self.assertRaises(ImmediateHttpResponse) as error:
+            SocialAccountAdapter(request).save_user(request, login)
+        self.assertEqual(error.exception.response.url, reverse('login'))
+        self.assertEqual(User.objects.count(), 1)
+        self.assertFalse(SocialAccount.objects.filter(user=existing).exists())
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class ReservedUsernameTests(TestCase):
+    def test_registration_never_assigns_the_support_username(self):
+        form = RegisterForm({'full_name': 'Gaia Care', 'email': 'buyer@example.test',
+                             'password1': PASSWORD, 'password2': PASSWORD})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().username, 'gaiacare1')
+
+    @override_settings(GAIA_CARE_USERNAME='helpdesk')
+    def test_profile_rejects_default_and_configured_reserved_names(self):
+        user = User.objects.create_user('buyer')
+        for username in ('GaiaCare', 'HELPDESK'):
+            form = ProfileForm({'full_name': 'Buyer', 'username': username}, instance=user)
+            self.assertFalse(form.is_valid())
+            self.assertIn('reserved', form.errors['username'][0])
+
+    def test_google_and_allauth_signup_respect_reserved_names(self):
+        from django.core.exceptions import ValidationError
+        from .adapters import AccountAdapter
+        adapter = AccountAdapter()
+        with self.assertRaises(ValidationError):
+            adapter.clean_username('GAIACARE', shallow=True)
+        user = User(username='gaiacare', first_name='Gaia Care', email='buyer@example.test')
+        adapter.populate_username(RequestFactory().get('/'), user)
+        self.assertNotEqual(user.username.casefold(), 'gaiacare')
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+                   EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class SellerAccountDeletionTests(TestCase):
+    def setUp(self):
+        self.seller = User.objects.create_user('seller-delete', 'seller@example.test', PASSWORD)
+        self.buyer = User.objects.create_user('buyer-keep', 'buyer@example.test')
+        self.client.force_login(self.seller)
+        self.order = AccountOrder.objects.create(
+            user=self.buyer, seller=self.seller, number='SALE-KEEP', date=date.today(),
+            status='awaiting_payment', title='Sold coat', subtotal=100, recipient='Buyer', address='Jakarta')
+        self.data = {'password': PASSWORD, 'confirmation': 'DELETE', 'acknowledge': 'on'}
+
+    def test_pending_sales_block_deletion_without_touching_buyer_history(self):
+        for status in ('awaiting_payment', 'in_transit'):
+            self.order.status = status
+            self.order.save()
+            self.assertContains(self.client.get(reverse('delete_account')), 'pending orders or sales')
+            response = self.client.post(reverse('delete_account'), self.data)
+            self.assertTrue(response.context['form'].non_field_errors())
+            self.assertTrue(User.objects.filter(pk=self.seller.pk).exists())
+            self.order.refresh_from_db()
+            self.assertEqual(self.order.seller_id, self.seller.pk)
+
+    def test_google_seller_cannot_request_deletion_link_during_active_sale(self):
+        self.seller.set_unusable_password()
+        self.seller.save()
+        EmailAddress.objects.create(user=self.seller, email=self.seller.email, verified=True)
+        self.client.force_login(self.seller)
+        self.client.post(reverse('send_delete_confirmation'))
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertNotIn('account_delete_confirmation', self.client.session)
+
+    def test_completed_sale_remains_in_buyer_history_after_seller_deletion(self):
+        self.order.status = 'completed'
+        self.order.save()
+        self.assertRedirects(self.client.post(reverse('delete_account'), self.data), reverse('login'))
+        self.order.refresh_from_db()
+        self.assertIsNone(self.order.seller_id)
+        self.assertEqual(self.order.user_id, self.buyer.pk)
+        self.assertEqual((self.order.title, self.order.subtotal), ('Sold coat', 100))
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
+                   EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class VerificationRecoveryTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('verify-buyer', 'verify@example.test', PASSWORD)
+        Profile.objects.create(user=self.user)
+        self.client.force_login(self.user)
+
+    def test_resend_verifies_the_canonical_address_and_is_idempotent(self):
+        self.assertContains(self.client.get(reverse('account_settings')), 'Resend Verification Email')
+        self.client.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+        link = re.search(r'http://testserver(\S+)', mail.outbox[0].body).group(1)
+        self.client.get(link)
+        self.client.get(link)
+        self.assertEqual(EmailAddress.objects.filter(user=self.user, verified=True).count(), 1)
+        self.assertTrue(self.user.profile.email_verified)
+        self.client.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertNotContains(self.client.get(reverse('account_settings')), 'Resend Verification Email')
+
+    def test_cooldown_cannot_be_bypassed_from_another_browser(self):
+        self.client.post(reverse('resend_verification'))
+        second = Client()
+        second.force_login(self.user)
+        second.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+        from datetime import timedelta
+        from django.utils import timezone
+        Profile.objects.filter(user=self.user).update(verification_sent_at=timezone.now() - timedelta(seconds=61))
+        second.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_failed_delivery_can_be_retried_and_does_not_verify_email(self):
+        with patch('accounts.views.send_mail', return_value=0):
+            self.client.post(reverse('resend_verification'))
+        self.assertFalse(self.user.profile.email_verified)
+        Profile.objects.filter(user=self.user).update(verification_sent_at=None)
+        self.client.post(reverse('resend_verification'))
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_resend_is_post_only_and_requires_login_and_csrf(self):
+        self.assertEqual(self.client.get(reverse('resend_verification')).status_code, 405)
+        strict = Client(enforce_csrf_checks=True)
+        strict.force_login(self.user)
+        self.assertEqual(strict.post(reverse('resend_verification')).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.post(reverse('resend_verification')).status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(PRODUCTION=True, SECURE_SSL_REDIRECT=False,
+                       ALLOWED_HOSTS=['testserver', 'danar-iqbal-gaia.pws.cs.ui.ac.id'])
+    def test_pws_http_upstream_still_sends_https_link(self):
+        self.client.post(reverse('resend_verification'), HTTP_HOST='danar-iqbal-gaia.pws.cs.ui.ac.id')
+        self.assertIn('https://danar-iqbal-gaia.pws.cs.ui.ac.id/accounts/verify/', mail.outbox[0].body)
+
+    def test_verified_old_address_does_not_verify_a_changed_email(self):
+        EmailAddress.objects.create(user=self.user, email=self.user.email, verified=True)
+        self.user.email = 'changed@example.test'
+        self.user.save()
+        self.assertFalse(self.client.get(reverse('profile')).context['email_verified'])
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class GoogleAccountPasswordExperienceTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('google-only', 'google@example.test')
+        self.client.force_login(self.user)
+
+    def test_google_only_account_sees_its_login_method_without_password_button(self):
+        from allauth.socialaccount.models import SocialAccount
+        SocialAccount.objects.create(user=self.user, provider='google', uid='google-only-uid')
+        response = self.client.get(reverse('account_settings'))
+        self.assertContains(response, 'You sign in with Google.')
+        self.assertNotContains(response, 'Change Password')
+        self.assertNotContains(response, reverse('password_reset'))
+
+    def test_unusable_password_cannot_open_or_submit_change_password_form(self):
+        for method in (self.client.get, self.client.post):
+            self.assertRedirects(method(reverse('password_change')), reverse('account_settings'))
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.has_usable_password())
+
+    def test_local_password_account_keeps_existing_change_flow(self):
+        self.user.set_password(PASSWORD)
+        self.user.save()
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse('account_settings')), 'Change Password')
+        self.assertIn('old_password', self.client.get(reverse('password_change')).context['form'].fields)
+
+
+class AccountProductImageTests(SimpleTestCase):
+    def test_snapshot_media_static_and_storage_urls_render_correctly(self):
+        from django.template.loader import render_to_string
+        for source, expected in [('/media/products/coat.jpg', '/media/products/coat.jpg'),
+                                 ('images/reference-coat.png', '/static/images/reference-coat.png'),
+                                 ('/static/images/coat.png', '/static/images/coat.png'),
+                                 ('https://cdn.example.test/coat.jpg?token=1', 'https://cdn.example.test/coat.jpg?token=1')]:
+            with self.subTest(source=source):
+                html = render_to_string('includes/product_image.html', {'item': {'image': source, 'title': '<Coat>'}})
+                self.assertIn(f'src="{expected}"', html)
+                self.assertNotIn('/static/media/', html)
+                self.assertIn('alt="&lt;Coat&gt;"', html)
+
+    def test_invalid_urls_use_the_placeholder(self):
+        from django.template.loader import render_to_string
+        for source in ('', 'javascript:alert(1)', 'data:text/html,test', '//evil.example.test/x', 'https://['):
+            html = render_to_string('includes/product_image.html', {'item': {'image': source, 'title': 'Coat'}})
+            self.assertIn('No product photo', html)
+            self.assertNotIn('<img', html)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class AccountPaginationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('paged-owner')
+        cls.other = User.objects.create_user('paged-other')
+        for user in (cls.user, cls.other):
+            AccountOrder.objects.bulk_create([
+                AccountOrder(user=user, number=f'PAGE-{user.pk}-{i}', date=date.today(), status='completed',
+                             title=f'Order {user.pk}-{i}', subtotal=10, recipient='Owner', address='Jakarta')
+                for i in range(25)])
+            WishlistItem.objects.bulk_create([
+                WishlistItem(user=user, product_key=f'page-{i}', title=f'Item {user.pk}-{i}', price=10)
+                for i in range(25)])
+        WishlistItem.objects.create(user=cls.user, product_key='hidden', title='Hidden removed item', price=1, removed=True)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_owned_lists_are_bounded_stable_and_keep_total_counts(self):
+        for name, key in [('orders', 'orders'), ('wishlist', 'items')]:
+            with self.subTest(name=name):
+                seen = set()
+                for number, expected in [(1, 12), (2, 12), (3, 1)]:
+                    response = self.client.get(reverse(name), {'page': number})
+                    rows = list(response.context[key])
+                    self.assertEqual(len(rows), expected)
+                    self.assertEqual(response.context['page_obj'].paginator.count, 25)
+                    self.assertTrue(all(row.user_id == self.user.pk for row in rows))
+                    ids = {row.pk for row in rows}
+                    self.assertFalse(ids & seen)
+                    seen |= ids
+                    self.assertContains(response, f'Page {number} of 3')
+                    self.assertNotContains(response, 'Hidden removed item')
+                self.assertEqual(len(seen), 25)
+
+    def test_invalid_and_out_of_range_page_numbers_are_safe(self):
+        for name in ('orders', 'wishlist'):
+            for value, expected in [('invalid', 1), ('999', 3)]:
+                response = self.client.get(reverse(name), {'page': value})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context['page_obj'].number, expected)
+
+    def test_remove_and_undo_keep_the_wishlist_page(self):
+        item = self.user.wishlist_items.filter(removed=False).order_by('-pk')[12]
+        response = self.client.post(reverse('wishlist_remove', args=[item.pk]), {'page': '2'})
+        self.assertRedirects(response, reverse('wishlist') + '?page=2')
+        response = self.client.post(reverse('wishlist_undo'), {'page': '2'})
+        self.assertRedirects(response, reverse('wishlist') + '?page=2')
+        self.assertFalse(WishlistItem.objects.get(pk=item.pk).removed)
+
+
+class AccountMigrationSafetyTests(TransactionTestCase):
+    def setUp(self):
+        from django.db import connection
+        from django.db.migrations.executor import MigrationExecutor
+        self.connection = connection
+        self.target = [('accounts', '0004_accountorder_product_accountorder_seller')]
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.target)
+        self.old_apps = executor.loader.project_state(self.target).apps
+
+    def tearDown(self):
+        from django.db.migrations.executor import MigrationExecutor
+        executor = MigrationExecutor(self.connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+    def test_legacy_verified_flag_moves_to_the_current_email_address(self):
+        from django.db.migrations.executor import MigrationExecutor
+        LegacyUser = self.old_apps.get_model('auth', 'User')
+        LegacyProfile = self.old_apps.get_model('accounts', 'Profile')
+        user = LegacyUser.objects.create(username='legacy-verified', email='Legacy@example.test')
+        LegacyProfile.objects.create(user_id=user.pk, email_verified=True)
+        executor = MigrationExecutor(self.connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        self.assertTrue(EmailAddress.objects.get(user_id=user.pk, email='legacy@example.test').verified)
+        self.assertTrue(Profile.objects.get(user_id=user.pk).email_verified)
+
+    def test_existing_duplicate_emails_stop_migration_without_merging_accounts(self):
+        from django.db.migrations.executor import MigrationExecutor
+        LegacyUser = self.old_apps.get_model('auth', 'User')
+        first = LegacyUser.objects.create(username='legacy-one', email='same@example.test')
+        second = LegacyUser.objects.create(username='legacy-two', email='SAME@example.test')
+        try:
+            with self.assertRaisesMessage(RuntimeError, 'Duplicate account emails exist'):
+                executor = MigrationExecutor(self.connection)
+                executor.migrate(executor.loader.graph.leaf_nodes())
+            self.assertEqual(LegacyUser.objects.filter(pk__in=[first.pk, second.pk]).count(), 2)
+            output = StringIO()
+            call_command('audit_account_emails', stdout=output)
+            self.assertIn('1 duplicate email group(s)', output.getvalue())
+            self.assertNotIn('same@example.test', output.getvalue())
+        finally:
+            # Only remove the deliberately duplicated fixture so tearDown can migrate forward.
+            LegacyUser.objects.filter(pk=second.pk).delete()

@@ -1342,3 +1342,7 @@ dialog::backdrop {
 .delete-outline:hover { background: #f5e9ee; }
 
 .profile-avatar img, .nav-avatar img, .site-drawer-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+
+.account-pagination { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:16px; margin-top:24px; }
+.account-pagination span { color:var(--olive-dark); font-size:14px; }
+@media (max-width:480px) { .account-pagination { gap:10px; } }

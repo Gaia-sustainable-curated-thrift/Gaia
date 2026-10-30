@@ -9,13 +9,16 @@
 <div><strong>Email</strong>
 <p class="muted">{{ user.email|default:'No email added' }}
 </p><small class="olive">{% if email_verified %}Email verified{% else %}Email not verified{% endif %}</small>
+{% if not email_verified and user.email %}<form method="post" action="{% url 'resend_verification' %}">{% csrf_token %}<button class="text-button" type="submit">Resend Verification Email</button></form>{% endif %}
 </div>
 </div>
 <div class="security-row">{% include 'includes/icon.html' with name='lock' %}
-<div><strong>Password</strong>
-<p class="small muted">Use a unique password to keep your account secure.
-</p>
-</div><a class="button" href="{% url 'password_change' %}">Change Password</a>
+{% if user.has_usable_password %}
+<div><strong>Password</strong><p class="small muted">Use a unique password to keep your account secure.</p></div>
+<a class="button" href="{% url 'password_change' %}">Change Password</a>
+{% else %}
+<div><strong>Login method</strong><p class="small muted">{% if google_account %}You sign in with Google.{% else %}Your account uses external sign-in.{% endif %} A local password has not been set. Continue using your sign-in provider to access your account.</p></div>
+{% endif %}
 </div>
 <div class="security-row">{% include 'includes/icon.html' with name='profile' %}
 <div><strong>Active Session</strong>
