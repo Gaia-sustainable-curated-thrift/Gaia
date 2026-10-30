@@ -1,8 +1,9 @@
-
 import uuid
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError
 from django.db import transaction as db_transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -11,11 +12,14 @@ from django.views.decorators.http import require_POST
 from accounts.models import AccountOrder
 from products import cart
 from products.models import Product
+
 from .forms import PaymentMethodForm, ShippingAddressForm
+from .models import ProductReservation, TransactionOrderState
 
 
 @login_required
 def checkout(request):
+    expire_reservations();
     cart_items = cart.items(request.session)
 
     if not cart_items:
@@ -145,7 +149,7 @@ def confirmation(request):
         orders = AccountOrder.objects.filter(
             user=request.user,
             pk__in=completed_ids,
-        ).order_by("pk")
+        ).select_related("transaction_state").order_by("pk")
 
         return render(
             request,
@@ -167,69 +171,101 @@ def confirmation(request):
         )
         return redirect("transaction:checkout")
 
+    
     if request.method == "POST":
         created_orders = []
 
-        # Ambil ulang produk dari database dan kunci record
-        # selama proses validasi dan pembuatan pesanan.
         product_ids = [
             item["product"].pk for item in cart_items
         ]
 
-        with db_transaction.atomic():
-            products = {
-                product.pk: product
-                for product in Product.objects.select_for_update().filter(
-                    pk__in=product_ids
-                )
-            }
-
-            # Pastikan semua produk masih tersedia.
-            for item in cart_items:
-                product = products.get(item["product"].pk)
-
-                if not product or not product.is_purchasable:
-                    messages.error(
-                        request,
-                        "A product is no longer available. "
-                        "Please review your bag."
+        try:
+            with db_transaction.atomic():
+                products = {
+                    product.pk: product
+                    for product in Product.objects.select_for_update().filter(
+                        pk__in=product_ids
                     )
-                    return redirect("transaction:checkout")
+                }
 
-            batch = uuid.uuid4().hex[:10].upper()
-            payment_labels = dict(
-                PaymentMethodForm.PAYMENT_CHOICES
-            )
+                # Validasi produk dan reservasi yang masih aktif.
+                for item in cart_items:
+                    product = products.get(item["product"].pk)
 
-            # Setiap produk mendapatkan nomor pesanan tersendiri.
-            for index, item in enumerate(cart_items, start=1):
-                product = products[item["product"].pk]
-                image = product.primary_image
+                    if not product or not product.is_purchasable:
+                        messages.error(
+                            request,
+                            "A product is no longer available. "
+                            "Please review your bag."
+                        )
+                        return redirect("transaction:checkout")
 
-                order = AccountOrder.objects.create(
-                    user=request.user,
-                    number=f"G-{batch}-{index:02d}",
-                    date=timezone.localdate(),
-                    status=AccountOrder.Status.AWAITING_PAYMENT,
-                    title=product.title,
-                    condition=product.get_condition_display(),
-                    image=image.image.url if image else "",
-                    subtotal=product.price * item["quantity"],
-                    shipping=0,
-                    recipient=address["recipient"],
-                    phone=address["phone"],
-                    address=(
-                        f'{address["address"]}, '
-                        f'{address["city"]}, '
-                        f'{address["postal_code"]}, '
-                        f'{address["country"]}'
-                    ),
-                    payment_method=payment_labels[payment_method],
+                    reservation = ProductReservation.objects.filter(
+                        product=product
+                    ).first()
+
+                    if reservation:
+                        if not reservation.is_expired:
+                            messages.error(
+                                request,
+                                "A product in your bag is currently reserved."
+                            )
+                            return redirect("transaction:checkout")
+
+                        # Hapus reservasi yang sudah kedaluwarsa.
+                        reservation.delete()
+
+                batch = uuid.uuid4().hex[:10].upper()
+                payment_labels = dict(
+                    PaymentMethodForm.PAYMENT_CHOICES
                 )
 
-                created_orders.append(order)
+                for index, item in enumerate(cart_items, start=1):
+                    product = products[item["product"].pk]
+                    image = product.primary_image
 
-        # Kosongkan keranjang setelah semua pesanan berhasil dibuat.
+                    order = AccountOrder.objects.create(
+                        user=request.user,
+                        number=f"G-{batch}-{index:02d}",
+                        date=timezone.localdate(),
+                        status=AccountOrder.Status.AWAITING_PAYMENT,
+                        title=product.title,
+                        condition=product.get_condition_display(),
+                        image=image.image.url if image else "",
+                        subtotal=product.price * item["quantity"],
+                        shipping=0,
+                        recipient=address["recipient"],
+                        phone=address["phone"],
+                        address=(
+                            f'{address["address"]}, '
+                            f'{address["city"]}, '
+                            f'{address["postal_code"]}, '
+                            f'{address["country"]}'
+                        ),
+                        payment_method=payment_labels[payment_method],
+                    )
+                    TransactionOrderState.objects.create(
+                        order=order,
+                        status=TransactionOrderState.Status.ACTIVE,
+                    )
+
+                    # Reservasi produk selama 15 menit.
+                    ProductReservation.objects.create(
+                        product=product,
+                        order=order,
+                        expires_at=timezone.now() + timedelta(minutes=15),
+                    )
+
+                    created_orders.append(order)
+
+        except IntegrityError:
+            messages.error(
+                request,
+                "A product was just reserved by another buyer. "
+                "Please review your bag."
+            )
+            return redirect("transaction:checkout")
+
         request.session.pop("bag", None)
 
         request.session["transaction_completed_orders"] = [
@@ -261,3 +297,59 @@ def place_order(request):
     return redirect("transaction:confirmation")
 
 
+
+@login_required
+@require_POST
+def cancel_order(request, order_id):
+    with db_transaction.atomic():
+        order = get_object_or_404(
+            AccountOrder.objects.select_for_update(),
+            pk=order_id,
+            user=request.user,
+        )
+
+        order_state, _ = TransactionOrderState.objects.get_or_create(
+            order=order
+        )
+
+        if order_state.status != TransactionOrderState.Status.ACTIVE:
+            messages.warning(request, "This order is no longer active.")
+            return redirect("transaction:confirmation")
+
+        if order.status != AccountOrder.Status.AWAITING_PAYMENT:
+            messages.warning(
+                request,
+                "Only orders awaiting payment can be cancelled."
+            )
+            return redirect("transaction:confirmation")
+
+        order_state.status = TransactionOrderState.Status.CANCELLED
+        order_state.save()
+
+        # Lepaskan reservasi produk.
+        ProductReservation.objects.filter(order=order).delete()
+
+    messages.success(request, "Your order has been cancelled.")
+    return redirect("transaction:confirmation")
+
+def expire_reservations():
+    expired_reservations = ProductReservation.objects.filter(
+        expires_at__lte=timezone.now()
+    ).select_related("order")
+
+    for reservation in expired_reservations:
+        with db_transaction.atomic():
+            order = AccountOrder.objects.select_for_update().get(
+                pk=reservation.order_id
+            )
+
+            state, _ = TransactionOrderState.objects.get_or_create(
+                order=order
+            )
+
+            if state.status == TransactionOrderState.Status.ACTIVE:
+                if order.status == AccountOrder.Status.AWAITING_PAYMENT:
+                    state.status = TransactionOrderState.Status.EXPIRED
+                    state.save()
+
+            reservation.delete()

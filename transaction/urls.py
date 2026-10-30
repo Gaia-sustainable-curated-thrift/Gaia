@@ -1,4 +1,3 @@
-
 from django.urls import path
 
 from . import views
@@ -10,4 +9,10 @@ urlpatterns = [
     path("shipping/", views.shipping, name="shipping"),
     path("payment/", views.payment, name="payment"),
     path("confirmation/", views.confirmation, name="confirmation"),
+
+    path(
+        "orders/<int:order_id>/cancel/",
+        views.cancel_order,
+        name="cancel_order",
+    ),
 ]

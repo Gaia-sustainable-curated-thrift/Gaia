@@ -65,9 +65,17 @@
                 </div>
 
                 <div class="detail-row">
-                    <span>Order Status</span>
-                    <strong>{{ order.get_status_display }}</strong>
-                </div>
+                <span>Order Status</span>
+                <strong>
+                    {% if order.transaction_state.status == "cancelled" %}
+                        Cancelled
+                    {% elif order.transaction_state.status == "expired" %}
+                        Expired
+                    {% else %}
+                        {{ order.get_status_display }}
+                    {% endif %}
+                </strong>
+            </div>
             </section>
         {% empty %}
             <section class="transaction-card">
