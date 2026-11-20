@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/products/", include("products.api_urls")),
     path("transaction/", include("transaction.urls")),
     path("chat/", include("chat.urls")),
+    path("api/chat/", include("chat.api_urls")),
     path("reviews/", include("reviews.urls")),
 
     # Pratinjau halaman 404 (produksi otomatis pakai templates/404.html)
