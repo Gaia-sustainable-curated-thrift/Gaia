@@ -68,3 +68,21 @@ class ProductApiTests(TestCase):
         self.assertEqual(self.product.title, 'Updated jacket')
         self.assertEqual(self.client.delete(f'/api/products/{self.product.pk}/').status_code, 204)
         self.assertFalse(Product.objects.filter(pk=self.product.pk).exists())
+
+
+class LocalFlutterCorsTests(TestCase):
+    def test_localhost_flutter_origin_is_allowed(self):
+        response = self.client.options(
+            '/api/products/',
+            HTTP_ORIGIN='http://localhost:53723',
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD='GET',
+        )
+        self.assertEqual(response['Access-Control-Allow-Origin'], 'http://localhost:53723')
+
+    def test_non_local_origin_is_not_allowed(self):
+        response = self.client.options(
+            '/api/products/',
+            HTTP_ORIGIN='https://untrusted.example',
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD='GET',
+        )
+        self.assertNotIn('Access-Control-Allow-Origin', response)
