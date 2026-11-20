@@ -700,3 +700,42 @@ Migrasi `accounts.0007` menyelaraskan aturan username tidak peka huruf besar/kec
 - Avatar baru disimpan di Cloudinary ketika `CLOUDINARY_URL` tersedia; pengujian selalu memakai storage lokal. Path avatar lokal lama tetap bisa dibaca selama filenya tersedia. Untuk menyalin avatar lama ke Cloudinary, jalankan `python manage.py persist_avatars --dry-run`, lalu `python manage.py persist_avatars` pada environment deployment. Command mempertahankan backup lokal dan melewati file yang sudah dipindah. File yang sudah hilang pada deploy sebelumnya tidak dapat dipulihkan tanpa backup atau upload ulang.
 
 Perubahan ini memerlukan migrasi `accounts.0008_auth_throttle_persistent_avatar`. Tes browser akun juga membuktikan hapus bag setelah login dan Back saat fetch tertunda.
+
+## API User untuk Gaia Mobile
+
+Backend menyediakan DRF pada `/api/accounts/` dengan database User/Profile/WishlistItem yang sama dengan halaman web. Flutter pendamping: https://github.com/Gaia-sustainable-curated-thrift/gaia-mobile/tree/feat/user-api-integration.
+
+| Metode | Route relatif terhadap `/api/accounts/` | Fungsi |
+| --- | --- | --- |
+| POST | `register/` | `full_name`, `email`, `password1`, `password2`; mengembalikan token dan user |
+| POST | `login/` | `username` (email/username), `password`; mengembalikan token dan user |
+| POST | `logout/` | Cabut token mobile; respons 204 |
+| GET, PATCH, DELETE | `me/` | Profil sendiri; PATCH field profil, DELETE dengan password, confirmation DELETE, acknowledge true |
+| GET | `wishlist/?page=1` | Pagination 12 item: count, next, previous, results |
+| POST | `wishlist/products/<product_id>/` | Simpan produk tersedia milik pengguna lain |
+| DELETE | `wishlist/<item_id>/` | Soft delete favorit sendiri |
+| POST | `wishlist/<item_id>/restore/` | Undo favorit sendiri |
+| POST | `verify/resend/` | Kirim ulang email verifikasi, cooldown 60 detik |
+| POST | `password/change/` | old_password, new_password1, new_password2; mencabut token |
+| POST | `password/reset/` | email; tautan menuju form reset web |
+
+Endpoint privat memakai `Authorization: Token <token>`, tanpa cookie/session browser. Web tetap memakai CSRF dan session. Form web dipakai ulang untuk validasi nama, email unik, profil, password, serta konfirmasi penghapusan. Pembatasan login/reset berbagi bucket database dengan web, termasuk identitas email/username yang mengacu ke akun sama. Endpoint register juga dibatasi per IP. Respons akun diberi Cache-Control no-store.
+
+Satu token DRF per akun: logout mobile mencabut token pada seluruh perangkat mobile akun tersebut, tidak mengakhiri sesi browser. Perubahan password dari web/mobile mencabut token lama. Login Google dan konfirmasi penghapusan akun eksternal tetap melalui web; DELETE API menolak akun tanpa password lokal. Penghapusan akun lokal tetap menolak pesanan pembelian/penjualan aktif. Token juga diterima oleh endpoint DRF Product, dengan izin kepemilikan yang tetap berlaku.
+
+Deploy:
+
+1. Merge branch backend `feat/user-mobile-api` setelah review dan CI.
+2. Jalankan `python manage.py migrate` pada database deployment untuk tabel `authtoken` bawaan DRF. Tidak ada perubahan skema model User milik proyek.
+3. Deploy aplikasi web. Workflow PWS saat ini dipicu oleh push ke `main`, sehingga push branch fitur saja belum membuat endpoint publik aktif.
+4. Pastikan layanan email/SMTP dikonfigurasi. Reset/verifikasi mengirim tautan ke halaman web yang sudah ada.
+5. Jalankan Flutter dengan GAIA_USER_API_BASE_URL menunjuk URL lengkap `/api/accounts/` dengan trailing slash. Default menggunakan situs PWS Gaia.
+
+Pengujian:
+
+```bash
+python manage.py test accounts.test_api accounts.tests products.tests --noinput
+python manage.py makemigrations --check --dry-run
+```
+
+Pengujian API mencakup registrasi dan validasi unik, login email/username, profil pribadi/read-only email, token logout/password, wishlist lintasuser, cooldown, dan penghapusan dengan pesanan aktif. Smoke test HTTP nyata kode Dart tersedia di `tool/user_api_smoke.dart` pada repository mobile; jalankan hanya dengan backend/database lokal terisolasi dan backend email in-memory. Uji lokal tidak membuktikan deployment PWS atau pengiriman email produksi.
